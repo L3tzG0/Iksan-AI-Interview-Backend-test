@@ -1,1 +1,7 @@
-ECHO is on.
+fastapi>=0.121.3
+uvicorn[standard]>=0.38.0
+supabase>=2.9.0
+python-dotenv>=1.2.1
+pydantic-settings>=2.12.0
+python-multipart>=0.0.20
+email-validator>=2.3.0
