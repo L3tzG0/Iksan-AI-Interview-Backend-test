@@ -1,6 +1,6 @@
 from app.schemas.auth import Token, TokenData, LoginRequest, RegisterRequest
 from app.schemas.role import RoleBase, RoleCreate, RoleResponse
-from app.schemas.user import UserBase, UserCreate, UserUpdate, UserResponse, UserWithRole
+from app.schemas.user import UserProfileBase, UserProfileCreate, UserProfileUpdate, UserProfileResponse, UserProfileWithRole
 from app.schemas.teacher import TeacherBase, TeacherCreate, TeacherResponse, TeacherWithUser
 from app.schemas.school import SchoolBase, SchoolCreate, SchoolUpdate, SchoolResponse
 from app.schemas.major import MajorBase, MajorCreate, MajorUpdate, MajorResponse

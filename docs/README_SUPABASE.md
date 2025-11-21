@@ -75,8 +75,8 @@ Client Request → FastAPI Endpoint → Supabase Client → PostgreSQL → Respo
 ## API Documentation
 
 Once running, visit:
-- Swagger UI: `http://localhost:8000/docs`
-- ReDoc: `http://localhost:8000/redoc`
+- Swagger UI: `http://127.0.0.1:8000/docs`
+- ReDoc: `http://127.0.0.1:8000/redoc`
 
 ## Project Structure
 
@@ -151,7 +151,7 @@ ALTER TABLE public.teachers ENABLE ROW LEVEL SECURITY;
 
 **Register:**
 ```bash
-curl -X POST http://localhost:8000/api/v1/auth/register \
+curl -X POST http://127.0.0.1:8000/api/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "email": "test@example.com",
@@ -163,7 +163,7 @@ curl -X POST http://localhost:8000/api/v1/auth/register \
 
 **Login:**
 ```bash
-curl -X POST http://localhost:8000/api/v1/auth/login \
+curl -X POST http://127.0.0.1:8000/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "test@example.com",
@@ -173,7 +173,7 @@ curl -X POST http://localhost:8000/api/v1/auth/login \
 
 **Protected Route:**
 ```bash
-curl http://localhost:8000/api/v1/auth/me \
+curl http://127.0.0.1:8000/api/v1/auth/me \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 

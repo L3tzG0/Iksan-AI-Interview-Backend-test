@@ -2,43 +2,46 @@ from typing import List, Annotated
 from fastapi import APIRouter, Depends
 from supabase import Client
 from app.core.database import get_supabase
-from app.schemas.user import UserResponse, UserUpdate
+from app.schemas.user import UserProfileResponse, UserProfileUpdate
+from app.services.user_service import UserProfileService
+from uuid import UUID
 
 router = APIRouter()
 
-@router.get("/", response_model=List[UserResponse])
-async def read_users(
+@router.get("/", response_model=List[UserProfileResponse])
+async def read_user_profiles(
     supabase: Annotated[Client, Depends(get_supabase)],
     skip: int = 0,
     limit: int = 100
 ):
     """
-    Retrieve users.
+    Retrieve user profiles.
     """
-    response = supabase.table('users').select('*').range(skip, skip + limit - 1).execute()
-    return response.data
+    service = UserProfileService(supabase)
+    profiles = await service.get_all_profiles(skip, limit)
+    return profiles
 
-@router.get("/{user_id}", response_model=UserResponse)
-async def read_user_by_id(
-    user_id: int,
+@router.get("/{user_id}", response_model=UserProfileResponse)
+async def read_user_profile_by_id(
+    user_id: UUID,
     supabase: Annotated[Client, Depends(get_supabase)]
 ):
     """
-    Get a specific user by id.
+    Get a specific user profile by UUID.
     """
-    response = supabase.table('users').select('*').eq('id', user_id).execute()
-    if not response.data:
-        from fastapi import HTTPException
-        raise HTTPException(status_code=404, detail="User not found")
-    return response.data[0]
+    service = UserProfileService(supabase)
+    profile = await service.get_profile(user_id)
+    return profile
 
-@router.put("/{user_id}", response_model=UserResponse)
-async def update_user(
-    user_id: int,
-    user_in: UserUpdate,
+@router.put("/{user_id}", response_model=UserProfileResponse)
+async def update_user_profile(
+    user_id: UUID,
+    profile_in: UserProfileUpdate,
     supabase: Annotated[Client, Depends(get_supabase)]
 ):
     """
-    Update a user.
+    Update a user profile.
     """
-    pass
+    service = UserProfileService(supabase)
+    profile = await service.update_profile(user_id, profile_in)
+    return profile

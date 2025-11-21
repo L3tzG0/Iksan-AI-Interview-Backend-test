@@ -1,6 +1,6 @@
 from app.models.base import Base
 from app.models.role import Role
-from app.models.user import User
+from app.models.user import UserProfile
 from app.models.teacher import Teacher
 from app.models.school import School
 from app.models.major import Major

@@ -170,23 +170,23 @@ CREATE TABLE public.interview_scores (
 uvicorn app.main:app --reload
 ```
 
-The server will start at **http://localhost:8000**
+The server will start at **http://127.0.0.1:8000**
 
 ### 7. Test the API
 
 Open your browser and visit:
-- **Hello from IKSAN AI Interview**: http://localhost:8000/
-- **Healh Check**: http://localhost:8000/health
+- **Hello from IKSAN AI Interview**: http://127.0.0.1:8000/
+- **Healh Check**: http://127.0.0.1:8000/health
 
 ## API Documentation
 
 Once the server is running, access the interactive API documentation:
 
 ### Swagger UI
-http://localhost:8000/docs
+http://127.0.0.1:8000/docs
 
 ### ReDoc
-http://localhost:8000/redoc
+http://127.0.0.1:8000/redoc
 
 ## 🔐 Authentication Flow
 

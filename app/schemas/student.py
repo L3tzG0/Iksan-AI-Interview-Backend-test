@@ -1,12 +1,13 @@
 from typing import Optional
 from pydantic import BaseModel
-from app.schemas.user import UserResponse
+from uuid import UUID
+from app.schemas.user import UserProfileResponse
 from app.schemas.school import SchoolResponse
 from app.schemas.major import MajorResponse
 from app.schemas.class_schema import ClassResponse
 
 class StudentBase(BaseModel):
-    user_id: int
+    user_id: UUID
     school_id: int
     major_id: int
     current_class_id: int
@@ -26,7 +27,7 @@ class StudentResponse(StudentBase):
         from_attributes = True
 
 class StudentWithDetails(StudentResponse):
-    user: UserResponse
+    user_profile: UserProfileResponse
     school: SchoolResponse
     major: MajorResponse
     current_class: ClassResponse

@@ -150,7 +150,7 @@ def main():
         print("   1. Create your database schema in Supabase Dashboard")
         print("   2. Set up Row Level Security (RLS) policies")
         print("   3. Start the server: uvicorn app.main:app --reload")
-        print("   4. Test endpoints at http://localhost:8000/docs")
+        print("   4. Test endpoints at http://127.0.0.1:8000/docs")
         print("=" * 60)
         return 0
     else:
