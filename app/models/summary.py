@@ -2,7 +2,7 @@ from sqlalchemy import Integer, ForeignKey, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
-class Summary(Base):
+class InterviewSummary(Base):
     __tablename__ = "summaries"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)

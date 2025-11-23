@@ -9,6 +9,6 @@ from app.models.student import Student
 from app.models.interview_session import InterviewSession
 from app.models.document import Document
 from app.models.interview_score import InterviewScore
-from app.models.summary import Summary
-from app.models.detailed_feedback import DetailedFeedback
-from app.models.next_step import NextStep
+from app.models.summary import InterviewSummary
+from app.models.detailed_feedback import InterviewDetailedFeedback
+from app.models.next_step import InterviewNextStep

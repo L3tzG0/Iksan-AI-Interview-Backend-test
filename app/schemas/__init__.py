@@ -9,6 +9,6 @@ from app.schemas.student import StudentBase, StudentCreate, StudentUpdate, Stude
 from app.schemas.interview_session import InterviewSessionBase, InterviewSessionCreate, InterviewSessionUpdate, InterviewSessionResponse, InterviewSessionWithDetails
 from app.schemas.document import DocumentBase, DocumentCreate, DocumentResponse
 from app.schemas.interview_score import InterviewScoreBase, InterviewScoreCreate, InterviewScoreUpdate, InterviewScoreResponse
-from app.schemas.summary import SummaryBase, SummaryCreate, SummaryUpdate, SummaryResponse
-from app.schemas.detailed_feedback import DetailedFeedbackBase, DetailedFeedbackCreate, DetailedFeedbackUpdate, DetailedFeedbackResponse
-from app.schemas.next_step import NextStepBase, NextStepCreate, NextStepUpdate, NextStepResponse
+from app.schemas.summary import InterviewSummaryBase, InterviewSummaryCreate, InterviewSummaryUpdate, InterviewSummaryResponse
+from app.schemas.detailed_feedback import InterviewDetailedFeedbackBase, InterviewDetailedFeedbackCreate, InterviewDetailedFeedbackUpdate, InterviewDetailedFeedbackResponse
+from app.schemas.next_step import InterviewNextStepBase, InterviewNextStepCreate, InterviewNextStepUpdate, InterviewNextStepResponse

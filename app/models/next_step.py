@@ -2,7 +2,7 @@ from sqlalchemy import String, Integer, ForeignKey, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
-class NextStep(Base):
+class InterviewNextStep(Base):
     __tablename__ = "next_steps"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)

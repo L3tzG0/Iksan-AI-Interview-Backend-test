@@ -2,7 +2,7 @@ from sqlalchemy import String, Integer, ForeignKey, Text, Boolean, Numeric
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
-class DetailedFeedback(Base):
+class InterviewDetailedFeedback(Base):
     __tablename__ = "detailed_feedbacks"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
