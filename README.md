@@ -5,12 +5,9 @@ A FastAPI-based backend service for the Iksan AI Interview platform, powered by 
 ##  Features
 
 - **Supabase Authentication** - Secure user authentication with JWT tokens
-- **Role-Based Access Control** - Support for students, teachers, and admins
-- **Interview Management** - Track and manage AI-powered interview sessions
-- **Score Analytics** - Comprehensive scoring and feedback system
+- **Role-Based Access Control** - Support for students and teachers
 - **RESTful API** - Well-documented OpenAPI/Swagger endpoints
 - **Row Level Security** - Database-level security policies
-- **Real-time Ready** - Built on Supabase for future real-time features
 
 ##  Prerequisites
 
@@ -71,98 +68,7 @@ SUPABASE_KEY=your-anon-key-here
 4. Copy the **Project URL** and **anon/public** key
 
 ### 5. Set Up Database Schema
-
-Go to your Supabase Dashboard → **SQL Editor** and run the following SQL:
-
-```sql
--- Roles table
-CREATE TABLE public.roles (
-    id SERIAL PRIMARY KEY,
-    role_name TEXT UNIQUE NOT NULL,
-    description TEXT
-);
-
-INSERT INTO public.roles (role_name, description) VALUES
-('student', 'Student role'),
-('teacher', 'Teacher role'),
-('admin', 'Administrator role');
-
--- Users table (extends auth.users)
-CREATE TABLE public.users (
-    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-    email TEXT UNIQUE NOT NULL,
-    full_name TEXT,
-    role_id INTEGER REFERENCES public.roles(id),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Schools table
-CREATE TABLE public.schools (
-    id SERIAL PRIMARY KEY,
-    school_name TEXT NOT NULL,
-    location TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Majors table
-CREATE TABLE public.majors (
-    id SERIAL PRIMARY KEY,
-    major_name TEXT NOT NULL,
-    description TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Students table
-CREATE TABLE public.students (
-    id SERIAL PRIMARY KEY,
-    user_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
-    school_id INTEGER REFERENCES public.schools(id),
-    major_id INTEGER REFERENCES public.majors(id),
-    student_id_number TEXT,
-    grade_level INTEGER,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Teachers table
-CREATE TABLE public.teachers (
-    id SERIAL PRIMARY KEY,
-    user_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
-    school_id INTEGER REFERENCES public.schools(id),
-    department TEXT,
-    years_of_experience INTEGER,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Classes table
-CREATE TABLE public.classes (
-    id SERIAL PRIMARY KEY,
-    class_name TEXT NOT NULL,
-    teacher_id INTEGER REFERENCES public.teachers(id),
-    school_id INTEGER REFERENCES public.schools(id),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Interview Sessions table
-CREATE TABLE public.interview_sessions (
-    id SERIAL PRIMARY KEY,
-    student_id INTEGER REFERENCES public.students(id),
-    session_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    status TEXT DEFAULT 'pending',
-    total_score DECIMAL(5,2),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Interview Scores table
-CREATE TABLE public.interview_scores (
-    id SERIAL PRIMARY KEY,
-    session_id INTEGER REFERENCES public.interview_sessions(id),
-    category TEXT NOT NULL,
-    score DECIMAL(5,2),
-    max_score DECIMAL(5,2),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-```
+Go to your Supabase Dashboard → SQL Editor and run the SQL queries in `/queries`
 
 ### 6. Run the Application
 

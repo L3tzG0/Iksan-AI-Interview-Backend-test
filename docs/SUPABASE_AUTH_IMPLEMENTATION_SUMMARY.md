@@ -85,40 +85,6 @@ Successfully implemented **Option 2: Hybrid Approach** - Supabase Auth for authe
    Social Auth
 ```
 
-## Next Steps
-
-### To Apply This Migration:
-
-1. **Run SQL Migration**
-   ```bash
-   # Go to Supabase Dashboard → SQL Editor
-   # Execute: migrations/001_user_profiles_setup.sql
-   ```
-
-2. **Test Registration**
-   ```bash
-   curl -X POST http://127.0.0.1:8000/api/v1/auth/register \
-     -H "Content-Type: application/json" \
-     -d '{"email": "test@example.com", "password": "Test123!", "full_name": "Test User", "role_id": 1}'
-   ```
-
-3. **Verify Profile Creation**
-   ```bash
-   # Check Supabase Dashboard → Table Editor → user_profiles
-   # Should see auto-created profile with UUID id
-   ```
-
-4. **Test Login & Protected Routes**
-   ```bash
-   # Login
-   curl -X POST http://127.0.0.1:8000/api/v1/auth/login \
-     -H "Content-Type: application/json" \
-     -d '{"email": "test@example.com", "password": "Test123!"}'
-   
-   # Get current user
-   curl http://127.0.0.1:8000/api/v1/auth/me \
-     -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
-   ```
 
 ### Future Enhancements:
 
@@ -177,30 +143,3 @@ Successfully implemented **Option 2: Hybrid Approach** - Supabase Auth for authe
 - Old `users` table dropped (data will be lost if not migrated)
 - New `user_profiles` table uses UUID primary key
 - Foreign keys in `students` and `teachers` changed to UUID
-
-## Migration Checklist
-
-- [ ] Backup database
-- [ ] Run SQL migration in Supabase Dashboard
-- [ ] Restart application
-- [ ] Test user registration
-- [ ] Test user login
-- [ ] Test profile queries
-- [ ] Verify trigger is working
-- [ ] Check RLS policies
-- [ ] Update frontend/mobile clients (if any)
-- [ ] Update API documentation
-
-## Support
-
-If you encounter issues:
-1. Check `MIGRATION_TO_USER_PROFILES.md` for detailed troubleshooting
-2. Verify trigger exists: `SELECT * FROM pg_trigger WHERE tgname = 'on_auth_user_created'`
-3. Check Supabase Dashboard logs
-4. Review application logs for errors
-
----
-
-**Implementation Status**: ✅ COMPLETE
-
-All code changes have been applied. Ready for database migration and testing.
