@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Any, Dict
 from datetime import datetime
 from pydantic import BaseModel, EmailStr
 
@@ -25,6 +25,9 @@ class UserResponse(BaseModel):
     email: str
     full_name: Optional[str] = None
     role_id: Optional[int] = None
+    role_name: Optional[str] = None
+    student_details: Optional[Dict[str, Any]] = None
+    teacher_details: Optional[Dict[str, Any]] = None
     created_at: datetime
     
     class Config:

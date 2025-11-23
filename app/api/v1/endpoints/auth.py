@@ -65,17 +65,52 @@ async def read_users_me(
 ):
     """
     Get current authenticated user information.
-    Returns combined data from auth.users and public.user_profiles.
+    Returns combined data from auth.users, public.user_profiles, and role information.
+    If user is a student, includes student details (school, major, class).
+    If user is a teacher, includes teacher details.
     """
-    # Try to get profile from user_profiles table
     profile_service = UserProfileService(supabase)
+    
     try:
-        profile = await profile_service.get_profile(current_user.id)
+        # Get profile with role information
+        profile = await profile_service.get_profile_with_role(current_user.id)
+        
+        # Extract role information
+        role_name = None
+        roles_data = profile.get("roles") if isinstance(profile, dict) else None
+        if roles_data and isinstance(roles_data, dict):
+            role_name = roles_data.get("role_name")
+        
+        # Get student or teacher details based on role_id
+        student_details = None
+        teacher_details = None
+        
+        role_id = profile.get("role_id") if isinstance(profile, dict) else None
+        
+        # Fetch student/teacher details for all users (will return None if not applicable)
+        if role_id:
+            student_details = await profile_service.get_student_details(current_user.id)
+            teacher_details = await profile_service.get_teacher_details(current_user.id)
+        
+        # Extract and cast values properly
+        full_name = profile.get("full_name") if isinstance(profile, dict) else None
+        full_name_str = str(full_name) if full_name is not None else None
+        
+        role_id_int = int(role_id) if role_id is not None and isinstance(role_id, (int, float, str)) else None
+        role_name_str = str(role_name) if role_name is not None else None
+        
+        # Cast details to dict if they exist
+        student_dict = dict(student_details) if student_details and isinstance(student_details, dict) else None
+        teacher_dict = dict(teacher_details) if teacher_details and isinstance(teacher_details, dict) else None
+        
         return UserResponse(
             id=current_user.id,
             email=current_user.email,
-            full_name=profile.get("full_name"),
-            role_id=profile.get("role_id"),
+            full_name=full_name_str,
+            role_id=role_id_int,
+            role_name=role_name_str,
+            student_details=student_dict,
+            teacher_details=teacher_dict,
             created_at=current_user.created_at
         )
     except HTTPException:
