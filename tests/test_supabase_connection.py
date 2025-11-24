@@ -1,6 +1,15 @@
 """
 Test script to verify Supabase connection and retrieve schools data
 """
+import os
+import sys
+
+# Ensure the project root is on sys.path so `app` package imports work when running
+# this file directly (prevents ModuleNotFoundError in certain environments).
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+
 from app.core.database import supabase
 from app.core.config import settings
 
@@ -21,15 +30,32 @@ def test_connection():
         print("-" * 60)
         
         response = supabase.table('schools').select('*').execute()
+
+        # Check for API errors
+        if getattr(response, 'error', None) is not None:
+            print(f"\n✗ Supabase error: {getattr(response, 'error', None)}")
+            return False
+
+        # Fallback: some client versions return dict-like responses
+        data = None
+        if hasattr(response, 'data'):
+            data = response.data
+        elif isinstance(response, dict) and 'data' in response:
+            data = response['data']
+        else:
+            data = []
         
         print(f"\n✓ Connection successful!")
-        print(f"✓ Total schools found: {len(response.data)}")
+        print(f"✓ Total schools found: {len(data)}")
         
-        if response.data:
+        if data:
             print("\nSchools data:")
             print("-" * 60)
-            for idx, school in enumerate(response.data, 1):
-                print(f"{idx}. ID: {school.get('id')}, Name: {school.get('school_name')}")
+            for idx, school in enumerate(data, 1):
+                if isinstance(school, dict):
+                    print(f"{idx}. ID: {school.get('id')}, Name: {school.get('school_name')}")
+                else:
+                    print(f"{idx}. {school}")
         else:
             print("\n⚠ No schools found in the database (table is empty)")
         
@@ -38,11 +64,13 @@ def test_connection():
         print("Test 2: Checking schools table structure")
         print("-" * 60)
         
-        if response.data:
-            sample_record = response.data[0]
-            print(f"\nColumns in schools table:")
-            for key in sample_record.keys():
-                print(f"  - {key}: {type(sample_record[key]).__name__}")
+        if data:
+            sample_record = data[0]
+            if isinstance(sample_record, dict):
+                for key in sample_record.keys():
+                    print(f"  - {key}: {type(sample_record[key]).__name__}")
+            else:
+                print("  - Sample record is not a mapping; unable to list keys")
         
         print("\n" + "=" * 60)
         print("✓ All tests passed successfully!")
