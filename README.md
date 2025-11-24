@@ -118,7 +118,6 @@ Iksan-AI-Interview-Backend/
 │   │   ├── config.py               # Configuration settings
 │   │   ├── database.py             # Supabase client setup
 │   │   └── security.py             # JWT validation
-│   ├── models/                     # Data models (kept for reference)
 │   ├── schemas/                    # Pydantic schemas
 │   │   ├── auth.py                 # Auth request/response models
 │   │   ├── user.py
