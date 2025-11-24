@@ -124,11 +124,6 @@ Iksan-AI-Interview-Backend/
 │   │   ├── user.py
 │   │   ├── student.py
 │   │   └── ...
-│   ├── services/                   # Business logic layer
-│   │   ├── auth_service.py         # Auth operations
-│   │   ├── user_service.py         # User CRUD
-│   │   ├── student_service.py
-│   │   └── ...
 │   └── main.py                     # FastAPI application entry point
 ├── .env                            # Environment variables (not in git)
 ├── .gitignore
