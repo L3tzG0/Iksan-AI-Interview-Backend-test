@@ -215,3 +215,22 @@ GRANT USAGE ON SCHEMA public TO supabase_auth_admin;
 GRANT ALL ON user_profiles TO supabase_auth_admin;
 GRANT ALL ON students TO supabase_auth_admin;
 GRANT ALL ON teachers TO supabase_auth_admin;
+
+-- Grant sequence permissions to service_role and other roles for BIGSERIAL columns
+-- This fixes "permission denied for sequence" errors
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO service_role, authenticated, anon;
+
+-- Grant table permissions to service_role (used by backend with SUPABASE_KEY)
+GRANT ALL ON public.roles TO service_role;
+GRANT ALL ON public.schools TO service_role;
+GRANT ALL ON public.majors TO service_role;
+GRANT ALL ON public.user_profiles TO service_role;
+GRANT ALL ON public.teachers TO service_role;
+GRANT ALL ON public.classes TO service_role;
+GRANT ALL ON public.students TO service_role;
+GRANT ALL ON public.sessions TO service_role;
+GRANT ALL ON public.documents TO service_role;
+GRANT ALL ON public.scores TO service_role;
+GRANT ALL ON public.summaries TO service_role;
+GRANT ALL ON public.detailed_feedbacks TO service_role;
+GRANT ALL ON public.next_steps TO service_role;
