@@ -144,11 +144,3 @@ async def _rollback_session_creation(
             session_service.update_session_status(session_id, status="failed")
         except Exception as e:
             print(f"Warning: Failed to update session status during rollback: {str(e)}")
-
-
-@router.post("/", response_model=InterviewSessionResponse)
-async def create_session(
-    session_in: InterviewSessionCreate,
-    supabase: Annotated[Client, Depends(get_supabase)]
-):
-    pass
