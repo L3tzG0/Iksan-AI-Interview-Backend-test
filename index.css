@@ -1,0 +1,138 @@
+@import url('https://font.elice.io/css?family=Elice+DX+Neolli');
+
+:root {
+  color-scheme: light;
+  --elice-primary: #6700e6;
+  --elice-primary-soft: #cbb5ff;
+  --elice-surface: #ffffff;
+  --elice-bg: #f8f5ff;
+}
+
+* {
+  font-family: 'Elice DX Neolli', 'Noto Sans KR', 'Pretendard', sans-serif;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: var(--elice-bg);
+  background-image:
+    radial-gradient(circle at 10% 20%, rgba(149, 117, 255, 0.18), transparent 45%),
+    radial-gradient(circle at 85% 0%, rgba(255, 255, 255, 0.7), transparent 30%),
+    linear-gradient(180deg, #f8f5ff 0%, #fcfbff 35%, #f4eeff 100%);
+  color: #0f172a;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.bg-soft-pattern {
+  position: relative;
+  isolation: isolate;
+}
+
+.bg-soft-pattern::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(#d7c4ff 1px, transparent 1px);
+  background-size: 18px 18px;
+  opacity: 0.15;
+  z-index: -1;
+  mask-image: radial-gradient(circle at center, rgba(255, 255, 255, 0.8), transparent 70%);
+}
+
+.hero-blob {
+  position: absolute;
+  width: 240px;
+  height: 240px;
+  filter: blur(35px);
+  opacity: 0.4;
+  border-radius: 9999px;
+  animation: floatSoft 10s ease-in-out infinite;
+}
+
+.hero-blob--primary {
+  background: radial-gradient(circle, rgba(135, 92, 255, 0.6), transparent 60%);
+}
+
+.hero-blob--secondary {
+  background: radial-gradient(circle, rgba(255, 167, 236, 0.4), transparent 70%);
+  animation-delay: 2s;
+}
+
+.voice-wave {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 4px;
+  height: 48px;
+}
+
+.voice-wave-bar {
+  width: 5px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ff94c2, #ff4b8f);
+  animation: voiceWave 1.4s ease-in-out infinite;
+  opacity: 0.55;
+  transform-origin: center bottom;
+}
+
+.voice-wave-bar:nth-child(2n) {
+  animation-delay: 0.15s;
+}
+
+.voice-wave-bar:nth-child(3n) {
+  animation-delay: 0.3s;
+}
+
+.voice-wave-bar.is-paused {
+  opacity: 0.25;
+  animation-play-state: paused;
+}
+
+.card-fade-in {
+  animation: fadeUp 0.5s ease forwards;
+}
+
+@keyframes voiceWave {
+  0% {
+    transform: scaleY(0.4);
+  }
+  50% {
+    transform: scaleY(1.2);
+  }
+  100% {
+    transform: scaleY(0.4);
+  }
+}
+
+@keyframes floatSoft {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(10px, -20px, 0) scale(1.05);
+  }
+}
+
+@keyframes fadeUp {
+  0% {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 640px) {
+  body {
+    background-image:
+      radial-gradient(circle at 20% 20%, rgba(149, 117, 255, 0.18), transparent 45%),
+      linear-gradient(180deg, #f8f5ff 0%, #fff 100%);
+  }
+}
