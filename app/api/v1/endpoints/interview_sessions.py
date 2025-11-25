@@ -99,7 +99,8 @@ async def initiate_interview_session(
         assert session_id is not None, "Session ID must be set after creation"
         
         # Step 3: Process file or use raw_text
-        extracted_text: str
+        raw_text_extracted: str
+        cleaned_text_extracted: str
         
         if file:
             # File provided - process it (ignore raw_text if also provided)
@@ -120,19 +121,24 @@ async def initiate_interview_session(
             content_type = file.content_type or "application/octet-stream"
             storage_service.verify_file_signature(file_bytes, content_type)
             
-            # Step 3c: Extract text from document
-            extracted_text = extraction_service.extract_text_from_file(
+            # Step 3c: Extract text from document (returns raw and cleaned versions)
+            raw_text_extracted, cleaned_text_extracted = extraction_service.extract_text_from_file(
                 file_bytes=file_bytes,
                 content_type=content_type
             )
         else:
-            # Only raw_text provided - use it directly
-            extracted_text = raw_text  # type: ignore
+            # Only raw_text provided - use it directly for both raw and cleaned
+            # At this point raw_text is guaranteed to be str due to validation above
+            if raw_text is None:
+                raise HTTPException(status_code=400, detail="raw_text cannot be None")
+            raw_text_extracted = raw_text
+            cleaned_text_extracted = raw_text
         
-        # Step 4: Save extracted_text to documents table
+        # Step 4: Save both raw and cleaned text to documents table
         document = document_service.create_document(
             session_id=session_id,
-            raw_text=extracted_text
+            raw_text=raw_text_extracted,
+            cleaned_text=cleaned_text_extracted
         )
         
         # Step 5: Create initial detailed_feedbacks record

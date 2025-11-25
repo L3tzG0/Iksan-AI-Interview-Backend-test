@@ -13,14 +13,16 @@ class DocumentService:
     def create_document(
         self,
         session_id: int,
-        raw_text: str
+        raw_text: str,
+        cleaned_text: str
     ) -> Any:
         """
-        Create document record in database with extracted text only
+        Create document record in database with extracted text
         
         Args:
             session_id: ID of the interview session
-            raw_text: Extracted text content
+            raw_text: Raw extracted text content
+            cleaned_text: LLM-optimized cleaned text content
         
         Returns:
             dict: Created document record
@@ -31,7 +33,8 @@ class DocumentService:
         try:
             document_data = {
                 "session_id": session_id,
-                "raw_text": raw_text
+                "raw_text": raw_text,
+                "cleaned_text": cleaned_text
             }
             
             response = self.supabase.table('documents').insert(document_data).execute()
