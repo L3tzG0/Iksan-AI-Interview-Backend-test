@@ -96,7 +96,7 @@ CREATE INDEX idx_sessions_student_id ON sessions(student_id);
 CREATE TABLE documents (
   id                    BIGSERIAL PRIMARY KEY,
   session_id            BIGINT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-  raw_text              TEXT
+  cleaned_text              TEXT
 );
 
 CREATE INDEX idx_documents_session_id ON documents(session_id);
