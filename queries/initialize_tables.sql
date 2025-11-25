@@ -96,9 +96,7 @@ CREATE INDEX idx_sessions_student_id ON sessions(student_id);
 CREATE TABLE documents (
   id                    BIGSERIAL PRIMARY KEY,
   session_id            BIGINT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-  raw_text              TEXT,
-  document_path         TEXT,
-  processed_at          TIMESTAMPTZ
+  raw_text              TEXT
 );
 
 CREATE INDEX idx_documents_session_id ON documents(session_id);
@@ -123,14 +121,13 @@ CREATE TABLE summaries (
 CREATE TABLE detailed_feedbacks (
   id                    BIGSERIAL PRIMARY KEY,
   session_id            BIGINT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-  question_order        INT NOT NULL,
+  question_order        INT,
   question_text         TEXT,
   answer_text           TEXT,
   evaluation_text       TEXT,
   is_correct            BOOLEAN DEFAULT FALSE,
   score                 NUMERIC(5,2) CHECK (score >= 0),
-  transcript            TEXT,
-  audio_path            TEXT
+  transcript            TEXT
 );
 
 CREATE INDEX idx_detailed_feedbacks_session_id ON detailed_feedbacks(session_id);

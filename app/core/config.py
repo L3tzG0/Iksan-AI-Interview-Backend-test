@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     # Supabase
     SUPABASE_URL: str
     SUPABASE_KEY: str
+    # DEPRECATED: Storage bucket not currently in use - kept for future implementation
     SUPABASE_STORAGE_BUCKET: str
     
     # File Upload

@@ -3,17 +3,17 @@ from pydantic import BaseModel
 
 class InterviewDetailedFeedbackBase(BaseModel):
     session_id: int
-    question_order: int
-    question_text: str
-    answer_text: str
-    evaluation_text: str
-    is_correct: bool
-    score: float
-    transcript: str
-    audio_path: str
+    question_order: Optional[int] = None
+    question_text: Optional[str] = None
+    answer_text: Optional[str] = None
+    evaluation_text: Optional[str] = None
+    is_correct: bool = False
+    score: Optional[float] = None
+    transcript: Optional[str] = None
 
-class InterviewDetailedFeedbackCreate(InterviewDetailedFeedbackBase):
-    pass
+class InterviewDetailedFeedbackCreate(BaseModel):
+    """Simplified for initial creation - only requires session_id"""
+    session_id: int
 
 class InterviewDetailedFeedbackUpdate(BaseModel):
     evaluation_text: Optional[str] = None

@@ -13,18 +13,14 @@ class DocumentService:
     def create_document(
         self,
         session_id: int,
-        document_path: str,
-        raw_text: str,
-        processed_at: datetime
+        raw_text: str
     ) -> Any:
         """
-        Create document record in database
+        Create document record in database with extracted text only
         
         Args:
             session_id: ID of the interview session
-            document_path: Storage path of the uploaded file
             raw_text: Extracted text content
-            processed_at: Timestamp when text was extracted
         
         Returns:
             dict: Created document record
@@ -35,9 +31,7 @@ class DocumentService:
         try:
             document_data = {
                 "session_id": session_id,
-                "document_path": document_path,
-                "raw_text": raw_text,
-                "processed_at": processed_at.isoformat()
+                "raw_text": raw_text
             }
             
             response = self.supabase.table('documents').insert(document_data).execute()

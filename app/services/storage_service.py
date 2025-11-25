@@ -7,7 +7,13 @@ from app.core.config import settings
 
 
 class StorageService:
-    """Service for handling Supabase storage operations"""
+    """
+    Service for handling Supabase storage operations
+    
+    DEPRECATED: Storage functionality is currently not in use.
+    This service is preserved for future implementation when file storage is needed.
+    Currently only used for file validation (validate_file method).
+    """
     
     def __init__(self, supabase: Client):
         self.supabase = supabase

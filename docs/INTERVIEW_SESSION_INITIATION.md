@@ -2,7 +2,9 @@
 
 ## Overview
 
-The interview session initiation process allows students to upload documents (resume, portfolio, etc.) to start a new AI interview session. The system processes the document synchronously, extracting text content and storing it for interview generation.
+The interview session initiation process allows students to upload documents (resume, portfolio, etc.) to start a new AI interview session. The system processes the document text extraction synchronously and stores it for interview generation.
+
+**Note:** File storage to Supabase bucket is currently **deprecated**. Files are processed in-memory only, and text content is stored in the database.
 
 ## Architecture
 
@@ -11,29 +13,31 @@ The interview session initiation process allows students to upload documents (re
 ```
 Frontend → Upload Document → Backend API
                                 ↓
-                        Validate File
+                        Validate File Type & Size
                                 ↓
                     Create Session (status: "in_progress")
                                 ↓
-                    Upload to Supabase Storage
+                    Extract Text from Document (in-memory)
                                 ↓
-                    Extract Text from Document
+                    Save raw_text to documents table
                                 ↓
-                    Save Document Record to DB
+                Create detailed_feedbacks record (session_id only)
                                 ↓
-                        Return Response
+                    Return Success Response
                                 ↓
-            (If any step fails → Rollback)
+            (If any step fails → Mark session as "failed")
 ```
 
 ### Components
 
-#### 1. Storage Service (`app/services/storage_service.py`)
-Handles all Supabase storage operations:
+#### 1. Storage Service (`app/services/storage_service.py`) - DEPRECATED
+**Status:** Currently only used for file validation
 - **File Validation** - Checks file type and size
-- **Upload** - Stores files in organized bucket structure
-- **Delete** - Removes files (used in rollback)
-- **URL Generation** - Creates public/signed URLs
+- **Upload** - ~~Stores files in organized bucket structure~~ (deprecated)
+- **Delete** - ~~Removes files~~ (deprecated)
+- **URL Generation** - ~~Creates public/signed URLs~~ (deprecated)
+
+**Note:** Upload/delete/URL generation methods are preserved for future use but not currently utilized.
 
 #### 2. Text Extraction Service (`app/services/text_extraction_service.py`)
 Extracts text content from uploaded documents:
@@ -44,7 +48,7 @@ Extracts text content from uploaded documents:
 
 #### 3. Document Service (`app/services/document_service.py`)
 Manages document database records:
-- **Create Document** - Inserts document metadata and extracted text
+- **Create Document** - Inserts document with `session_id` and `raw_text` only
 - **Get Document** - Retrieves document by session ID
 
 #### 4. Interview Session Service (`app/services/interview_session_service.py`)
@@ -53,6 +57,10 @@ Manages interview session records:
 - **Update Status** - Updates session state and completion data
 - **Delete Session** - Hard delete for rollback scenarios
 - **Get Session** - Retrieves session by ID
+
+#### 5. Feedback Service (`app/services/feedback_service.py`)
+Manages feedback records:
+- **Create Detailed Feedback** - Creates initial empty feedback record with only `session_id`
 
 ## API Endpoint
 
@@ -120,15 +128,9 @@ console.log(data);
 
 ```json
 {
-  "session_id": 456,
-  "student_id": 123,
-  "status": "in_progress",
-  "document": {
-    "id": 789,
-    "document_path": "interviews/123/456/20251124_103000_a1b2c3d4_resume.pdf",
-    "processed_at": "2025-11-24T10:30:00.000000"
-  },
-  "created_at": "2025-11-24T10:30:00.000000"
+  "success": true,
+  "message": "Interview session initiated successfully",
+  "session_id": 456
 }
 ```
 
@@ -136,13 +138,9 @@ console.log(data);
 
 | Field | Type | Description |
 |-------|------|-------------|
+| `success` | boolean | Always `true` for successful requests |
+| `message` | string | Success message |
 | `session_id` | integer | Unique ID of the created interview session |
-| `student_id` | integer | ID of the student |
-| `status` | string | Current session status (always "in_progress" on creation) |
-| `document.id` | integer | Unique ID of the document record |
-| `document.document_path` | string | Storage path in Supabase bucket |
-| `document.processed_at` | string (ISO 8601) | Timestamp when text extraction completed |
-| `created_at` | string (ISO 8601) | Session creation timestamp |
 
 **Error Responses:**
 
@@ -163,6 +161,8 @@ Required in `.env` file:
 # Supabase Configuration
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_KEY=your-anon-key
+
+# DEPRECATED: Storage bucket not currently in use
 SUPABASE_STORAGE_BUCKET=iksan-ai-interview
 
 # File Upload Configuration
@@ -188,51 +188,11 @@ ALLOWED_FILE_TYPES = [
 
 ## Storage Structure
 
-### Supabase Storage Bucket
+### Supabase Storage - DEPRECATED
 
-**Bucket Name:** `iksan-ai-interview`
+**Status:** File storage is currently not in use. This section is kept for future reference.
 
-**File Path Format:**
-```
-interviews/{student_id}/{session_id}/{timestamp}_{uuid}_{original_filename}
-```
-
-**Example:**
-```
-interviews/123/456/20251124_103000_a1b2c3d4_resume.pdf
-```
-
-**Path Components:**
-- `{student_id}` - Student's unique ID
-- `{session_id}` - Interview session ID
-- `{timestamp}` - Upload timestamp (YYYYMMDD_HHMMSS)
-- `{uuid}` - Random 8-character UUID for uniqueness
-- `{original_filename}` - Original uploaded filename (spaces replaced with underscores)
-
-### Storage Policies
-
-Configure in Supabase Dashboard → Storage → Policies:
-
-**Recommended policies:**
-1. **Students can upload to their own folder**
-   ```sql
-   CREATE POLICY "Students can upload own documents"
-   ON storage.objects FOR INSERT
-   TO authenticated
-   WITH CHECK (
-     bucket_id = 'iksan-ai-interview' AND
-     (storage.foldername(name))[1] = 'interviews' AND
-     (storage.foldername(name))[2] = auth.uid()::text
-   );
-   ```
-
-2. **Service role has full access**
-   ```sql
-   CREATE POLICY "Service role full access"
-   ON storage.objects
-   TO service_role
-   USING (bucket_id = 'iksan-ai-interview');
-   ```
+Files are no longer uploaded to Supabase storage. Text content is extracted in-memory and stored directly in the database.
 
 ## Database Schema
 
@@ -265,11 +225,33 @@ Stores document metadata and extracted text:
 CREATE TABLE documents (
   id SERIAL PRIMARY KEY,
   session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-  raw_text TEXT,
-  document_path VARCHAR(500) NOT NULL,
-  processed_at TIMESTAMP
+  raw_text TEXT
 );
 ```
+
+**Note:** `document_path` and `processed_at` columns have been removed as files are no longer stored.
+
+### Detailed Feedbacks Table
+
+Stores interview feedback records:
+
+```sql
+CREATE TABLE detailed_feedbacks (
+  id SERIAL PRIMARY KEY,
+  session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  question_order INT,
+  question_text TEXT,
+  answer_text TEXT,
+  evaluation_text TEXT,
+  is_correct BOOLEAN DEFAULT FALSE,
+  score NUMERIC(5,2),
+  transcript TEXT
+);
+```
+
+**Note:** 
+- `audio_path` column has been removed as audio files are not stored
+- `question_order` is now nullable to allow initial empty record creation
 
 ## Process Flow Details
 
@@ -302,21 +284,7 @@ file_bytes = await file.read()
 - Checks size doesn't exceed `MAX_FILE_SIZE`
 - Returns 400 error if too large
 
-#### 4. **Upload to Storage**
-```python
-document_path = await storage_service.upload_document(
-    file_bytes=file_bytes,
-    filename=file.filename,
-    content_type=file.content_type,
-    student_id=student_id,
-    session_id=session_id
-)
-```
-- Generates unique storage path
-- Uploads to Supabase storage bucket
-- Returns storage path on success
-
-#### 5. **Text Extraction (Synchronous)**
+#### 4. **Text Extraction (Synchronous)**
 ```python
 raw_text = extraction_service.extract_text_from_file(
     file_bytes=file_bytes,
@@ -327,28 +295,30 @@ raw_text = extraction_service.extract_text_from_file(
 - **Future:** Will extract actual text based on file type
 - **Note:** This is a blocking operation - frontend waits for completion
 
-#### 6. **Create Document Record**
+#### 5. **Save Text to Database**
 ```python
 document = document_service.create_document(
     session_id=session_id,
-    document_path=document_path,
-    raw_text=raw_text,
-    processed_at=datetime.utcnow()
+    raw_text=raw_text
 )
 ```
 - Inserts record in `documents` table
 - Links document to session via `session_id`
 - Stores extracted text in `raw_text` field
-- Records processing completion time
+
+#### 6. **Create Feedback Record**
+```python
+await feedback_service.create_detailed_feedback(session_id=session_id)
+```
+- Inserts initial record in `detailed_feedbacks` table
+- Only `session_id` is populated, all other fields are NULL
 
 #### 7. **Build Response**
 ```python
 return SessionInitiateResponse(
-    session_id=session['id'],
-    student_id=session['student_id'],
-    status=session['status'],
-    document=DocumentUploadResponse(...),
-    created_at=session['created_at']
+    success=True,
+    message="Interview session initiated successfully",
+    session_id=session['id']
 )
 ```
 
@@ -356,20 +326,14 @@ return SessionInitiateResponse(
 
 ### Rollback Strategy
 
-If **any step fails** after session creation, the system performs a rollback:
+If **any step fails** after session creation, the system marks the session as failed:
 
 ```python
 async def _rollback_session_creation(
-    storage_service,
     session_service,
-    document_path,
     session_id
 ):
-    # 1. Delete uploaded file from storage
-    if document_path:
-        storage_service.delete_document(document_path)
-    
-    # 2. Mark session as failed (keep for debugging)
+    # Mark session as failed (keep for debugging)
     if session_id:
         session_service.update_session_status(
             session_id, 
@@ -391,9 +355,10 @@ Failed sessions are **not deleted**, but marked as `status="failed"`. This allow
 |---------------|------------------|-------------|
 | File validation | None needed | No session created |
 | Session creation | None needed | No changes |
-| File upload | Mark session as failed | Session exists with status="failed" |
-| Text extraction | Delete file, mark session failed | Session exists with status="failed" |
-| Document DB insert | Delete file, mark session failed | Session exists with status="failed" |
+| File size check | Mark session as failed | Session exists with status="failed" |
+| Text extraction | Mark session failed | Session exists with status="failed" |
+| Document DB insert | Mark session failed | Session exists with status="failed" |
+| Feedback DB insert | Mark session failed | Session exists with status="failed" |
 
 ## Text Extraction (Future Implementation)
 
@@ -512,16 +477,19 @@ After successful upload, check the database:
 -- Check session was created
 SELECT * FROM sessions WHERE student_id = 1 ORDER BY created_at DESC LIMIT 1;
 
--- Check document was saved
-SELECT * FROM documents ORDER BY processed_at DESC LIMIT 1;
+-- Check document was saved with text
+SELECT id, session_id, LEFT(raw_text, 100) as text_preview 
+FROM documents 
+WHERE session_id = (SELECT id FROM sessions WHERE student_id = 1 ORDER BY created_at DESC LIMIT 1);
+
+-- Check detailed_feedback record was created
+SELECT * FROM detailed_feedbacks 
+WHERE session_id = (SELECT id FROM sessions WHERE student_id = 1 ORDER BY created_at DESC LIMIT 1);
 ```
 
-### Verify in Supabase Storage
+### Verify Storage - N/A
 
-1. Go to Supabase Dashboard → Storage
-2. Open `iksan-ai-interview` bucket
-3. Navigate to `interviews/{student_id}/{session_id}/`
-4. Verify file was uploaded
+Storage verification is no longer applicable as files are not uploaded to Supabase storage.
 
 ## Performance Considerations
 
@@ -556,12 +524,13 @@ For production use, consider **asynchronous processing**:
 |-----------|----------------|
 | File validation | < 1ms |
 | Session creation | 10-50ms |
-| File upload (1MB) | 100-500ms |
+| File read | 10-100ms |
 | Text extraction (placeholder) | < 1ms |
 | Text extraction (real PDF) | 500ms - 5s |
 | Document DB insert | 10-50ms |
-| **Total (current)** | ~200ms - 1s |
-| **Total (with real extraction)** | 1s - 6s |
+| Feedback DB insert | 10-50ms |
+| **Total (current)** | ~50ms - 300ms |
+| **Total (with real extraction)** | 500ms - 6s |
 
 ## Security Considerations
 
@@ -611,13 +580,7 @@ async def initiate_interview_session(
 **Solution:** Ensure file is PDF, DOCX, TXT, or MD format
 
 #### "Failed to upload file to storage"
-**Possible causes:**
-- Invalid Supabase credentials
-- Storage bucket doesn't exist
-- Insufficient permissions
-- Network issues
-
-**Solution:** Verify `.env` configuration and bucket setup
+**Status:** This error no longer occurs as storage is deprecated.
 
 #### Session created but document not saved
 **Possible causes:**
@@ -633,17 +596,24 @@ async def initiate_interview_session(
 1. **Implement actual text extraction** - Add PyPDF2/python-docx
 2. **Add authentication** - Protect endpoint with JWT
 3. **Add rate limiting** - Prevent abuse
-4. **Add file type verification** - Verify file content matches extension
+4. **Add file content verification** - Verify file content matches extension
 
-### Future Enhancements 
-Perhaps post launch on 5 December
+### Future Enhancements
+
+**File Storage Re-enablement (if needed):**
+1. Add back `document_path` and `processed_at` columns to `documents` table
+2. Add back `audio_path` column to `detailed_feedbacks` table
+3. Uncomment storage upload/delete code in endpoint
+4. Update response schema to include file URLs
+5. Configure Supabase storage bucket and policies
+
+**Other Improvements (post-launch):**
 1. **Asynchronous processing** - Use background workers
 2. **Progress tracking** - Real-time status updates
 3. **OCR support** - Extract text from images/scanned PDFs
 4. **Virus scanning** - Scan uploaded files for malware
 5. **Multiple file upload** - Support uploading multiple documents
 6. **File compression** - Compress large files automatically
-7. **CDN integration** - Faster file delivery
 
 ## Related Documentation
 
@@ -653,6 +623,6 @@ Perhaps post launch on 5 December
 
 ---
 
-**Last Updated:** November 24, 2025  
+**Last Updated:** November 25, 2025  
 **API Version:** v1  
-**Status:** Development (Text extraction placeholder)
+**Status:** Development (Storage deprecated, text extraction placeholder)
