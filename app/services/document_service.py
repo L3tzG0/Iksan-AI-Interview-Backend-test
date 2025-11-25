@@ -13,15 +13,13 @@ class DocumentService:
     def create_document(
         self,
         session_id: int,
-        raw_text: str,
         cleaned_text: str
     ) -> Any:
         """
-        Create document record in database with extracted text
+        Create document record in database with cleaned text
         
         Args:
             session_id: ID of the interview session
-            raw_text: Raw extracted text content
             cleaned_text: LLM-optimized cleaned text content
         
         Returns:
@@ -33,7 +31,6 @@ class DocumentService:
         try:
             document_data = {
                 "session_id": session_id,
-                "raw_text": raw_text,
                 "cleaned_text": cleaned_text
             }
             

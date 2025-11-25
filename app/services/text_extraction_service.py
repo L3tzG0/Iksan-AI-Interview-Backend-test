@@ -1,7 +1,6 @@
 import logging
 import re
 import unicodedata
-from typing import Tuple
 from io import BytesIO
 
 logger = logging.getLogger(__name__)
@@ -10,16 +9,16 @@ logger = logging.getLogger(__name__)
 class TextExtractionService:
     """Service for extracting text from various document formats optimized for LLM consumption"""
     
-    def extract_text_from_file(self, file_bytes: bytes, content_type: str) -> Tuple[str, str]:
+    def extract_text_from_file(self, file_bytes: bytes, content_type: str) -> str:
         """
-        Extract text from file bytes based on content type and return both raw and cleaned versions
+        Extract and clean text from file bytes based on content type
         
         Args:
             file_bytes: File content as bytes
             content_type: MIME type of file
         
         Returns:
-            Tuple[str, str]: (raw_text, cleaned_text) where cleaned_text is optimized for LLM
+            str: Cleaned text optimized for LLM consumption
         
         Raises:
             ValueError: If file is invalid or extraction fails
@@ -51,9 +50,9 @@ class TextExtractionService:
             # Clean text for LLM consumption
             cleaned_text = self._clean_text_for_llm(raw_text)
             
-            logger.info(f"Extraction successful - Raw: {len(raw_text)} chars, Cleaned: {len(cleaned_text)} chars")
+            logger.info(f"Extraction successful - Cleaned: {len(cleaned_text)} chars")
             
-            return raw_text, cleaned_text
+            return cleaned_text
             
         except Exception as e:
             logger.error(f"Text extraction failed for {content_type}: {str(e)}")

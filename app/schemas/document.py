@@ -4,7 +4,6 @@ from pydantic import BaseModel
 
 class DocumentBase(BaseModel):
     session_id: int
-    raw_text: str
     cleaned_text: str
 
 class DocumentCreate(DocumentBase):

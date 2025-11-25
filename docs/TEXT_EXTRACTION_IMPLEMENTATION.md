@@ -32,8 +32,7 @@ The `documents` table now stores:
 CREATE TABLE documents (
     id SERIAL PRIMARY KEY,
     session_id INTEGER REFERENCES sessions(id),
-    raw_text TEXT,        -- Unmodified extraction
-    cleaned_text TEXT,    -- LLM-optimized version
+    cleaned_text TEXT,    -- LLM-optimized
     created_at TIMESTAMP DEFAULT NOW()
 );
 ```
@@ -47,7 +46,7 @@ CREATE TABLE documents (
    ↓
 3. File validation (type, signature, size)
    ↓
-4. Text extraction -> (raw_text, cleaned_text)
+4. Text extraction -> (cleaned_text)
    ↓
 5. Store both versions in documents table
    ↓
