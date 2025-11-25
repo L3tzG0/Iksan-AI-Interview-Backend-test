@@ -1,10 +1,10 @@
-
 import React, { useState, useCallback, useEffect } from 'react';
 import WelcomeScreen from './components/WelcomeScreen';
 import InterviewSession from './components/InterviewSession';
 import ResultsScreen from './components/ResultsScreen';
 import TeacherDashboard from './components/TeacherDashboard';
 import StudentDetailView from './components/StudentDetailView';
+import TeacherHome from './components/TeacherHome';
 import SignInScreen from './components/auth/SignInScreen';
 import SignUpScreen from './components/auth/SignUpScreen';
 import Navbar from './components/layout/Navbar';
@@ -23,9 +23,9 @@ const AdminHeader: React.FC<AdminHeaderProps> = ({ user }) => (
         <GraduationCapIcon className="w-8 h-8 text-primary" />
       </div>
       <div>
-        <h2 className="font-bold text-slate-800 text-lg">오늘의 학급 현황</h2>
+        <h2 className="font-bold text-slate-800 text-lg">교사용 개요</h2>
         <p className="text-sm text-slate-600">
-            {user?.grade ? `${user.grade}학년 ` : ''}{user?.major ? `${user.major} ` : ''}학생들의 AI 면접 데이터를 한눈에 확인해 보세요.
+            {user?.grade ? `${user.grade}학년 ` : ''}{user?.major ? `${user.major} ` : ''}학생들의 AI 모의면접 성과를 한눈에 확인하세요.
         </p>
       </div>
     </div>
@@ -46,6 +46,14 @@ const App: React.FC = () => {
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const clearDrafts = useCallback(() => {
+    try {
+      sessionStorage.removeItem('ai-interview-draft');
+    } catch {
+      // Storage may be blocked; ignore to keep UI responsive.
+    }
+  }, []);
 
   // Load student history if user is a student
   useEffect(() => {
@@ -68,7 +76,7 @@ const App: React.FC = () => {
     setIsAuthenticated(true);
     
     if (user.role === 'teacher') {
-        setView('teacherDashboard');
+        setView('welcome');
     } else {
         setView('welcome');
     }
@@ -82,6 +90,7 @@ const App: React.FC = () => {
     setQuestions([]);
     setReport(null);
     setStudentHistory([]);
+    clearDrafts();
   };
 
   const handleRoleToggle = () => {
@@ -91,7 +100,7 @@ const App: React.FC = () => {
     setCurrentUser({ ...currentUser, role: newRole });
     
     if (newRole === 'teacher') {
-        setView('teacherDashboard');
+        setView('welcome');
     } else {
         setView('welcome');
     }
@@ -100,12 +109,13 @@ const App: React.FC = () => {
   const handleStartInterview = useCallback(async (input: string | { data: string; mimeType: string }) => {
     setIsLoading(true);
     setError(null);
+    clearDrafts();
 
     // Prototype: bypass API calls so UI can be previewed instantly
     const mockQuestions: Question[] = [
-      { id: 1, text: "최근 학교 프로젝트에서 가장 기억에 남는 경험은 무엇인가요?", type: "general" },
-      { id: 2, text: "이력서에 적힌 동아리/동아리 활동 중 가장 도전적이었던 순간을 이야기해 주세요.", type: "resume-based" },
-      { id: 3, text: "졸업 후 진로 목표와 그 이유를 구체적으로 설명해 주세요.", type: "general" },
+      { id: 1, text: "간단한 자기소개와 이번 면접의 목표를 말해 주세요.", type: "general" },
+      { id: 2, text: "이력서의 프로젝트/경험 한 가지를 골라 역할과 성과를 설명해 주세요.", type: "resume-based" },
+      { id: 3, text: "팀에서 어려운 문제를 해결했던 경험을 들려주세요.", type: "general" },
     ];
     setQuestions(mockQuestions);
     setView('session');
@@ -118,17 +128,24 @@ const App: React.FC = () => {
     //   setQuestions(generatedQuestions);
     //   setView('session');
     // } catch (err) {
-    //   setError('질문 생성 중 오류가 발생했어요. 다시 시도해 주세요.');
+    //   setError('질문 생성에 실패했습니다. 다시 시도해 주세요.');
     //   console.error(err);
     // } finally {
     //   setIsLoading(false);
     // }
-  }, []);
+  }, [clearDrafts]);
 
   const handleFinishInterview = useCallback(async (answers: Answer[]) => {
     setIsLoading(true);
     setError(null);
     try {
+      const hasMeaningfulAnswer = answers.some((answer) => answer.text && answer.text.trim().length > 2);
+      if (!hasMeaningfulAnswer) {
+        setError('답변이 비어 있어 평가할 수 없습니다. 최소 한 문장을 작성해 주세요.');
+        setIsLoading(false);
+        return;
+      }
+
       const interviewReport = await evaluateAnswers(questions, answers);
       if (currentUser) {
         saveInterviewReportForStudent(currentUser.id, interviewReport);
@@ -138,19 +155,20 @@ const App: React.FC = () => {
       }
       setReport(interviewReport);
       setView('results');
-    } catch (err)
-     {
-      setError('답변 평가에 실패했습니다. 다시 시도해주세요.');
+      clearDrafts();
+    } catch (err) {
+      setError('면접 평가에 실패했습니다. 잠시 후 다시 시도해 주세요. 문제가 계속되면 문의해 주세요.');
       console.error(err);
     } finally {
       setIsLoading(false);
     }
-  }, [questions, currentUser]);
+  }, [questions, currentUser, clearDrafts]);
 
   const handleTryAnotherTopic = () => {
     setQuestions([]);
     setReport(null);
     setView('welcome');
+    clearDrafts();
   };
 
   const handleNavigate = useCallback((targetView: AppView) => {
@@ -166,6 +184,10 @@ const App: React.FC = () => {
         setView('welcome');
         return;
     }
+    if (targetView === 'studentPreview' && currentUser?.role !== 'teacher') {
+        setView('welcome');
+        return;
+    }
     setView(targetView);
   }, [report, questions, currentUser]);
 
@@ -178,6 +200,10 @@ const App: React.FC = () => {
     setSelectedStudentId(null);
     setView('teacherDashboard');
   };
+
+  const handleStudentPreview = () => {
+    setView('studentPreview');
+  };
   
   const handleViewHistoryReport = (historyReport: InterviewReport) => {
       setReport(historyReport);
@@ -189,7 +215,7 @@ const App: React.FC = () => {
       return (
         <div className="flex flex-col items-center justify-center h-[60vh] text-slate-700">
           <div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-primary"></div>
-          <p className="mt-4 text-lg">AI가 작업 중입니다...</p>
+          <p className="mt-4 text-lg">AI가 질문을 준비하고 있어요...</p>
         </div>
       );
     }
@@ -198,16 +224,19 @@ const App: React.FC = () => {
        return (
         <div className="flex flex-col items-center justify-center h-[60vh] text-slate-700">
             <div className="bg-red-100 border border-red-400 p-6 rounded-lg text-center shadow-lg">
-                <h2 className="text-xl font-bold mb-2 text-red-800">오류가 발생했습니다</h2>
-                <p className="text-red-700">{error}</p>
+                <h2 className="text-xl font-bold mb-2 text-red-800">오류가 발생했어요</h2>
+                <p className="text-red-700 leading-relaxed">{error}</p>
+                <p className="text-sm text-red-600 mt-2">
+                  입력한 내용은 그대로 보관되어 있으니 새로고침 없이 다시 시도해 주세요. 문제가 반복되면 잠시 후 다시 시도해 주세요. 
+                </p>
                 <button 
                     onClick={() => {
                       setError(null);
-                      setView('welcome');
+                      setView(questions.length > 0 ? 'session' : 'welcome');
                     }} 
                     className="mt-4 px-4 py-2 bg-primary text-white hover:bg-primary-dark rounded-md transition-colors"
                 >
-                    처음으로 돌아가기
+                    다시 시도하기
                 </button>
             </div>
         </div>
@@ -219,18 +248,35 @@ const App: React.FC = () => {
         return <InterviewSession questions={questions} onFinish={handleFinishInterview} />;
       case 'results':
         return report && <ResultsScreen report={report} onRetry={handleTryAnotherTopic} />;
+      case 'studentPreview':
+        return (
+          <WelcomeScreen
+            onStart={handleStartInterview}
+            history={studentHistory}
+            onViewReport={handleViewHistoryReport}
+          />
+        );
       case 'teacherDashboard':
         return currentUser && <TeacherDashboard currentUser={currentUser} onSelectStudent={handleViewStudent} />;
       case 'studentDetail':
         return selectedStudentId && <StudentDetailView studentId={selectedStudentId} onBack={handleBackToDashboard} />;
       case 'welcome':
       default:
-        return (
-            <WelcomeScreen 
-                onStart={handleStartInterview} 
-                history={studentHistory} 
-                onViewReport={handleViewHistoryReport}
+        if (currentUser?.role === 'teacher') {
+          return (
+            <TeacherHome
+              user={currentUser}
+              onGoDashboard={() => setView('teacherDashboard')}
+              onPreviewStudent={handleStudentPreview}
             />
+          );
+        }
+        return (
+          <WelcomeScreen 
+              onStart={handleStartInterview} 
+              history={studentHistory} 
+              onViewReport={handleViewHistoryReport}
+          />
         );
     }
   };
@@ -268,10 +314,3 @@ const App: React.FC = () => {
 };
 
 export default App;
-
-
-
-
-
-
-

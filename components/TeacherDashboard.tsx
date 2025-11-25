@@ -172,8 +172,14 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser, onSele
           </div>
         ) : (
           <div className="bg-white border border-slate-100 rounded-[20px] shadow-soft overflow-hidden">
+            <div className="flex flex-wrap items-center gap-3 px-6 py-3 text-xs text-slate-500 bg-slate-50/80 border-b border-slate-100">
+              <span className="inline-flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-green-400 border border-green-600"></span>완료</span>
+              <span className="inline-flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-slate-200 border border-slate-400"></span>진행 전</span>
+              <span className="font-semibold text-slate-400">필터를 사용해 원하는 학생을 빠르게 찾아보세요.</span>
+            </div>
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm text-left text-slate-600">
+                <caption className="sr-only">학생/점수 현황을 보여주는 표입니다.</caption>
                 <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-200">
                   <tr>
                     <th scope="col" className="px-6 py-4 font-bold">학생 이름</th>

@@ -4,7 +4,7 @@ export interface School {
     name: string;
 }
 
-export type AppView = 'welcome' | 'session' | 'results' | 'teacherDashboard' | 'studentDetail';
+export type AppView = 'welcome' | 'session' | 'results' | 'teacherDashboard' | 'studentDetail' | 'studentPreview';
 
 export interface Question {
   id: number;
@@ -15,6 +15,7 @@ export interface Question {
 export interface Answer {
   questionId: number;
   text: string;
+  audioUrl?: string;
 }
 
 export interface DetailedFeedback {

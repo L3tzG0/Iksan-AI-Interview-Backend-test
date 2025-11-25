@@ -25,7 +25,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
   const handleIncomingFile = useCallback((file?: File) => {
     if (!file) return;
     if (file.size > MAX_SIZE_MB * 1024 * 1024) {
-      setResumeText(`파일 용량이 ${MAX_SIZE_MB}MB를 초과했습니다. 더 작은 파일을 업로드해 주세요.`);
+      setResumeText(`파일 크기가 ${MAX_SIZE_MB}MB를 초과했습니다. 더 작은 파일을 업로드해주세요.`);
       return;
     }
 
@@ -39,7 +39,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
       if (file.type === 'application/pdf') {
         const base64Data = result.split(',')[1];
         setFileData({ data: base64Data, mimeType: file.type });
-        setResumeText(`PDF 파일 "${file.name}"을(를) 불러왔어요. 주요 내용을 분석해 맞춤 질문을 생성합니다.`);
+        setResumeText(`PDF 파일 "${file.name}"을(를) 불러왔어요. 주요 내용을 분석한 뒤 질문을 생성합니다.`);
       } else {
         setResumeText(result);
       }
@@ -140,6 +140,9 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
             onChange={handleTextChange}
             disabled={!!fileData}
           />
+          <p className="text-xs text-slate-500 mt-2">
+            PDF / TXT / MD ({MAX_SIZE_MB}MB 이하) 파일을 업로드할 수 있습니다. 표/특수문자, 이미지가 많은 경우 텍스트로 변환해 붙여넣으면 정확도가 높습니다.
+          </p>
 
           <div className="flex items-center justify-center w-full my-6">
             <div className="flex-grow border-t border-slate-200"></div>
@@ -165,8 +168,8 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
             ) : (
               <>
                 <UploadCloudIcon className="w-12 h-12 text-slate-400 group-hover:text-primary mb-3 transition-colors" />
-                <span className="text-slate-700 font-medium">파일을 드래그하거나 선택해 업로드하세요</span>
-                <span className="text-slate-400 text-sm mt-2">PDF, TXT, MD · 최대 {MAX_SIZE_MB}MB</span>
+                <span className="text-slate-700 font-medium">파일 업로드하기</span>
+                <span className="text-slate-400 text-sm mt-2">PDF, TXT, MD 형식을 지원합니다</span>
               </>
             )}
           </label>

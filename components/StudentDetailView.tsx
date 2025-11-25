@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { getStudentDetails } from '../services/geminiService';
 import type { StudentDetail } from '../types';
@@ -50,7 +49,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({ studentId, onBack
       <div className="flex items-baseline justify-between mb-6">
         <div>
             <h1 className="text-3xl font-bold text-slate-800">{student.name}</h1>
-            <p className="text-lg text-primary font-medium">{student.grade}학년 • {student.major}</p>
+            <p className="text-lg text-primary font-medium">{student.grade}학년 · {student.major}</p>
         </div>
       </div>
 
@@ -58,7 +57,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({ studentId, onBack
         <InterviewReportView report={student.report} />
       ) : (
         <Card className="text-center py-12">
-            <p className="text-slate-500 text-lg">이 학생은 아직 모의 면접을 완료하지 않았습니다.</p>
+            <p className="text-slate-500 text-lg">아직 제출된 보고서가 없습니다.</p>
         </Card>
       )}
     </div>
