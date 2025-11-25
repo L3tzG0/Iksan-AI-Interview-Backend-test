@@ -1,36 +1,5 @@
-# Migration Guide: User Profiles Implementation
+# User Profiles Implementation
 
-## Overview
-
-This migration implements the **Supabase recommended pattern** for managing user data by separating authentication (handled by `auth.users`) from profile data (stored in `public.user_profiles`).
-
-### What Changed?
-
-**Before:**
-- Redundant user data in both `auth.users` (Supabase Auth) and `public.users` (app database)
-- `public.users` table with INTEGER id and password_hash
-- No synchronization between the two systems
-- Foreign key mismatches (UUID vs INTEGER)
-
-**After:**
-- Single source of truth for authentication: `auth.users` (Supabase Auth)
-- Extended profile data in: `public.user_profiles` (app database)
-- Automatic synchronization via database trigger
-- UUID foreign keys throughout the system
-- No password management in application code (handled by Supabase)
-
----
-
-## Benefits of This Approach
-
-✅ **Security**: Passwords managed by Supabase Auth with industry best practices  
-✅ **Simplicity**: No manual synchronization needed between auth and profile data  
-✅ **Scalability**: Can store extensive user profile data without affecting auth  
-✅ **Best Practice**: Following official Supabase documentation patterns  
-✅ **Maintainability**: Clear separation of concerns (auth vs business data)  
-✅ **Future-proof**: Easy to add social auth, magic links, MFA, etc.
-
----
 
 ## Architecture
 
@@ -68,7 +37,7 @@ public.user_profiles
   │ Extracts: email, full_name, role_id
   │
   ▼
-Success Response ✓
+Success Response 
 ```
 
 
@@ -89,7 +58,7 @@ Success Response ✓
    GRANT USAGE ON SCHEMA public TO supabase_auth_admin;
    GRANT ALL ON public.user_profiles TO supabase_auth_admin;
    ```
-
+3. Ensure reference tables have data such as `roles`
 ### Issue 2: Foreign Key Violations
 
 **Symptom**: Cannot create student/teacher records

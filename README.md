@@ -8,6 +8,8 @@ A FastAPI-based backend service for the Iksan AI Interview platform, powered by 
 - **Role-Based Access Control** - Support for students and teachers
 - **RESTful API** - Well-documented OpenAPI/Swagger endpoints
 - **Row Level Security** - Database-level security policies
+- **Document Processing** - PDF, DOCX, TXT, MD file extraction
+- **LLM Integration Ready** - Cleaned text extraction optimized for AI processing
 
 ##  Prerequisites
 
@@ -94,54 +96,113 @@ http://127.0.0.1:8000/docs
 ### ReDoc
 http://127.0.0.1:8000/redoc
 
-## 🔐 Authentication Flow
+## Authentication Flow
 
-(to be implemented)
-## 📁 Project Structure
+The backend uses **Supabase Auth** with JWT tokens for secure API access:
+
+1. **User Registration/Login** - Via `/api/v1/auth/` endpoints
+2. **JWT Token Generation** - Automatic token creation by Supabase
+3. **Token Validation** - Every protected endpoint verifies JWT token
+4. **Role-Based Access** - User roles (student/teacher) determine endpoint access
+5. **Row Level Security** - Database queries filtered by user role and permissions
+
+**Key Security Features:**
+- JWT tokens issued by Supabase Auth service
+- Automatic token refresh mechanism
+- Email verification for new accounts
+- Role-based endpoint protection
+- User profiles linked to authentication
+
+## Project Structure
 
 ```
 Iksan-AI-Interview-Backend/
 ├── app/
 │   ├── api/
-│   │   ├── dependencies.py          # FastAPI dependencies
+│   │   ├── dependencies.py          # FastAPI dependencies & auth
 │   │   └── v1/
-│   │       ├── endpoints/           # API route handlers
-│   │       │   ├── auth.py         # Authentication endpoints
-│   │       │   ├── students.py     # Student management
-│   │       │   ├── teachers.py     # Teacher management
-│   │       │   ├── classes.py      # Class management
-│   │       │   ├── interview_sessions.py
-│   │       │   ├── interview_scores.py
-│   │       │   └── feedback.py
-│   │       └── router.py           # API router configuration
+│   │       ├── router.py            # API route configuration
+│   │       └── endpoints/           # API route handlers
+│   │           ├── auth.py          # Authentication endpoints
+│   │           ├── students.py      # Student management
+│   │           ├── teachers.py      # Teacher management
+│   │           ├── classes.py       # Class management
+│   │           ├── schools.py       # School management
+│   │           ├── majors.py        # Major/specialization management
+│   │           ├── roles.py         # Role management
+│   │           ├── users.py         # User profiles
+│   │           ├── interview_sessions.py  # Interview session lifecycle
+│   │           ├── interview_scores.py    # Interview scoring
+│   │           └── feedback.py      # Feedback generation & retrieval
 │   ├── core/
-│   │   ├── config.py               # Configuration settings
-│   │   ├── database.py             # Supabase client setup
-│   │   └── security.py             # JWT validation
-│   ├── schemas/                    # Pydantic schemas
-│   │   ├── auth.py                 # Auth request/response models
-│   │   ├── user.py
-│   │   ├── student.py
+│   │   ├── config.py               # Configuration settings (env vars)
+│   │   ├── database.py             # Supabase client initialization
+│   │   └── security.py             # JWT validation & auth helpers
+│   ├── services/
+│   │   ├── auth_service.py         # Authentication logic
+│   │   ├── student_service.py      # Student data operations
+│   │   ├── teacher_service.py      # Teacher data operations
+│   │   ├── user_service.py         # User profile management
+│   │   ├── class_service.py        # Class management
+│   │   ├── document_service.py     # Document storage & retrieval
+│   │   ├── text_extraction_service.py  # PDF/DOCX/TXT/MD extraction
+│   │   ├── interview_session_service.py # Session management
+│   │   ├── interview_score_service.py   # Score calculation
+│   │   ├── feedback_service.py     # Feedback generation
+│   │   ├── storage_service.py      # File validation & security
+│   │   └── ...
+│   ├── schemas/                    # Pydantic request/response models
+│   │   ├── auth.py                 # Auth schemas
+│   │   ├── user.py                 # User schemas
+│   │   ├── student.py              # Student schemas
+│   │   ├── document.py             # Document schemas
+│   │   ├── interview_session.py    # Session schemas
+│   │   ├── interview_score.py      # Score schemas
 │   │   └── ...
 │   └── main.py                     # FastAPI application entry point
-├── .env                            # Environment variables (not in git)
-├── .gitignore
-├── requirements.txt                # Python dependencies
-├── test_migration.py              # Migration test suite
-├── README.md                       # This file
-├── MIGRATION_GUIDE.md             # Migration documentation
-└── CHECKLIST.md                   # Setup checklist
+├── docs/
+│   ├── DB_SCHEMA.md               # Database schema (ERD)
+│   ├── DATABASE_SETUP_GUIDE.md    # Setup instructions
+│   ├── SUPABASE_AUTH_IMPLEMENTATION_SUMMARY.md
+│   ├── TEXT_EXTRACTION_IMPLEMENTATION.md
+│   └── ...
+├── queries/
+│   ├── initialize_tables.sql      # Database initialization
+│   ├── seed_reference_data.sql    # Reference data seeding
+│   └── ...
+├── tests/
+│   ├── test_setup.py              # Setup validation tests
+│   ├── test_supabase_connection.py # Database connection tests
+│   └── ...
+├── .env                           # Environment variables (not in git)
+├── .env.example                   # Environment template
+├── .gitignore                     # Git ignore rules
+├── requirements.txt               # Python dependencies
+└── README.md                      # This file
 ```
 
-## 🧪 Testing
+## Core Technologies
 
-### Run Set up Test
+| Component | Technology | Version |
+|-----------|-----------|---------|
+| Framework | FastAPI | 0.121.3+ |
+| Server | Uvicorn | 0.38.0+ |
+| Database | Supabase (PostgreSQL) | 2.9.0+ |
+| Authentication | Supabase Auth + JWT | Built-in |
+| Document Processing | PyMuPDF, python-docx | 1.26.6+, 1.2.0+ |
+| ORM/Query | Python (direct Supabase client) | - |
+| Validation | Pydantic | 2.x |
+| Python | CPython | 3.10+ |
+
+## Testing
+
+### Run Setup Test
 
 ```bash
 python ./tests/test_setup.py
 ```
 
-Expected output:
+**Expected output:**
 ```
 ✅ PASS - Configuration
 ✅ PASS - Supabase Client
@@ -152,4 +213,18 @@ Expected output:
 
 Total: 6 | Passed: 6 | Failed: 0
 ```
+
+### Run Database Connection Test
+
+```bash
+python ./tests/test_supabase_connection.py
+```
+
+
+## Additional Documentation
+
+- [DATABASE_SETUP_GUIDE.md](docs/DATABASE_SETUP_GUIDE.md) - Database initialization
+- [SECURITY_REVIEW.md](docs/SECURITY_REVIEW.md) - Security considerations
+- [PERFORMANCE_REVIEW.md](docs/PERFORMANCE_REVIEW.md) - Performance optimization
+- [INTERVIEW_SESSION_INITIATION.md](docs/INTERVIEW_SESSION_INITIATION.md) - Session workflow
 
