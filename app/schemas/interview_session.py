@@ -20,7 +20,6 @@ class InterviewSessionResponse(InterviewSessionBase):
     id: int
     completed_at: Optional[datetime]
     created_at: datetime
-    updated_at: datetime
 
     class Config:
         from_attributes = True
@@ -79,7 +78,11 @@ class FeedbackDetail(BaseModel):
     question: str
     answer: str
     evaluation: str
-    score: float
+    content_relevance_score: Optional[float] = None
+    structure_score: Optional[float] = None
+    fluency_score: Optional[float] = None
+    confidence_score: Optional[float] = None
+    overall_score: Optional[float] = None
     is_correct: bool
 
 

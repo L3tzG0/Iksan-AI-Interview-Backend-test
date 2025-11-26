@@ -57,7 +57,7 @@ erDiagram
 
     SESSIONS {
         int id PK
-        int student_id
+        int student_id FK
         string status
         timestamp completed_at
         numeric total_score
@@ -66,15 +66,25 @@ erDiagram
 
     DOCUMENTS {
         int id PK
-        int session_id
-        text raw_text
-        string document_path
-        timestamp processed_at
+        int session_id FK
+        text cleaned_text
     }
 
-    SCORES {
+    SUMMARIES {
         int id PK
-        int session_id
+        int session_id FK
+        text strength_text
+        text areas_for_growth_text
+    }
+
+    DETAILED_FEEDBACKS {
+        int id PK
+        int session_id FK
+        int question_order
+        text question_text
+        text answer_text
+        text evaluation_text
+        boolean is_correct
         numeric content_relevance_score
         numeric structure_score
         numeric fluency_score
@@ -82,29 +92,10 @@ erDiagram
         numeric overall_score
     }
 
-    SUMMARIES {
-        int id PK
-        int session_id
-        text strength_text
-        text areas_for_growth_text
-    }
-
-    DETAILED_FEEDBACKS {
-        int id PK
-        int session_id
-        int question_order
-        text question_text
-        text answer_text
-        text evaluation_text
-        boolean is_correct
-        numeric score
-        text transcript
-        string audio_path
-    }
-
     NEXT_STEPS {
         int id PK
-        int session_id
+        int session_id FK
+        int next_step_order
         string title
         text description_text
     }
@@ -119,7 +110,6 @@ erDiagram
     TEACHERS ||--o{ CLASSES : "homeroom for"
     STUDENTS ||--o{ SESSIONS : "takes"
     SESSIONS ||--o{ DOCUMENTS : "contains"
-    SESSIONS ||--|| SCORES : "has"
     SESSIONS ||--|| SUMMARIES : "has"
     SESSIONS ||--o{ DETAILED_FEEDBACKS : "has"
     SESSIONS ||--o{ NEXT_STEPS : "has"

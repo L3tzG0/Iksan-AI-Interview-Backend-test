@@ -87,7 +87,7 @@ CREATE TABLE sessions (
   student_id            BIGINT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
   status                TEXT NOT NULL,
   completed_at          TIMESTAMPTZ,
-  total_score           NUMERIC(6,2) CHECK (total_score >= 0),
+  total_score           NUMERIC(3,1) CHECK (total_score >= 0 AND total_score <= 10),
   created_at            TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -100,16 +100,6 @@ CREATE TABLE documents (
 );
 
 CREATE INDEX idx_documents_session_id ON documents(session_id);
-
-CREATE TABLE scores (
-  id                          BIGSERIAL PRIMARY KEY,
-  session_id                  BIGINT NOT NULL UNIQUE REFERENCES sessions(id) ON DELETE CASCADE,
-  content_relevance_score     NUMERIC(5,2) CHECK (content_relevance_score >= 0),
-  structure_score             NUMERIC(5,2) CHECK (structure_score >= 0),
-  fluency_score               NUMERIC(5,2) CHECK (fluency_score >= 0),
-  confidence_score            NUMERIC(5,2) CHECK (confidence_score >= 0),
-  overall_score               NUMERIC(6,2) CHECK (overall_score >= 0)
-);
 
 CREATE TABLE summaries (
   id                    BIGSERIAL PRIMARY KEY,
@@ -126,8 +116,11 @@ CREATE TABLE detailed_feedbacks (
   answer_text           TEXT,
   evaluation_text       TEXT,
   is_correct            BOOLEAN DEFAULT FALSE,
-  score                 NUMERIC(5,2) CHECK (score >= 0),
-  transcript            TEXT
+  content_relevance_score NUMERIC(3,1) CHECK (content_relevance_score >= 0 AND content_relevance_score <= 10),
+  structure_score       NUMERIC(3,1) CHECK (structure_score >= 0 AND structure_score <= 10),
+  fluency_score         NUMERIC(3,1) CHECK (fluency_score >= 0 AND fluency_score <= 10),
+  confidence_score      NUMERIC(3,1) CHECK (confidence_score >= 0 AND confidence_score <= 10),
+  overall_score         NUMERIC(3,1) CHECK (overall_score >= 0 AND overall_score <= 10)
 );
 
 CREATE INDEX idx_detailed_feedbacks_session_id ON detailed_feedbacks(session_id);
@@ -136,6 +129,7 @@ CREATE INDEX idx_detailed_feedbacks_session_question_order ON detailed_feedbacks
 CREATE TABLE next_steps (
   id                    BIGSERIAL PRIMARY KEY,
   session_id            BIGINT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  next_step_order       INT,
   title                 TEXT NOT NULL,
   description_text      TEXT
 );
@@ -261,7 +255,6 @@ GRANT ALL ON public.classes TO service_role;
 GRANT ALL ON public.students TO service_role;
 GRANT ALL ON public.sessions TO service_role;
 GRANT ALL ON public.documents TO service_role;
-GRANT ALL ON public.scores TO service_role;
 GRANT ALL ON public.summaries TO service_role;
 GRANT ALL ON public.detailed_feedbacks TO service_role;
 GRANT ALL ON public.next_steps TO service_role;

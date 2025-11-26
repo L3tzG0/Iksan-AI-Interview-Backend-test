@@ -96,21 +96,33 @@ async def submit_session_answers(
             question="자기소개를 해주세요.",
             answer="안녕하세요, 저는 컴퓨터공학을 전공하고 있는 학생입니다.",
             evaluation="명확하고 간결한 자기소개입니다. 전공 분야를 잘 언급했습니다.",
-            score=8.5,
+            content_relevance_score=8.5,
+            structure_score=8.0,
+            fluency_score=9.0,
+            confidence_score=8.5,
+            overall_score=8.5,
             is_correct=True
         ),
         FeedbackDetail(
             question="왜 이 직무에 지원하셨나요?",
             answer="개발에 대한 열정이 있고, 실무 경험을 쌓고 싶습니다.",
             evaluation="동기는 좋으나 좀 더 구체적인 이유를 제시하면 좋겠습니다.",
-            score=7.0,
+            content_relevance_score=7.0,
+            structure_score=6.5,
+            fluency_score=7.5,
+            confidence_score=7.0,
+            overall_score=7.0,
             is_correct=True
         ),
         FeedbackDetail(
             question="팀 프로젝트 경험에 대해 말씀해주세요.",
             answer="학교에서 웹 개발 프로젝트를 진행한 경험이 있습니다.",
             evaluation="경험을 언급했으나 역할과 성과에 대한 구체적인 설명이 부족합니다.",
-            score=6.5,
+            content_relevance_score=6.5,
+            structure_score=6.0,
+            fluency_score=7.0,
+            confidence_score=6.5,
+            overall_score=6.5,
             is_correct=True
         ),
     ]
@@ -156,21 +168,33 @@ async def get_session_detail(
             question="자기소개를 해주세요.",
             answer="안녕하세요, 저는 컴퓨터공학을 전공하고 있는 학생입니다.",
             evaluation="명확하고 간결한 자기소개입니다. 전공 분야를 잘 언급했습니다.",
-            score=8.5,
+            content_relevance_score=8.5,
+            structure_score=8.0,
+            fluency_score=9.0,
+            confidence_score=8.5,
+            overall_score=8.5,
             is_correct=True
         ),
         FeedbackDetail(
             question="왜 이 직무에 지원하셨나요?",
             answer="개발에 대한 열정이 있고, 실무 경험을 쌓고 싶습니다.",
             evaluation="동기는 좋으나 좀 더 구체적인 이유를 제시하면 좋겠습니다.",
-            score=7.0,
+            content_relevance_score=7.0,
+            structure_score=6.5,
+            fluency_score=7.5,
+            confidence_score=7.0,
+            overall_score=7.0,
             is_correct=True
         ),
         FeedbackDetail(
             question="팀 프로젝트 경험에 대해 말씀해주세요.",
             answer="학교에서 웹 개발 프로젝트를 진행한 경험이 있습니다.",
             evaluation="경험을 언급했으나 역할과 성과에 대한 구체적인 설명이 부족합니다.",
-            score=6.5,
+            content_relevance_score=6.5,
+            structure_score=6.0,
+            fluency_score=7.0,
+            confidence_score=6.5,
+            overall_score=6.5,
             is_correct=True
         ),
     ]

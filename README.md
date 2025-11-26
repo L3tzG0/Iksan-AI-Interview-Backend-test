@@ -132,7 +132,6 @@ Iksan-AI-Interview-Backend/
 │   │           ├── roles.py         # Role management
 │   │           ├── users.py         # User profiles
 │   │           ├── interview_sessions.py  # Interview session lifecycle
-│   │           ├── interview_scores.py    # Interview scoring
 │   │           └── feedback.py      # Feedback generation & retrieval
 │   ├── core/
 │   │   ├── config.py               # Configuration settings (env vars)
@@ -147,7 +146,6 @@ Iksan-AI-Interview-Backend/
 │   │   ├── document_service.py     # Document storage & retrieval
 │   │   ├── text_extraction_service.py  # PDF/DOCX/TXT/MD extraction
 │   │   ├── interview_session_service.py # Session management
-│   │   ├── interview_score_service.py   # Score calculation
 │   │   ├── feedback_service.py     # Feedback generation
 │   │   ├── storage_service.py      # File validation & security
 │   │   └── ...
@@ -157,7 +155,7 @@ Iksan-AI-Interview-Backend/
 │   │   ├── student.py              # Student schemas
 │   │   ├── document.py             # Document schemas
 │   │   ├── interview_session.py    # Session schemas
-│   │   ├── interview_score.py      # Score schemas
+│   │   ├── detailed_feedback.py    # Detailed feedback with scores
 │   │   └── ...
 │   └── main.py                     # FastAPI application entry point
 ├── docs/
