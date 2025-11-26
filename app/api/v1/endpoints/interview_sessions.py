@@ -8,7 +8,13 @@ from app.core.security import get_current_user
 from app.schemas.interview_session import (
     InterviewSessionResponse, 
     InterviewSessionCreate,
-    SessionInitiateResponse
+    SessionInitiateResponse,
+    SessionHistoryItem,
+    SessionHistoryResponse,
+    SessionSubmitRequest,
+    SessionFeedbackResponse,
+    SessionDetailResponse,
+    FeedbackDetail
 )
 from app.services.storage_service import StorageService
 from app.services.document_service import DocumentService
@@ -19,13 +25,174 @@ from app.services.student_service import StudentService
 
 router = APIRouter()
 
-@router.get("/", response_model=List[InterviewSessionResponse])
-async def read_sessions(
-    supabase: Annotated[Client, Depends(get_supabase)]
+@router.get("/", response_model=SessionHistoryResponse)
+async def get_my_sessions(
+    current_user = Depends(get_current_user),
+    supabase: Annotated[Client, Depends(get_supabase)] = None
 ):
-    """Get all interview sessions"""
-    response = supabase.table('sessions').select('*').execute()
-    return response.data
+    """
+    Get current student's interview session history based on token-derived ID.
+    
+    This endpoint is for students to view their own session history.
+    Requires: Authentication (JWT token)
+    
+    Returns: List of session history with dummy data (skeleton implementation)
+    """
+    # TODO: Get actual student_id from current_user and fetch real data
+    # For now, return dummy data
+    dummy_sessions = [
+        SessionHistoryItem(
+            id=1,
+            status="completed",
+            total_score=85.5,
+            completed_at=datetime(2025, 11, 20, 14, 30, 0),
+            created_at=datetime(2025, 11, 20, 14, 0, 0)
+        ),
+        SessionHistoryItem(
+            id=2,
+            status="in_progress",
+            total_score=None,
+            completed_at=None,
+            created_at=datetime(2025, 11, 25, 10, 0, 0)
+        ),
+        SessionHistoryItem(
+            id=3,
+            status="completed",
+            total_score=72.0,
+            completed_at=datetime(2025, 11, 15, 16, 45, 0),
+            created_at=datetime(2025, 11, 15, 16, 0, 0)
+        ),
+    ]
+    
+    return SessionHistoryResponse(
+        sessions=dummy_sessions,
+        total_count=len(dummy_sessions)
+    )
+
+
+@router.post("/submit", response_model=SessionFeedbackResponse)
+async def submit_session_answers(
+    request: SessionSubmitRequest,
+    current_user = Depends(get_current_user),
+    supabase: Annotated[Client, Depends(get_supabase)] = None
+):
+    """
+    Submit answers and get complete feedback from LLM.
+    
+    FE submits the complete QnA history, and this endpoint will:
+    1. Call LLM with the whole QnA history
+    2. Generate comprehensive feedback
+    3. Return scores, summaries, and next steps
+    
+    Requires: Authentication (JWT token)
+    
+    Returns: Complete feedback response (dummy data for skeleton implementation)
+    """
+    # TODO: Implement actual LLM call with QnA history
+    # For now, return dummy feedback data
+    
+    dummy_detailed_feedback = [
+        FeedbackDetail(
+            question="자기소개를 해주세요.",
+            answer="안녕하세요, 저는 컴퓨터공학을 전공하고 있는 학생입니다.",
+            evaluation="명확하고 간결한 자기소개입니다. 전공 분야를 잘 언급했습니다.",
+            score=8.5,
+            is_correct=True
+        ),
+        FeedbackDetail(
+            question="왜 이 직무에 지원하셨나요?",
+            answer="개발에 대한 열정이 있고, 실무 경험을 쌓고 싶습니다.",
+            evaluation="동기는 좋으나 좀 더 구체적인 이유를 제시하면 좋겠습니다.",
+            score=7.0,
+            is_correct=True
+        ),
+        FeedbackDetail(
+            question="팀 프로젝트 경험에 대해 말씀해주세요.",
+            answer="학교에서 웹 개발 프로젝트를 진행한 경험이 있습니다.",
+            evaluation="경험을 언급했으나 역할과 성과에 대한 구체적인 설명이 부족합니다.",
+            score=6.5,
+            is_correct=True
+        ),
+    ]
+    
+    return SessionFeedbackResponse(
+        session_id=request.session_id,
+        overall_score=73.3,
+        strength_summary="명확한 의사소통 능력과 기본적인 기술 지식을 보여주셨습니다. 자기소개가 간결하고 전공 분야를 잘 어필했습니다.",
+        areas_for_growth="답변에 구체적인 예시와 수치를 포함하면 더 설득력이 있을 것입니다. 경험을 설명할 때 STAR 기법(상황-과제-행동-결과)을 활용해보세요.",
+        detailed_feedback=dummy_detailed_feedback,
+        next_steps=[
+            "STAR 기법을 활용한 답변 연습하기",
+            "프로젝트 경험에 대한 구체적인 수치와 성과 정리하기",
+            "지원 직무와 관련된 기술 질문 대비하기",
+            "모의 면접을 통해 실전 감각 익히기"
+        ]
+    )
+
+
+@router.get("/{session_id}", response_model=SessionDetailResponse)
+async def get_session_detail(
+    session_id: int,
+    current_user = Depends(get_current_user),
+    supabase: Annotated[Client, Depends(get_supabase)] = None
+):
+    """
+    Get detailed view of a student's specific session with feedbacks.
+    
+    This endpoint is for students to view their own session details and feedback.
+    Requires: Authentication (JWT token) - student accessing their own session
+    
+    Parameters:
+    - session_id: The ID of the session to retrieve
+    
+    Returns: Detailed session information with feedback (dummy data for skeleton)
+    """
+    # TODO: Verify current_user owns this session (student_id match)
+    # TODO: Fetch actual session and feedback data from database
+    # For now, return dummy data
+    
+    dummy_detailed_feedback = [
+        FeedbackDetail(
+            question="자기소개를 해주세요.",
+            answer="안녕하세요, 저는 컴퓨터공학을 전공하고 있는 학생입니다.",
+            evaluation="명확하고 간결한 자기소개입니다. 전공 분야를 잘 언급했습니다.",
+            score=8.5,
+            is_correct=True
+        ),
+        FeedbackDetail(
+            question="왜 이 직무에 지원하셨나요?",
+            answer="개발에 대한 열정이 있고, 실무 경험을 쌓고 싶습니다.",
+            evaluation="동기는 좋으나 좀 더 구체적인 이유를 제시하면 좋겠습니다.",
+            score=7.0,
+            is_correct=True
+        ),
+        FeedbackDetail(
+            question="팀 프로젝트 경험에 대해 말씀해주세요.",
+            answer="학교에서 웹 개발 프로젝트를 진행한 경험이 있습니다.",
+            evaluation="경험을 언급했으나 역할과 성과에 대한 구체적인 설명이 부족합니다.",
+            score=6.5,
+            is_correct=True
+        ),
+    ]
+    
+    return SessionDetailResponse(
+        session_id=session_id,
+        student_id=1,  # TODO: Get actual student_id from current_user
+        status="completed",
+        total_score=85.5,
+        created_at=datetime(2025, 11, 20, 14, 0, 0),
+        completed_at=datetime(2025, 11, 20, 14, 30, 0),
+        overall_score=85.5,
+        strength_summary="명확한 의사소통 능력과 기본적인 기술 지식을 보여주셨습니다. 자기소개가 간결하고 전공 분야를 잘 어필했습니다.",
+        areas_for_growth="답변에 구체적인 예시와 수치를 포함하면 더 설득력이 있을 것입니다. 경험을 설명할 때 STAR 기법(상황-과제-행동-결과)을 활용해보세요.",
+        detailed_feedback=dummy_detailed_feedback,
+        next_steps=[
+            "STAR 기법을 활용한 답변 연습하기",
+            "프로젝트 경험에 대한 구체적인 수치와 성과 정리하기",
+            "지원 직무와 관련된 기술 질문 대비하기",
+            "모의 면접을 통해 실전 감각 익히기"
+        ]
+    )
 
 
 @router.post("/initiate", response_model=SessionInitiateResponse)
