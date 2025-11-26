@@ -14,7 +14,8 @@ from app.schemas.interview_session import (
     SessionSubmitRequest,
     SessionFeedbackResponse,
     SessionDetailResponse,
-    FeedbackDetail
+    FeedbackDetail,
+    GeneratedQuestion
 )
 from app.services.storage_service import StorageService
 from app.services.document_service import DocumentService
@@ -22,6 +23,7 @@ from app.services.interview_session_service import InterviewSessionService
 from app.services.text_extraction_service import TextExtractionService
 from app.services.feedback_service import FeedbackService
 from app.services.student_service import StudentService
+from app.services.llm_service import LLMService
 
 router = APIRouter()
 
@@ -268,6 +270,7 @@ async def initiate_interview_session(
     extraction_service = TextExtractionService()
     feedback_service = FeedbackService(supabase)
     student_service = StudentService(supabase)
+    llm_service = LLMService()
     
     session_id: int | None = None
     
@@ -329,14 +332,29 @@ async def initiate_interview_session(
             cleaned_text=cleaned_text_extracted
         )
         
-        # Step 5: Create initial detailed_feedbacks record
-        await feedback_service.create_detailed_feedback(session_id=session_id)
+        # Step 5: Generate interview questions using LLM
+        question_texts = await llm_service.generate_interview_questions(cleaned_text_extracted)
         
-        # Step 6: Return simple success response
+        # Step 6: Create detailed_feedbacks records (10 rows with questions)
+        await feedback_service.create_detailed_feedbacks_batch(
+            session_id=session_id,
+            questions=question_texts
+        )
+        
+        # Step 7: Build response with all generated questions
+        generated_questions = [
+            GeneratedQuestion(
+                question_order=idx + 1,
+                question_text=q_text
+            )
+            for idx, q_text in enumerate(question_texts)
+        ]
+        
         return SessionInitiateResponse(
             success=True,
-            message="Interview session initiated successfully",
-            session_id=session['id']
+            message="Interview session initiated successfully with 10 questions",
+            session_id=session['id'],
+            questions=generated_questions
         )
         
     except HTTPException:

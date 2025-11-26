@@ -28,11 +28,21 @@ class InterviewSessionWithDetails(InterviewSessionResponse):
     student: StudentResponse
 
 
+class GeneratedQuestion(BaseModel):
+    """Schema for a generated interview question"""
+    question_order: int
+    question_text: str
+
+    class Config:
+        from_attributes = True
+
+
 class SessionInitiateResponse(BaseModel):
-    """Response schema for session initiation - simplified without storage"""
+    """Response schema for session initiation - includes generated questions"""
     success: bool
     message: str
     session_id: int
+    questions: List[GeneratedQuestion]
 
     class Config:
         from_attributes = True

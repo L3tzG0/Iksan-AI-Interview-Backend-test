@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 
@@ -11,6 +11,13 @@ class Settings(BaseSettings):
     SUPABASE_KEY: str
     # DEPRECATED: Storage bucket not currently in use - kept for future implementation
     SUPABASE_STORAGE_BUCKET: str
+    
+    # LLM Configuration
+    # TODO: Set these values in .env when integrating with actual LLM provider
+    LLM_API_KEY: Optional[str] = None
+    LLM_MODEL: str = "gemini-2.5-flash"  # Default model, can be overridden
+    LLM_MAX_TOKENS: int = 2000
+    LLM_TEMPERATURE: float = 0.7
     
     # File Upload
     MAX_FILE_SIZE: int = 10485760  # 10MB default
