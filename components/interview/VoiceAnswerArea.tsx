@@ -83,7 +83,7 @@ const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
       </div>
 
       <div className="md:w-2/3 flex flex-col gap-4 h-full">
-        <div className="relative h-full min-h-[340px]">
+        <div className="relative min-h-[260px] max-h-[440px]">
           <textarea
             value={currentAnswer}
             onChange={(e) => onChangeAnswer(e.target.value)}
@@ -94,7 +94,7 @@ const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
                 : '중요 포인트, 수치, 결과를 포함해 구체적으로 작성해 주세요.'
             }
             maxLength={800}
-            className={`w-full h-full min-h-[300px] p-5 pr-24 border rounded-[20px] resize-none text-slate-800 leading-relaxed focus:outline-none focus:ring-2 transition-colors ${
+            className={`w-full min-h-[260px] max-h-[400px] p-5 pr-24 border rounded-[20px] resize-none text-slate-800 leading-relaxed focus:outline-none focus:ring-2 transition-colors overflow-auto ${
               isReadOnly
                 ? 'bg-slate-50 text-slate-600 border-slate-200 focus:ring-slate-200 cursor-not-allowed'
                 : 'bg-white border-slate-200 focus:ring-primary-focus focus:border-primary-focus shadow-inner shadow-slate-100'

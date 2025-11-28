@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { getStudentDetails } from '../services/geminiService';
 import type { StudentDetail } from '../types';
 import Spinner from './Spinner';
@@ -30,10 +30,73 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({ studentId, onBack
     fetchData();
   }, [studentId]);
 
+  const handleDownloadReport = useCallback(() => {
+    if (!student?.report) return;
+
+    const report = student.report;
+    const today = new Date().toLocaleDateString('ko-KR');
+    const detailed = report.detailedFeedback
+      .map(
+        (item, idx) =>
+          `<div style="margin-bottom:12px;"><strong>Q${idx + 1}. ${item.question}</strong><br/>A${idx + 1}: ${
+            item.answer || ''
+          }<br/><em>AI 평가:</em> ${item.evaluation}</div>`
+      )
+      .join('');
+
+    const nextSteps = report.nextSteps
+      .map((step, idx) => `<li><strong>Step ${idx + 1}:</strong> ${step.title} - ${step.description}</li>`)
+      .join('');
+
+    const html = `
+      <html>
+        <head>
+          <meta charset="UTF-8" />
+          <title>${student.name} - Interview Report</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 24px; color: #0f172a; }
+            h1, h2, h3 { margin: 0 0 8px 0; }
+            .section { margin-bottom: 18px; }
+            .badge { display: inline-block; padding: 4px 10px; border-radius: 12px; background: #ede9fe; color: #6d28d9; font-size: 12px; }
+            ul { padding-left: 18px; }
+          </style>
+        </head>
+        <body>
+          <h1>${student.name} (${student.grade}학년 · ${student.major})</h1>
+          <p style="color:#475569;font-size:12px;margin:4px 0 12px;">학교: ${student.schoolName || '-'} | 시험일: ${today}</p>
+          <div class="badge">총점 ${report.totalScore.toFixed(1)}/10</div>
+          <div class="section">
+            <h2>요약</h2>
+            <p><strong>강점:</strong> ${report.summary.strengths}</p>
+            <p><strong>개선 영역:</strong> ${report.summary.areasForGrowth}</p>
+          </div>
+          <div class="section">
+            <h2>상세 피드백</h2>
+            ${detailed}
+          </div>
+          <div class="section">
+            <h2>다음 단계</h2>
+            <ul>${nextSteps}</ul>
+          </div>
+        </body>
+      </html>
+    `;
+
+    const printWindow = window.open('', '_blank', 'width=900,height=1200');
+    if (printWindow) {
+      printWindow.document.write(html);
+      printWindow.document.close();
+      printWindow.focus();
+      printWindow.print();
+    }
+  }, [student]);
+
   if (isLoading || !student) {
     return (
-      <div className="flex justify-center items-center h-96">
-        <Spinner />
+      <div className="container mx-auto animate-pulse space-y-6 pb-12">
+        <div className="h-6 w-32 bg-slate-200 rounded-full"></div>
+        <div className="h-10 w-40 bg-slate-200 rounded-full"></div>
+        <div className="h-56 bg-white border border-slate-100 rounded-[20px] shadow-soft"></div>
       </div>
     );
   }
@@ -51,6 +114,16 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({ studentId, onBack
             <h1 className="text-3xl font-bold text-slate-800">{student.name}</h1>
             <p className="text-lg text-primary font-medium">{student.grade}학년 · {student.major}</p>
         </div>
+        {student.report && (
+          <div className="flex gap-2">
+            <button
+              onClick={handleDownloadReport}
+              className="px-4 py-2 rounded-[12px] bg-primary text-white text-sm font-semibold shadow-soft hover:bg-primary-dark transition-colors"
+            >
+              PDF로 다운로드
+            </button>
+          </div>
+        )}
       </div>
 
       {student.report ? (

@@ -55,15 +55,16 @@ import VoiceAnswerArea from './interview/VoiceAnswerArea';
 interface InterviewSessionProps {
   questions: Question[];
   onFinish: (answers: Answer[]) => void;
+  perQuestionSeconds?: number;
 }
 
-const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish }) => {
+const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish, perQuestionSeconds = 60 }) => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [currentAnswer, setCurrentAnswer] = useState('');
   const [answers, setAnswers] = useState<Answer[]>([]);
   const [isRecording, setIsRecording] = useState(false);
   const [isSpeechSupported, setIsSpeechSupported] = useState(true);
-  const [timeLeft, setTimeLeft] = useState(60);
+  const [timeLeft, setTimeLeft] = useState(perQuestionSeconds);
   const [inlineError, setInlineError] = useState<string | null>(null);
   const [recordedAudioUrl, setRecordedAudioUrl] = useState<string | null>(null);
   const [isTimerPaused, setIsTimerPaused] = useState(false);
@@ -107,6 +108,12 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
     }
   }, []);
 
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
   const stopCurrentRecording = useCallback(() => {
     if (isRecordingRef.current) {
       setIsRecording(false);
@@ -114,6 +121,24 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
       stopAudioRecording();
     }
   }, [stopAudioRecording]);
+
+  const isLowTime = timeLeft <= 15;
+  useEffect(() => {
+    if (!isLowTime || isTimerPaused) return;
+    try {
+      const context = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const oscillator = context.createOscillator();
+      const gainNode = context.createGain();
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(880, context.currentTime);
+      gainNode.gain.setValueAtTime(0.05, context.currentTime);
+      oscillator.connect(gainNode).connect(context.destination);
+      oscillator.start();
+      oscillator.stop(context.currentTime + 0.1);
+    } catch {
+      // Audio may be blocked; fail silently.
+    }
+  }, [isLowTime, isTimerPaused]);
 
   const startAudioRecording = useCallback(async () => {
     if (!navigator.mediaDevices?.getUserMedia) return;
@@ -165,15 +190,15 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
       onFinish(updatedAnswers);
     } else {
       setCurrentQuestionIndex((prev) => prev + 1);
-      setTimeLeft(60);
+      setTimeLeft(perQuestionSeconds);
       setIsTimerPaused(false);
     }
   }, [answers, currentAnswer, currentQuestionIndex, drafts, onFinish, questions, recordedAudioUrl, stopCurrentRecording]);
 
   useEffect(() => {
-    setTimeLeft(60);
+    setTimeLeft(perQuestionSeconds);
     setInlineError(null);
-  }, [currentQuestionIndex]);
+  }, [currentQuestionIndex, perQuestionSeconds]);
 
   useEffect(() => {
     if (isTimerPaused) return;
@@ -217,8 +242,9 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
           interimTranscript += result[0].transcript;
         }
       }
-      const fullTranscript = finalTranscriptRef.current + interimTranscript;
+      const fullTranscript = (finalTranscriptRef.current + ' ' + interimTranscript).trim();
       setCurrentAnswer(fullTranscript);
+      updateDraft(currentQuestion.id, { text: fullTranscript });
     };
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
@@ -331,6 +357,23 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
 
   return (
     <div className="flex flex-col items-center justify-start min-h-[calc(100vh-10rem)] animate-fadeIn pt-6">
+      {isTimerVisible && (
+        <div className="fixed top-4 right-2 sm:top-20 sm:right-4 z-50">
+          <div
+            className={`backdrop-blur bg-white/90 border shadow-[0_12px_30px_rgba(103,0,230,0.15)] rounded-2xl px-4 py-3 flex items-center gap-3 ${
+              isLowTime ? 'border-red-300 animate-pulse' : 'border-primary/30'
+            }`}
+          >
+            <ClockIcon className={`w-6 h-6 ${isLowTime ? 'text-red-600' : 'text-primary'}`} />
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest">남은 시간</p>
+              <p className={`text-xl font-bold ${timeLeft <= 10 ? 'text-red-600' : isLowTime ? 'text-amber-600' : 'text-slate-800'}`}>
+                {formatTime(timeLeft)}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="w-full max-w-5xl space-y-8">
         <section className="relative overflow-hidden rounded-[28px] bg-gradient-to-r from-primary-lightest via-white to-primary-lightest border border-white/70 shadow-soft p-6 sm:p-8">
           <div className="hero-blob hero-blob--primary -right-10 -top-10"></div>
@@ -356,8 +399,8 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
               <div className="flex flex-col items-end gap-2 text-primary font-bold text-2xl">
                 {isTimerVisible ? (
                   <div className="flex items-center gap-2">
-                    <ClockIcon className="w-6 h-6" />
-                    <span>{timeLeft}?</span>
+                    <ClockIcon className={`w-6 h-6 ${isLowTime ? 'text-red-600' : ''}`} />
+                    <span className={isLowTime ? 'text-red-600' : ''}>{formatTime(timeLeft)}</span>
                   </div>
                 ) : (
                   <span className="text-xs text-slate-500 font-semibold">타이머가 숨겨져 있어요</span>

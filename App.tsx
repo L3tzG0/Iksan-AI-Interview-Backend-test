@@ -8,14 +8,12 @@ import TeacherHome from './components/TeacherHome';
 import SignInScreen from './components/auth/SignInScreen';
 import SignUpScreen from './components/auth/SignUpScreen';
 import Navbar from './components/layout/Navbar';
-import { InterviewReport, Question, Answer, User, AuthView, AppView } from './types';
+import { InterviewReport, Question, Answer, User, AuthView, AppView, InterviewStartPayload } from './types';
 import { generateQuestions, evaluateAnswers, saveInterviewReportForStudent, getStudentDetails } from './services/geminiService';
 import { GraduationCapIcon } from './components/icons';
-
 interface AdminHeaderProps {
     user?: User | null;
 }
-
 const AdminHeader: React.FC<AdminHeaderProps> = ({ user }) => (
   <div className="bg-white/90 p-6 rounded-[24px] border border-white/70 shadow-soft mb-6 flex items-center justify-between animate-fadeIn">
     <div className="flex items-center gap-4">
@@ -31,13 +29,11 @@ const AdminHeader: React.FC<AdminHeaderProps> = ({ user }) => (
     </div>
   </div>
 );
-
 const App: React.FC = () => {
   // Auth State
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authView, setAuthView] = useState<AuthView>('signin');
-
   // App State
   const [view, setView] = useState<AppView>('welcome');
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -46,7 +42,7 @@ const App: React.FC = () => {
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
+  const [perQuestionSeconds, setPerQuestionSeconds] = useState(60);
   const clearDrafts = useCallback(() => {
     try {
       sessionStorage.removeItem('ai-interview-draft');
@@ -54,7 +50,6 @@ const App: React.FC = () => {
       // Storage may be blocked; ignore to keep UI responsive.
     }
   }, []);
-
   // Load student history if user is a student
   useEffect(() => {
       const fetchHistory = async () => {
@@ -70,18 +65,15 @@ const App: React.FC = () => {
       };
       fetchHistory();
   }, [isAuthenticated, currentUser]);
-
   const handleAuthSuccess = (user: User) => {
     setCurrentUser(user);
     setIsAuthenticated(true);
-    
     if (user.role === 'teacher') {
         setView('welcome');
     } else {
         setView('welcome');
     }
   };
-
   const handleLogout = () => {
     setIsAuthenticated(false);
     setCurrentUser(null);
@@ -92,36 +84,38 @@ const App: React.FC = () => {
     setStudentHistory([]);
     clearDrafts();
   };
-
   const handleRoleToggle = () => {
     if (!currentUser) return;
     // Demo feature: toggle role but keep user data for simplicity in this mock
     const newRole = currentUser.role === 'student' ? 'teacher' : 'student';
     setCurrentUser({ ...currentUser, role: newRole });
-    
     if (newRole === 'teacher') {
         setView('welcome');
     } else {
         setView('welcome');
     }
   };
-
-  const handleStartInterview = useCallback(async (input: string | { data: string; mimeType: string }) => {
+  const handleStartInterview = useCallback(async (input: InterviewStartPayload) => {
     setIsLoading(true);
     setError(null);
     clearDrafts();
-
+    setPerQuestionSeconds(input.perQuestionSeconds || 60);
+    const goalLabel = input.intent === 'university' ? '대학교 진학' : '취업 준비';
+    const targetDetail = input.intent === 'university'
+      ? `희망 대학: ${(input.favoriteUniversities && input.favoriteUniversities.length > 0) ? input.favoriteUniversities.join(', ') : '미정'}, 전공: ${input.major || '미정'}`
+      : `희망 분야: ${input.workField || '미정'}`;
     // Prototype: bypass API calls so UI can be previewed instantly
     const mockQuestions: Question[] = [
-      { id: 1, text: "간단한 자기소개와 이번 면접의 목표를 말해 주세요.", type: "general" },
-      { id: 2, text: "이력서의 프로젝트/경험 한 가지를 골라 역할과 성과를 설명해 주세요.", type: "resume-based" },
-      { id: 3, text: "팀에서 어려운 문제를 해결했던 경험을 들려주세요.", type: "general" },
+      { id: 1, text: `${goalLabel} 관점에서 자신을 한 문장으로 소개해 주세요. (${targetDetail})`, type: "general" },
+      { id: 2, text: input.intent === 'university'
+          ? "선호하는 대학·전공에 지원하려는 동기와 준비한 활동을 STAR 구조로 설명해 주세요."
+          : `${input.workField || '희망 분야'} 역할과 연관된 프로젝트 경험을 STAR 구조로 설명해 주세요.`, type: "resume-based" },
+      { id: 3, text: "앞서 공유한 자료에서 본인이 가장 강점이라고 생각하는 역량을 구체적 사례와 함께 이야기해 주세요.", type: "general" },
     ];
     setQuestions(mockQuestions);
     setView('session');
     setIsLoading(false);
     return;
-
     // If you want live generation later, remove the return above and re-enable below.
     // try {
     //   const generatedQuestions = await generateQuestions(input);
@@ -134,7 +128,6 @@ const App: React.FC = () => {
     //   setIsLoading(false);
     // }
   }, [clearDrafts]);
-
   const handleFinishInterview = useCallback(async (answers: Answer[]) => {
     setIsLoading(true);
     setError(null);
@@ -145,7 +138,6 @@ const App: React.FC = () => {
         setIsLoading(false);
         return;
       }
-
       const interviewReport = await evaluateAnswers(questions, answers);
       if (currentUser) {
         saveInterviewReportForStudent(currentUser.id, interviewReport);
@@ -163,14 +155,12 @@ const App: React.FC = () => {
       setIsLoading(false);
     }
   }, [questions, currentUser, clearDrafts]);
-
   const handleTryAnotherTopic = () => {
     setQuestions([]);
     setReport(null);
     setView('welcome');
     clearDrafts();
   };
-
   const handleNavigate = useCallback((targetView: AppView) => {
     if (targetView === 'results' && !report) {
         setView('welcome');
@@ -190,26 +180,21 @@ const App: React.FC = () => {
     }
     setView(targetView);
   }, [report, questions, currentUser]);
-
   const handleViewStudent = (studentId: string) => {
     setSelectedStudentId(studentId);
     setView('studentDetail');
   };
-
   const handleBackToDashboard = () => {
     setSelectedStudentId(null);
     setView('teacherDashboard');
   };
-
   const handleStudentPreview = () => {
     setView('studentPreview');
   };
-  
   const handleViewHistoryReport = (historyReport: InterviewReport) => {
       setReport(historyReport);
       setView('results');
   };
-
   const renderMainContent = () => {
     if (isLoading) {
       return (
@@ -219,7 +204,6 @@ const App: React.FC = () => {
         </div>
       );
     }
-
     if (error) {
        return (
         <div className="flex flex-col items-center justify-center h-[60vh] text-slate-700">
@@ -242,10 +226,9 @@ const App: React.FC = () => {
         </div>
        );
     }
-
     switch (view) {
       case 'session':
-        return <InterviewSession questions={questions} onFinish={handleFinishInterview} />;
+        return <InterviewSession questions={questions} onFinish={handleFinishInterview} perQuestionSeconds={perQuestionSeconds} />;
       case 'results':
         return report && <ResultsScreen report={report} onRetry={handleTryAnotherTopic} />;
       case 'studentPreview':
@@ -280,7 +263,6 @@ const App: React.FC = () => {
         );
     }
   };
-
   // Authentication Flow
   if (!isAuthenticated) {
     if (authView === 'signin') {
@@ -289,7 +271,6 @@ const App: React.FC = () => {
         return <SignUpScreen onSignUp={handleAuthSuccess} onSwitchToSignIn={() => setAuthView('signin')} />;
     }
   }
-
   // Main App Flow
   return (
     <div className="relative min-h-screen bg-gradient-to-b from-[#f8f5ff] via-white to-[#f2eefe] text-slate-700 font-elice overflow-hidden">
@@ -312,5 +293,4 @@ const App: React.FC = () => {
     </div>
   );
 };
-
 export default App;

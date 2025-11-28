@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import type { InterviewReport } from '../types';
 import Card from './Card';
 import { CheckCircleIcon, AlertTriangleIcon, BrainIcon, FileTextIcon, MicIcon, ShieldIcon } from './icons';
+import Button from './ui/Button';
 
 interface InterviewReportViewProps {
   report: InterviewReport;
@@ -109,6 +110,10 @@ const RadarChart: React.FC<{ scores: { contentRelevance: number; structure: numb
 const InterviewReportView: React.FC<InterviewReportViewProps> = ({ report }) => {
   const strengthChips = useMemo(() => createChips(report.summary.strengths), [report.summary.strengths]);
   const weaknessChips = useMemo(() => createChips(report.summary.areasForGrowth), [report.summary.areasForGrowth]);
+  const jumpTargets = useMemo(
+    () => report.detailedFeedback.map((_, idx) => ({ label: `Q${idx + 1}`, id: `question-${idx + 1}` })),
+    [report.detailedFeedback]
+  );
 
   const categoryMeta = [
     { key: 'contentRelevance', label: '내용 적합도', icon: FileTextIcon, accent: 'text-indigo-600', bg: 'bg-indigo-50' },
@@ -182,33 +187,58 @@ const InterviewReportView: React.FC<InterviewReportViewProps> = ({ report }) => 
       </div>
 
       <Card>
-        <h2 className="text-2xl font-bold mb-4 text-slate-800">질문별 상세 피드백</h2>
-        <div className="space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <h2 className="text-2xl font-bold text-slate-800">질문별 상세 피드백</h2>
+          <div className="flex flex-wrap gap-2">
+            {jumpTargets.map((target) => (
+              <button
+                key={target.id}
+                onClick={() => {
+                  const el = document.getElementById(target.id);
+                  el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }}
+                className="px-3 py-1 rounded-full border border-slate-200 text-xs font-semibold text-slate-600 hover:border-primary hover:text-primary transition-colors"
+              >
+                {target.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="space-y-4">
           {report.detailedFeedback.map((item, index) => (
-            <div key={index} className={`p-6 rounded-[18px] border ${item.isCorrect ? 'bg-green-50 border-green-200' : 'bg-white border-slate-200 shadow-sm'}`}>
-              <div className="flex items-start gap-3">
+            <details
+              key={index}
+              id={`question-${index + 1}`}
+              className={`group rounded-[18px] border transition-all ${
+                item.isCorrect ? 'bg-green-50 border-green-200' : 'bg-white border-slate-200 shadow-sm'
+              }`}
+            >
+              <summary className="cursor-pointer list-none px-6 py-4 flex items-center gap-3">
                 <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${item.isCorrect ? 'bg-green-200 text-green-800' : 'bg-primary-light text-primary'}`}>
                   Q{index + 1}
                 </div>
-                <div className="flex-grow space-y-3">
-                  <p className="font-semibold text-slate-800 text-lg">{item.question}</p>
-                  <div className="bg-white/60 p-4 rounded-[14px] border border-slate-200">
-                    <p className="text-xs font-bold uppercase text-slate-500 mb-1">학생 답변</p>
-                    <p className="text-slate-700 italic">"{item.answer}"</p>
+                <div className="flex flex-col gap-1">
+                  <p className="font-semibold text-slate-800 text-base">{item.question}</p>
+                  <p className="text-xs text-slate-500">학생 답변 요약 보기</p>
+                </div>
+              </summary>
+              <div className="px-6 pb-6 space-y-3">
+                <div className="bg-white/60 p-4 rounded-[14px] border border-slate-200">
+                  <p className="text-xs font-bold uppercase text-slate-500 mb-1">학생 답변</p>
+                  <p className="text-slate-700 italic">"{item.answer}"</p>
+                </div>
+                <div className={`p-4 rounded-[14px] ${item.isCorrect ? 'bg-green-100/50' : 'bg-primary-lightest'}`}>
+                  <div className="flex justify-between items-center mb-2">
+                    <h4 className={`font-bold text-sm flex items-center gap-2 ${item.isCorrect ? 'text-green-800' : 'text-primary'}`}>
+                      <BrainIcon className="w-4 h-4" />
+                      AI 코칭 요약
+                    </h4>
+                    <span className="font-bold text-sm bg-white px-2 py-1 rounded shadow-sm">점수: {item.score}/10</span>
                   </div>
-                  <div className={`p-4 rounded-[14px] ${item.isCorrect ? 'bg-green-100/50' : 'bg-primary-lightest'}`}>
-                    <div className="flex justify-between items-center mb-2">
-                      <h4 className={`font-bold text-sm flex items-center gap-2 ${item.isCorrect ? 'text-green-800' : 'text-primary'}`}>
-                        <BrainIcon className="w-4 h-4" />
-                        AI 코칭 요약
-                      </h4>
-                      <span className="font-bold text-sm bg-white px-2 py-1 rounded shadow-sm">점수: {item.score}/10</span>
-                    </div>
-                    <p className="text-sm text-slate-700 leading-relaxed">{item.evaluation}</p>
-                  </div>
+                  <p className="text-sm text-slate-700 leading-relaxed">{item.evaluation}</p>
                 </div>
               </div>
-            </div>
+            </details>
           ))}
         </div>
       </Card>

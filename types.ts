@@ -12,6 +12,18 @@ export interface Question {
   type: 'general' | 'resume-based';
 }
 
+export type StudentGoal = 'university' | 'work';
+
+export interface InterviewStartPayload {
+  resumeText?: string;
+  fileData?: { data: string; mimeType: string };
+  intent: StudentGoal;
+  favoriteUniversities?: string[];
+  major?: string;
+  workField?: string;
+  perQuestionSeconds?: number;
+}
+
 export interface Answer {
   questionId: number;
   text: string;

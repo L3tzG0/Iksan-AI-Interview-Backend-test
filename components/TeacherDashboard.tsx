@@ -74,8 +74,30 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser, onSele
 
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center h-96">
-        <Spinner />
+      <div className="container mx-auto animate-pulse space-y-6">
+        <div className="rounded-[28px] bg-gradient-to-r from-slate-50 via-white to-slate-50 border border-white/70 shadow-soft p-6 sm:p-8">
+          <div className="h-4 w-32 bg-slate-200/80 rounded-full mb-3"></div>
+          <div className="h-8 w-64 bg-slate-200/80 rounded-full mb-4"></div>
+          <div className="grid sm:grid-cols-3 gap-4">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="rounded-[18px] bg-white/90 border border-white/70 p-4 shadow-soft h-20">
+                <div className="h-3 w-20 bg-slate-200/70 rounded-full mb-3"></div>
+                <div className="h-6 w-16 bg-slate-200/80 rounded-full"></div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="bg-white/90 border border-slate-100 rounded-[20px] shadow-soft overflow-hidden">
+          <div className="h-10 bg-slate-50/80 border-b border-slate-100"></div>
+          <div className="divide-y divide-slate-100">
+            {[...Array(4)].map((_, idx) => (
+              <div key={idx} className="flex items-center justify-between px-6 py-4">
+                <div className="h-4 w-32 bg-slate-200/80 rounded-full"></div>
+                <div className="h-4 w-20 bg-slate-200/80 rounded-full"></div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }

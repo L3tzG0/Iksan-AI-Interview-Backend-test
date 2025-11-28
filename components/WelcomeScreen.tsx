@@ -1,10 +1,10 @@
 import React, { useState, useCallback } from 'react';
 import { UploadCloudIcon, FileTextIcon, ClockIcon, SparklesIcon } from './icons';
 import Button from './ui/Button';
-import type { InterviewReport } from '../types';
+import type { InterviewReport, InterviewStartPayload, StudentGoal } from '../types';
 
 interface WelcomeScreenProps {
-  onStart: (input: string | { data: string; mimeType: string }) => void;
+  onStart: (input: InterviewStartPayload) => void;
   history?: InterviewReport[];
   onViewReport?: (report: InterviewReport) => void;
 }
@@ -21,6 +21,11 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
   const [fileName, setFileName] = useState('');
   const [fileData, setFileData] = useState<{ data: string; mimeType: string } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [intent, setIntent] = useState<StudentGoal | null>(null);
+  const [universities, setUniversities] = useState<string[]>(['']);
+  const [major, setMajor] = useState('');
+  const [workField, setWorkField] = useState('');
+  const [perQuestionSeconds, setPerQuestionSeconds] = useState(60);
 
   const handleIncomingFile = useCallback((file?: File) => {
     if (!file) return;
@@ -79,15 +84,49 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
     setResumeText(e.target.value);
   };
 
-  const handleStartClick = () => {
-    if (fileData) {
-      onStart(fileData);
+  const handleIntentSelect = (goal: StudentGoal) => {
+    setIntent(goal);
+    if (goal === 'university') {
+      setWorkField('');
+      if (universities.length === 0) setUniversities(['']);
     } else {
-      onStart(resumeText);
+      setMajor('');
+      setUniversities(['']);
     }
   };
 
-  const isStartDisabled = !resumeText.trim() && !fileData;
+  const handleUniversityChange = (index: number, value: string) => {
+    setUniversities((prev) => prev.map((item, i) => (i === index ? value : item)));
+  };
+
+  const handleAddUniversity = () => {
+    if (universities.length >= 3) return;
+    setUniversities((prev) => [...prev, '']);
+  };
+
+  const handleRemoveUniversity = (index: number) => {
+    setUniversities((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleStartClick = () => {
+    if (!intent) return;
+    const cleanUniversities = universities.map((u) => u.trim()).filter(Boolean).slice(0, 3);
+    const payload: InterviewStartPayload = {
+      resumeText: fileData ? undefined : resumeText.trim(),
+      fileData: fileData ?? undefined,
+      intent,
+      favoriteUniversities: intent === 'university' ? cleanUniversities : undefined,
+      major: intent === 'university' ? major.trim() : undefined,
+      workField: intent === 'work' ? workField.trim() : undefined,
+      perQuestionSeconds,
+    };
+    onStart(payload);
+  };
+
+  const hasBaseInput = !!fileData || !!resumeText.trim();
+  const hasUniversityGoal = intent === 'university' && universities.some((u) => u.trim()) && !!major.trim();
+  const hasWorkGoal = intent === 'work' && !!workField.trim();
+  const isStartDisabled = !hasBaseInput || !intent || (intent === 'university' ? !hasUniversityGoal : !hasWorkGoal);
 
   return (
     <div className="space-y-10 animate-fadeIn">
@@ -174,10 +213,135 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
             )}
           </label>
           <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleFileChange} accept=".txt,.md,.pdf" />
+          <div className="mt-8 space-y-4">
+            <div className="grid sm:grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => handleIntentSelect('work')}
+                className={`rounded-[16px] border px-4 py-3 text-left transition-all ${
+                  intent === 'work'
+                    ? 'border-primary bg-primary-lightest text-primary shadow-soft'
+                    : 'border-slate-200 bg-white/70 hover:border-primary/60'
+                }`}
+              >
+                <p className="text-sm font-semibold">이 플랫폼을 취업 준비에 사용해요</p>
+                <p className="text-xs text-slate-500 mt-1">희망 분야에 맞는 질문을 준비합니다.</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleIntentSelect('university')}
+                className={`rounded-[16px] border px-4 py-3 text-left transition-all ${
+                  intent === 'university'
+                    ? 'border-primary bg-primary-lightest text-primary shadow-soft'
+                    : 'border-slate-200 bg-white/70 hover:border-primary/60'
+                }`}
+              >
+                <p className="text-sm font-semibold">이 플랫폼을 대학 진학 준비에 사용해요</p>
+                <p className="text-xs text-slate-500 mt-1">선호 대학과 전공을 알려주세요.</p>
+              </button>
+            </div>
 
-          <Button onClick={handleStartClick} disabled={isStartDisabled} fullWidth className="mt-8 py-4 text-base">
-            면접 연습 시작하기
-          </Button>
+            {intent === 'university' && (
+              <div className="rounded-[16px] border border-primary/30 bg-primary-lightest/60 p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-slate-800">선호 대학 (최대 3개)</p>
+                    <p className="text-xs text-slate-500">지원하고자 하는 대학을 최대 세 곳까지 추가하세요.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddUniversity}
+                    disabled={universities.length >= 3}
+                    className="text-xs font-semibold text-primary disabled:text-slate-400"
+                  >
+                    + Add
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {universities.map((uni, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={uni}
+                        onChange={(e) => handleUniversityChange(index, e.target.value)}
+                        placeholder={`대학교 ${index + 1}`}
+                        className={`flex-1 rounded-lg border bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-primary/30 outline-none ${
+                          intent === 'university' && !uni.trim() ? 'border-red-300 focus:border-red-400' : 'border-slate-200 focus:border-primary'
+                        }`}
+                      />
+                      {universities.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveUniversity(index)}
+                          className="text-xs text-slate-400 hover:text-slate-600"
+                        >
+                          제거
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  {intent === 'university' && !universities.some((u) => u.trim()) && (
+                    <p className="text-xs text-red-600">최소 1개 대학을 입력해주세요.</p>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-slate-800">예정 전공</p>
+                  <input
+                    type="text"
+                    value={major}
+                    onChange={(e) => setMajor(e.target.value)}
+                    placeholder="예: 컴퓨터 과학, 경영학, 심리학"
+                    className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-primary/30 outline-none ${
+                      intent === 'university' && !major.trim() ? 'border-red-300 focus:border-red-400' : 'border-slate-200 focus:border-primary'
+                    }`}
+                  />
+                  {intent === 'university' && !major.trim() && <p className="text-xs text-red-600">전공을 입력하면 더 정교한 질문을 만들어요.</p>}
+                </div>
+              </div>
+            )}
+
+            {intent === 'work' && (
+              <div className="rounded-[16px] border border-primary/30 bg-primary-lightest/60 p-4 space-y-2">
+                <p className="text-sm font-semibold text-slate-800">업무 분야</p>
+                <p className="text-xs text-slate-500">목표로 하는 분야나 직무를 알려주세요.</p>
+                <input
+                  type="text"
+                  value={workField}
+                  onChange={(e) => setWorkField(e.target.value)}
+                  placeholder="예: 프론트엔드 개발자, 데이터 분석가"
+                  className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-primary/30 outline-none ${
+                    intent === 'work' && !workField.trim() ? 'border-red-300 focus:border-red-400' : 'border-slate-200 focus:border-primary'
+                  }`}
+                />
+                {intent === 'work' && !workField.trim() && <p className="text-xs text-red-600">희망 직무를 입력해주세요.</p>}
+              </div>
+            )}
+
+            <div className="rounded-[16px] border border-slate-200 bg-white/80 p-4 space-y-2">
+              <p className="text-sm font-semibold text-slate-800">질문당 시간 선택</p>
+              <p className="text-xs text-slate-500">각 질문에 할당할 시간을 선택하세요.</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {[30, 60, 90, 120].map((seconds) => (
+                  <button
+                    type="button"
+                    key={seconds}
+                    onClick={() => setPerQuestionSeconds(seconds)}
+                    className={`py-2 px-3 rounded-[12px] border text-sm font-semibold transition-colors ${
+                      perQuestionSeconds === seconds
+                        ? 'bg-primary text-white border-primary'
+                        : 'bg-white text-slate-700 border-slate-200 hover:border-primary/70'
+                    }`}
+                  >
+                    {seconds}초
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <Button onClick={handleStartClick} disabled={isStartDisabled} fullWidth className="py-4 text-base">
+              제출
+            </Button>
+          </div>
         </div>
 
         {history && history.length > 0 ? (

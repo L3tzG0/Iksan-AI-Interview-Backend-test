@@ -6,6 +6,21 @@
   --elice-primary-soft: #cbb5ff;
   --elice-surface: #ffffff;
   --elice-bg: #f8f5ff;
+  /* Design tokens */
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --shadow-soft: 0 12px 30px rgba(103, 0, 230, 0.12);
+  --shadow-card: 0 10px 30px rgba(15, 23, 42, 0.08);
+  --shadow-inner: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  --blur-strong: blur(30px);
 }
 
 * {

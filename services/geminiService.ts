@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import type { Question, Answer, InterviewReport, StudentSummary, StudentDetail } from '../types';
+import type { Question, Answer, InterviewReport, StudentSummary, StudentDetail, InterviewStartPayload } from '../types';
 
 // IMPORTANT: This key is managed externally and is a hard requirement.
 // Do not modify this line.
@@ -77,54 +77,63 @@ const evaluationSchema = {
     required: ['scores', 'summary', 'detailedFeedback', 'nextSteps'],
 };
 
-export const generateQuestions = async (input: string | { data: string; mimeType: string }): Promise<Question[]> => {
+export const generateQuestions = async (input: InterviewStartPayload): Promise<Question[]> => {
     let contents: any;
-    
-    // Jobda / PDF Context for style
     const interviewContext = `
-    참고할 면접 질문 유형 (Jobda 스타일 - 특성화고/직무 중심):
-    1. 비전/목표 (Vision/Goals): 입사 후 포부, 5년/10년 후 모습, 직업관, 일의 목적.
-    2. 조직적응력 (Organizational Adaptability): 상사와의 갈등 해결, 협력 경험, 야근/지방 근무 가능 여부.
-    3. 창의성/돌발 (Spontaneous/Creativity): 붉은 벽돌의 5가지 용도, 서울의 중국집 매출 추산 등 논리적 사고.
-    4. 가치관/인성 (Interests/Values): 존경하는 인물, 감명 깊은 영화, 스트레스 해소법.
-    5. 직무 적합성 (Job Fit): 지원 동기, 직무 관련 강점, 전공과 직무의 연관성.
+    ??? ?? ?? ?? (Jobda ??? - ????/?? ??):
+    1. ??/?? (Vision/Goals): ?? ? ??, 5?/10? ? ??, ???, ?? ??.
+    2. ????? (Organizational Adaptability): ???? ?? ??, ?? ??, ??/?? ?? ?? ??.
+    3. ???/?? (Spontaneous/Creativity): ?? ??? 5?? ??, ??? ??? ?? ?? ? ??? ??.
+    4. ???/?? (Interests/Values): ???? ??, ?? ?? ??, ???? ???.
+    5. ?? ??? (Job Fit): ?? ??, ?? ?? ??, ??? ??? ???.
     `;
-
+    const goalContext = input.intent === 'university'
+        ? `목표: 대학 진학. 선호 대학: ${(input.favoriteUniversities && input.favoriteUniversities.length > 0) ? input.favoriteUniversities.join(', ') : '미입력'}. 희망 전공: ${input.major || '미입력'}.`
+        : `목표: 취업. 희망 분야/직무: ${input.workField || '미입력'}.`;
+    const resumeText = input.resumeText && input.resumeText.trim()
+        ? input.resumeText
+        : '(텍스트 이력서/소개가 제공되지 않았습니다.)';
     const basePrompt = `
-        당신은 특성화고 학생을 위한 전문 AI 면접 코치입니다.
-        제공된 이력서 정보를 심층 분석하여 **전공(Major)**, **구체적인 경험(Experience)**, **지원 동기(Motivation)**를 파악하십시오.
-        이를 바탕으로 한국어로 정확히 10개의 맞춤형 면접 질문을 생성하세요.
+        ??? ???? ??? ?? ?? AI ?? ?????.
+        ??? ??? ??? ?? ???? **??(Major)**, **???? ??(Experience)**, **?? ??(Motivation)**? ??????.
+        ?? ???? ???? ??? 10?? ??? ?? ??? ?????.
         
-        다음 규칙을 엄격히 따르세요:
-        1. **이력서/직무 기반 질문 (resume-based)**: 5개. 
-           - 제출된 이력서에서 학생의 전공과 관련된 구체적인 프로젝트나 기술 스택을 언급하며 질문하세요.
-           - 학생이 작성한 특정 경험(동아리, 실습, 자격증 등)에 대해 깊이 있는 질문을 하세요.
-           - 지원 동기와 입사 후 포부를 묻는 질문을 포함하세요.
-           - 질문은 매우 구체적이고 개인화되어야 합니다.
-        2. **일반/인성 질문 (general)**: 5개. 위에서 제공한 '비전/목표', '조직적응력', '창의성' 등의 주제를 참고하여 생성하세요.
-        3. 모든 질문은 한국어로 작성되어야 합니다.
-        4. ID는 1부터 10까지 부여하세요.
+        ?? ??? ??? ????:
+        1. **???/?? ?? ?? (resume-based)**: 5?. 
+           - ??? ????? ??? ??? ??? ???? ????? ?? ??? ???? ?????.
+           - ??? ??? ?? ??(???, ??, ??? ?)? ?? ?? ?? ??? ???.
+           - ?? ??? ?? ? ??? ?? ??? ?????.
+           - ??? ?? ????? ?????? ???.
+        2. **??/?? ?? (general)**: 5?. ??? ??? '??/??', '?????', '???' ?? ??? ???? ?????.
+        3. ?? ??? ???? ????? ???.
+        4. ID? 1?? 10?? ?????.
 
         ${interviewContext}
-    `;
 
-    if (typeof input === 'string') {
-        const prompt = `${basePrompt}\n\nResume Text:\n---\n${input}\n---`;
-        contents = prompt;
-    } else {
+        ?? ?? ??:
+        ${goalContext}
+    `;
+    const promptText = `${basePrompt}
+
+Resume / Intro Text:
+---
+${resumeText}
+---`;
+    if (input.fileData) {
         contents = {
             parts: [
-                { text: basePrompt },
+                { text: promptText },
                 {
                     inlineData: {
-                        data: input.data,
-                        mimeType: input.mimeType,
+                        data: input.fileData.data,
+                        mimeType: input.fileData.mimeType,
                     },
                 },
             ],
         };
+    } else {
+        contents = promptText;
     }
-
     const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: contents,
@@ -134,12 +143,9 @@ export const generateQuestions = async (input: string | { data: string; mimeType
             temperature: 0.6,
         },
     });
-    
     const jsonText = response.text.trim();
     return JSON.parse(jsonText) as Question[];
 };
-
-
 export const evaluateAnswers = async (questions: Question[], answers: Answer[]): Promise<InterviewReport> => {
     const interviewTranscript = questions.map(q => {
         const answer = answers.find(a => a.questionId === q.id);
