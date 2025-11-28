@@ -7,7 +7,7 @@ from app.schemas.major import MajorResponse, MajorCreate
 router = APIRouter()
 
 @router.get("/", response_model=List[MajorResponse])
-async def read_majors(
+def read_majors(
     supabase: Annotated[Client, Depends(get_supabase)]
 ):
     """Get all majors"""
@@ -15,7 +15,7 @@ async def read_majors(
     return response.data
 
 @router.post("/", response_model=MajorResponse)
-async def create_major(
+def create_major(
     major_in: MajorCreate,
     supabase: Annotated[Client, Depends(get_supabase)]
 ):

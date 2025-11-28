@@ -7,7 +7,7 @@ from app.schemas.teacher import TeacherResponse, TeacherCreate
 router = APIRouter()
 
 @router.get("/", response_model=List[TeacherResponse])
-async def read_teachers(
+def read_teachers(
     supabase: Annotated[Client, Depends(get_supabase)]
 ):
     """Get all teachers"""
@@ -15,7 +15,7 @@ async def read_teachers(
     return response.data
 
 @router.post("/", response_model=TeacherResponse)
-async def create_teacher(
+def create_teacher(
     teacher_in: TeacherCreate,
     supabase: Annotated[Client, Depends(get_supabase)]
 ):

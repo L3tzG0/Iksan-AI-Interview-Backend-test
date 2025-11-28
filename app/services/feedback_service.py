@@ -6,13 +6,20 @@ from app.schemas.detailed_feedback import InterviewDetailedFeedbackCreate
 from app.schemas.next_step import InterviewNextStepCreate
 
 class FeedbackService:
+    """
+    Service for feedback database operations.
+    
+    All methods are synchronous (def) because the Supabase Python client
+    uses synchronous HTTP calls internally. FastAPI will automatically
+    run these in a thread pool when called from async endpoints.
+    """
     def __init__(self, supabase: Client):
         self.supabase = supabase
 
-    async def create_summary(self, summary: InterviewSummaryCreate):
+    def create_summary(self, summary: InterviewSummaryCreate):
         pass
 
-    async def create_detailed_feedback(self, session_id: int):
+    def create_detailed_feedback(self, session_id: int):
         """
         Create initial detailed_feedback record for session
         
@@ -49,7 +56,7 @@ class FeedbackService:
                 detail=f"Database error while creating detailed_feedback: {str(e)}"
             )
 
-    async def create_detailed_feedbacks_batch(
+    def create_detailed_feedbacks_batch(
         self, 
         session_id: int, 
         questions: List[str]
@@ -97,5 +104,5 @@ class FeedbackService:
                 detail=f"Database error while creating detailed_feedbacks batch: {str(e)}"
             )
 
-    async def create_next_step(self, next_step: InterviewNextStepCreate):
+    def create_next_step(self, next_step: InterviewNextStepCreate):
         pass

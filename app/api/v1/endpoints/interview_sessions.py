@@ -28,7 +28,7 @@ from app.services.llm_service import LLMService
 router = APIRouter()
 
 @router.get("/", response_model=SessionHistoryResponse)
-async def get_my_sessions(
+def get_my_sessions(
     current_user = Depends(get_current_user),
     supabase: Annotated[Client, Depends(get_supabase)] = None
 ):
@@ -73,7 +73,7 @@ async def get_my_sessions(
 
 
 @router.post("/submit", response_model=SessionFeedbackResponse)
-async def submit_session_answers(
+def submit_session_answers(
     request: SessionSubmitRequest,
     current_user = Depends(get_current_user),
     supabase: Annotated[Client, Depends(get_supabase)] = None
@@ -145,7 +145,7 @@ async def submit_session_answers(
 
 
 @router.get("/{session_id}", response_model=SessionDetailResponse)
-async def get_session_detail(
+def get_session_detail(
     session_id: int,
     current_user = Depends(get_current_user),
     supabase: Annotated[Client, Depends(get_supabase)] = None
@@ -222,7 +222,7 @@ async def get_session_detail(
 
 
 @router.post("/initiate", response_model=SessionInitiateResponse)
-async def initiate_interview_session(
+def initiate_interview_session(
     file: Optional[UploadFile] = File(None, description="Document file (PDF, DOCX, TXT, MD)"),
     raw_text: Optional[str] = Form(None, description="Raw text content"),
     student_id: int = Form(..., description="Student ID"),
@@ -283,7 +283,7 @@ async def initiate_interview_session(
             )
         
         # Step 1: Validate student exists
-        student = await student_service.get_student(student_id)
+        student = student_service.get_student(student_id)
         
         # Step 2: Create session
         session = session_service.create_session(student_id=student_id, status="in_progress")
@@ -300,8 +300,9 @@ async def initiate_interview_session(
             # Step 3a: Validate file type and filename
             storage_service.validate_file(file)
             
-            # Step 3b: Read file bytes
-            file_bytes = await file.read()
+            # Step 3b: Read file bytes (sync read from SpooledTemporaryFile)
+            # Note: file.file is the underlying SpooledTemporaryFile which supports sync read
+            file_bytes = file.file.read()
             
             # Validate file size
             if len(file_bytes) > settings.MAX_FILE_SIZE:
@@ -333,10 +334,10 @@ async def initiate_interview_session(
         )
         
         # Step 5: Generate interview questions using LLM
-        question_texts = await llm_service.generate_interview_questions(cleaned_text_extracted)
+        question_texts = llm_service.generate_interview_questions(cleaned_text_extracted)
         
         # Step 6: Create detailed_feedbacks records (10 rows with questions)
-        await feedback_service.create_detailed_feedbacks_batch(
+        feedback_service.create_detailed_feedbacks_batch(
             session_id=session_id,
             questions=question_texts
         )
@@ -360,19 +361,19 @@ async def initiate_interview_session(
     except HTTPException:
         # HTTPExceptions already have proper status codes and messages
         # Perform rollback before re-raising
-        await _rollback_session_creation(session_service, session_id)
+        _rollback_session_creation(session_service, session_id)
         raise
         
     except Exception as e:
         # Unexpected errors - rollback and return 500
-        await _rollback_session_creation(session_service, session_id)
+        _rollback_session_creation(session_service, session_id)
         raise HTTPException(
             status_code=500,
             detail=f"Failed to initiate interview session: {str(e)}"
         )
 
 
-async def _rollback_session_creation(
+def _rollback_session_creation(
     session_service: InterviewSessionService,
     session_id: int | None = None
 ):

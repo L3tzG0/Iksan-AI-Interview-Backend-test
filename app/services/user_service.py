@@ -8,11 +8,15 @@ class UserProfileService:
     Service for managing user profiles in public.user_profiles table.
     Note: User profiles are auto-created via database trigger when users register.
     This service is mainly for querying and updating existing profiles.
+    
+    All methods are synchronous (def) because the Supabase Python client
+    uses synchronous HTTP calls internally. FastAPI will automatically
+    run these in a thread pool when called from async endpoints.
     """
     def __init__(self, supabase: Client):
         self.supabase = supabase
 
-    async def get_profile(self, user_id: UUID):
+    def get_profile(self, user_id: UUID):
         """Get user profile by UUID from user_profiles table"""
         try:
             response = self.supabase.table('user_profiles').select('*').eq('id', str(user_id)).execute()
@@ -22,7 +26,7 @@ class UserProfileService:
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-    async def get_profile_with_role(self, user_id: UUID):
+    def get_profile_with_role(self, user_id: UUID):
         """Get user profile with role information"""
         try:
             response = self.supabase.table('user_profiles').select(
@@ -34,7 +38,7 @@ class UserProfileService:
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-    async def get_student_details(self, user_id: UUID):
+    def get_student_details(self, user_id: UUID):
         """Get student details by user_id with related information"""
         try:
             response = self.supabase.table('students').select(
@@ -46,7 +50,7 @@ class UserProfileService:
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-    async def get_teacher_details(self, user_id: UUID):
+    def get_teacher_details(self, user_id: UUID):
         """Get teacher details by user_id"""
         try:
             response = self.supabase.table('teachers').select('*').eq('user_id', str(user_id)).execute()
@@ -56,7 +60,7 @@ class UserProfileService:
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-    async def get_profile_by_email(self, email: str):
+    def get_profile_by_email(self, email: str):
         """Get user profile by email from user_profiles table"""
         try:
             response = self.supabase.table('user_profiles').select('*').eq('email', email).execute()
@@ -78,7 +82,7 @@ class UserProfileService:
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     
-    async def get_all_profiles(self, skip: int = 0, limit: int = 100):
+    def get_all_profiles(self, skip: int = 0, limit: int = 100):
         """Get all user profiles with pagination"""
         try:
             response = self.supabase.table('user_profiles').select('*').range(skip, skip + limit - 1).execute()

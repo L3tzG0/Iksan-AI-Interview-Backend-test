@@ -7,7 +7,7 @@ from app.schemas.school import SchoolResponse, SchoolCreate
 router = APIRouter()
 
 @router.get("/", response_model=List[SchoolResponse])
-async def read_schools(
+def read_schools(
     supabase: Annotated[Client, Depends(get_supabase)]
 ):
     """Get all schools"""
@@ -15,7 +15,7 @@ async def read_schools(
     return response.data
 
 @router.post("/", response_model=SchoolResponse)
-async def create_school(
+def create_school(
     school_in: SchoolCreate,
     supabase: Annotated[Client, Depends(get_supabase)]
 ):

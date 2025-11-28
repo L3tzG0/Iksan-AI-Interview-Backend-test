@@ -4,8 +4,42 @@ LLM Service - Skeleton Implementation
 This service wraps LLM functionality for generating interview questions
 based on document content (resume, portfolio, etc.)
 
-TODO: Replace placeholder implementation with actual LLM integration
-(e.g., OpenAI, Anthropic, Google AI, etc.)
+IMPLEMENTATION GUIDE FOR FUTURE ASYNC LLM INTEGRATION:
+======================================================
+When implementing actual LLM calls, use async-friendly HTTP clients:
+
+1. For OpenAI:
+   - Use `openai.AsyncOpenAI` client
+   - Example:
+     ```python
+     from openai import AsyncOpenAI
+     client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+     response = await client.chat.completions.create(...)
+     ```
+
+2. For Google Gemini:
+   - Use `google.generativeai` with async support or `httpx.AsyncClient`
+   - Example with httpx:
+     ```python
+     import httpx
+     async with httpx.AsyncClient() as client:
+         response = await client.post(url, json=payload, headers=headers)
+     ```
+
+3. For Anthropic Claude:
+   - Use `anthropic.AsyncAnthropic` client
+   - Example:
+     ```python
+     from anthropic import AsyncAnthropic
+     client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+     response = await client.messages.create(...)
+     ```
+
+IMPORTANT: Do NOT use synchronous HTTP clients (requests, urllib) in async functions.
+If you must use a sync client, convert the method to regular `def` and let FastAPI
+run it in a thread pool automatically.
+
+Current Status: Skeleton implementation with placeholder data.
 """
 
 from typing import List
@@ -18,20 +52,30 @@ class LLMService:
     
     This is a skeleton implementation that returns placeholder questions.
     Replace with actual LLM API calls when integrating with a provider.
+    
+    ASYNC DESIGN DECISION:
+    - Currently using sync `def` because this is a placeholder returning static data
+    - When implementing actual LLM calls:
+      * If using async client (httpx.AsyncClient, openai.AsyncOpenAI): change to `async def`
+      * If using sync client (requests): keep as `def` and FastAPI handles threading
     """
     
     def __init__(self):
         """
         Initialize LLM service.
         
-        TODO: Add LLM client initialization here
-        Example:
-            self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        TODO: Add async LLM client initialization here
+        Example with OpenAI:
+            self.client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+        
+        Example with httpx (for custom API):
+            # Client should be created per-request or use connection pooling
+            # self.base_url = settings.LLM_API_BASE_URL
         """
         self.model = settings.LLM_MODEL
         self.num_questions = 10
     
-    async def generate_interview_questions(self, cleaned_text: str) -> List[str]:
+    def generate_interview_questions(self, cleaned_text: str) -> List[str]:
         """
         Generate interview questions based on the provided document text.
         
@@ -42,16 +86,40 @@ class LLMService:
         Returns:
             List[str]: List of 10 interview questions
         
-        TODO: Implement actual LLM call
-        Example implementation:
+        FUTURE ASYNC IMPLEMENTATION:
+        ============================
+        When implementing with actual LLM, change signature to:
+            async def generate_interview_questions(self, cleaned_text: str) -> List[str]:
+        
+        Example with OpenAI AsyncClient:
+        ```python
+        async def generate_interview_questions(self, cleaned_text: str) -> List[str]:
+            prompt = self._build_prompt(cleaned_text)
             response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": f"Document: {cleaned_text}"}
-                ]
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=settings.LLM_MAX_TOKENS,
+                temperature=settings.LLM_TEMPERATURE
             )
-            return parse_questions(response.choices[0].message.content)
+            return self._parse_questions(response.choices[0].message.content)
+        ```
+        
+        Example with httpx.AsyncClient:
+        ```python
+        async def generate_interview_questions(self, cleaned_text: str) -> List[str]:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{settings.LLM_API_URL}/generate",
+                    json={"text": cleaned_text, "model": self.model},
+                    headers={"Authorization": f"Bearer {settings.LLM_API_KEY}"},
+                    timeout=30.0
+                )
+                response.raise_for_status()
+                return self._parse_questions(response.json())
+        ```
         """
         # Skeleton implementation - returns placeholder questions
         # These will be replaced by actual LLM-generated questions
@@ -70,7 +138,7 @@ class LLMService:
         
         return placeholder_questions
     
-    async def _build_prompt(self, cleaned_text: str) -> str:
+    def _build_prompt(self, cleaned_text: str) -> str:
         """
         Build the prompt for LLM question generation.
         
@@ -80,7 +148,7 @@ class LLMService:
         Returns:
             str: Formatted prompt for LLM
         
-        TODO: Implement proper prompt engineering
+        TODO: Implement proper prompt engineering based on chosen LLM provider
         """
         # Placeholder prompt template
         prompt = f"""
@@ -100,3 +168,32 @@ Generate exactly 10 questions in Korean, focusing on:
 Return the questions as a numbered list.
 """
         return prompt
+    
+    def _parse_questions(self, llm_response: str) -> List[str]:
+        """
+        Parse LLM response to extract questions list.
+        
+        Args:
+            llm_response: Raw text response from LLM
+        
+        Returns:
+            List[str]: Parsed list of questions
+        
+        TODO: Implement robust parsing logic based on LLM output format
+        """
+        # Placeholder - implement based on actual LLM response format
+        # Example: split by newlines, filter numbered items, clean up
+        lines = llm_response.strip().split('\n')
+        questions = []
+        for line in lines:
+            line = line.strip()
+            # Remove numbering (e.g., "1.", "1)", "1:")
+            if line and line[0].isdigit():
+                # Find where the actual question starts
+                for i, char in enumerate(line):
+                    if char in '.):' and i < 3:
+                        line = line[i+1:].strip()
+                        break
+            if line:
+                questions.append(line)
+        return questions[:self.num_questions]

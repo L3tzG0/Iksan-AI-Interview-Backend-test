@@ -7,7 +7,7 @@ from app.schemas.role import RoleResponse, RoleCreate
 router = APIRouter()
 
 @router.get("/", response_model=List[RoleResponse])
-async def read_roles(
+def read_roles(
     supabase: Annotated[Client, Depends(get_supabase)]
 ):
     """Get all roles"""
@@ -15,7 +15,7 @@ async def read_roles(
     return response.data
 
 @router.post("/", response_model=RoleResponse)
-async def create_role(
+def create_role(
     role_in: RoleCreate,
     supabase: Annotated[Client, Depends(get_supabase)]
 ):

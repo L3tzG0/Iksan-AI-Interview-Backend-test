@@ -10,7 +10,7 @@ from app.schemas.auth import Token, LoginRequest, RegisterRequest, UserResponse
 router = APIRouter()
 
 @router.post("/register", response_model=UserResponse)
-async def register_user(
+def register_user(
     user_in: RegisterRequest,
     supabase: Annotated[Client, Depends(get_supabase)]
 ):
@@ -19,7 +19,7 @@ async def register_user(
     A user profile will be automatically created via database trigger.
     """
     auth_service = AuthService(supabase)
-    result = await auth_service.register_user(user_in)
+    result = auth_service.register_user(user_in)
     
     return UserResponse(
         id=result["user"].id,
@@ -30,7 +30,7 @@ async def register_user(
     )
 
 @router.post("/login", response_model=Token)
-async def login_for_access_token(
+def login_for_access_token(
     login_data: LoginRequest,
     supabase: Annotated[Client, Depends(get_supabase)]
 ):
@@ -39,7 +39,7 @@ async def login_for_access_token(
     Uses Supabase Auth for authentication.
     """
     auth_service = AuthService(supabase)
-    result = await auth_service.authenticate_user(login_data)
+    result = auth_service.authenticate_user(login_data)
     
     return Token(
         access_token=result["access_token"],
@@ -48,7 +48,7 @@ async def login_for_access_token(
     )
 
 @router.post("/logout")
-async def logout(
+def logout(
     supabase: Annotated[Client, Depends(get_supabase)],
     current_user = Depends(get_current_user)
 ):
@@ -56,10 +56,10 @@ async def logout(
     Sign out the current user.
     """
     auth_service = AuthService(supabase)
-    return await auth_service.sign_out()
+    return auth_service.sign_out()
 
 @router.get("/me", response_model=UserResponse)
-async def read_users_me(
+def read_users_me(
     current_user = Depends(get_current_user),
     supabase: Client = Depends(get_supabase)
 ):
@@ -73,7 +73,7 @@ async def read_users_me(
     
     try:
         # Get profile with role information
-        profile = await profile_service.get_profile_with_role(current_user.id)
+        profile = profile_service.get_profile_with_role(current_user.id)
         
         # Extract role information
         role_name = None
@@ -89,8 +89,8 @@ async def read_users_me(
         
         # Fetch student/teacher details for all users (will return None if not applicable)
         if role_id:
-            student_details = await profile_service.get_student_details(current_user.id)
-            teacher_details = await profile_service.get_teacher_details(current_user.id)
+            student_details = profile_service.get_student_details(current_user.id)
+            teacher_details = profile_service.get_teacher_details(current_user.id)
         
         # Extract and cast values properly
         full_name = profile.get("full_name") if isinstance(profile, dict) else None

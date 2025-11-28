@@ -6,12 +6,16 @@ class AuthService:
     """
     Authentication service using Supabase Auth.
     Handles user registration, login, and session management.
+    
+    All methods are synchronous (def) because the Supabase Python client
+    uses synchronous HTTP calls internally. FastAPI will automatically
+    run these in a thread pool when called from async endpoints.
     """
     
     def __init__(self, supabase: Client):
         self.supabase = supabase
 
-    async def register_user(self, register_data: RegisterRequest):
+    def register_user(self, register_data: RegisterRequest):
         """
         Register a new user with Supabase Auth.
         Validates that the role_id exists before registration.
@@ -63,7 +67,7 @@ class AuthService:
                 detail=f"Registration error: {error_message}"
             )
 
-    async def authenticate_user(self, login_data: LoginRequest):
+    def authenticate_user(self, login_data: LoginRequest):
         """
         Authenticate user with email and password using Supabase Auth.
         """
@@ -91,7 +95,7 @@ class AuthService:
                 detail=f"Authentication failed: {str(e)}"
             )
     
-    async def sign_out(self):
+    def sign_out(self):
         """
         Sign out the current user.
         """

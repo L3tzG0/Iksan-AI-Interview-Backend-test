@@ -7,7 +7,7 @@ from app.schemas.class_schema import ClassResponse, ClassCreate
 router = APIRouter()
 
 @router.get("/", response_model=List[ClassResponse])
-async def read_classes(
+def read_classes(
     supabase: Annotated[Client, Depends(get_supabase)]
 ):
     """Get all classes"""
@@ -15,7 +15,7 @@ async def read_classes(
     return response.data
 
 @router.post("/", response_model=ClassResponse)
-async def create_class(
+def create_class(
     class_in: ClassCreate,
     supabase: Annotated[Client, Depends(get_supabase)]
 ):

@@ -10,7 +10,7 @@ from app.schemas.interview_session import SessionHistoryItem, SessionHistoryResp
 router = APIRouter()
 
 @router.get("/", response_model=List[StudentResponse])
-async def read_students(
+def read_students(
     supabase: Annotated[Client, Depends(get_supabase)]
 ):
     """Get all students"""
@@ -18,7 +18,7 @@ async def read_students(
     return response.data
 
 @router.post("/", response_model=StudentResponse)
-async def create_student(
+def create_student(
     student_in: StudentCreate,
     supabase: Annotated[Client, Depends(get_supabase)]
 ):
@@ -26,7 +26,7 @@ async def create_student(
 
 
 @router.get("/{student_id}/sessions", response_model=SessionHistoryResponse)
-async def get_student_sessions(
+def get_student_sessions(
     student_id: int,
     current_user = Depends(get_current_user),
     supabase: Annotated[Client, Depends(get_supabase)] = None
@@ -84,7 +84,7 @@ async def get_student_sessions(
 
 
 @router.get("/{student_id}/sessions/{session_id}", response_model=SessionDetailResponse)
-async def get_session_detail(
+def get_session_detail(
     student_id: int,
     session_id: int,
     current_user = Depends(get_current_user),
