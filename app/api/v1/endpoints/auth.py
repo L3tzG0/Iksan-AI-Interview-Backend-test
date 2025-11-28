@@ -68,34 +68,30 @@ def read_users_me(
     Returns combined data from auth.users, public.user_profiles, and role information.
     If user is a student, includes student details (school, major, class).
     If user is a teacher, includes teacher details.
+    
+    Optimized to minimize database queries using relational selects.
     """
     profile_service = UserProfileService(supabase)
     
     try:
-        # Get profile with role information
-        profile = profile_service.get_profile_with_role(current_user.id)
+        # Get complete user context in optimized queries (avoids N+1)
+        user_context = profile_service.get_full_user_context(current_user.id)
         
-        # Extract role information
+        profile = user_context["profile"]
+        student_details = user_context["student_details"]
+        teacher_details = user_context["teacher_details"]
+        
+        # Extract role information from the relational query result
         role_name = None
         roles_data = profile.get("roles") if isinstance(profile, dict) else None
         if roles_data and isinstance(roles_data, dict):
             role_name = roles_data.get("role_name")
         
-        # Get student or teacher details based on role_id
-        student_details = None
-        teacher_details = None
-        
-        role_id = profile.get("role_id") if isinstance(profile, dict) else None
-        
-        # Fetch student/teacher details for all users (will return None if not applicable)
-        if role_id:
-            student_details = profile_service.get_student_details(current_user.id)
-            teacher_details = profile_service.get_teacher_details(current_user.id)
-        
         # Extract and cast values properly
         full_name = profile.get("full_name") if isinstance(profile, dict) else None
         full_name_str = str(full_name) if full_name is not None else None
         
+        role_id = profile.get("role_id") if isinstance(profile, dict) else None
         role_id_int = int(role_id) if role_id is not None and isinstance(role_id, (int, float, str)) else None
         role_name_str = str(role_name) if role_name is not None else None
         

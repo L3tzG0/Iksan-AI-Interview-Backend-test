@@ -1,6 +1,6 @@
 from typing import List, Annotated, Any, Optional
 from datetime import datetime
-from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException, status
+from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException, status, Query
 from supabase import Client
 from app.core.database import get_supabase
 from app.core.config import settings
@@ -17,20 +17,26 @@ from app.schemas.interview_session import (
     FeedbackDetail,
     GeneratedQuestion
 )
+from app.schemas.pagination import PaginatedResponse, create_paginated_response
 from app.services.storage_service import StorageService
 from app.services.document_service import DocumentService
 from app.services.interview_session_service import InterviewSessionService
 from app.services.text_extraction_service import TextExtractionService
 from app.services.feedback_service import FeedbackService
 from app.services.student_service import StudentService
+from app.services.user_service import UserProfileService
 from app.services.llm_service import LLMService
 
 router = APIRouter()
 
+
 @router.get("/", response_model=SessionHistoryResponse)
 def get_my_sessions(
+    supabase: Annotated[Client, Depends(get_supabase)],
     current_user = Depends(get_current_user),
-    supabase: Annotated[Client, Depends(get_supabase)] = None
+    skip: int = Query(default=0, ge=0, description="Number of records to skip"),
+    limit: int = Query(default=20, ge=1, le=100, description="Maximum records to return"),
+    status_filter: Optional[str] = Query(default=None, description="Filter by status (completed, in_progress, failed)")
 ):
     """
     Get current student's interview session history based on token-derived ID.
@@ -38,45 +44,56 @@ def get_my_sessions(
     This endpoint is for students to view their own session history.
     Requires: Authentication (JWT token)
     
-    Returns: List of session history with dummy data (skeleton implementation)
+    - **skip**: Number of records to skip (default: 0)
+    - **limit**: Max records to return (default: 20, max: 100)
+    - **status_filter**: Filter by session status
+    
+    Returns: Paginated list of session history
     """
-    # TODO: Get actual student_id from current_user and fetch real data
-    # For now, return dummy data
-    dummy_sessions = [
+    # Get student_id from current_user
+    user_service = UserProfileService(supabase)
+    student_details = user_service.get_student_details(current_user.id)
+    
+    if not student_details:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Current user is not a student"
+        )
+    
+    student_id = student_details.get("id")
+    
+    # Fetch real session data with pagination
+    session_service = InterviewSessionService(supabase)
+    sessions, total = session_service.get_sessions_by_student(
+        student_id=student_id,
+        skip=skip,
+        limit=limit,
+        status_filter=status_filter
+    )
+    
+    # Transform to SessionHistoryItem format
+    session_items = [
         SessionHistoryItem(
-            id=1,
-            status="completed",
-            total_score=85.5,
-            completed_at=datetime(2025, 11, 20, 14, 30, 0),
-            created_at=datetime(2025, 11, 20, 14, 0, 0)
-        ),
-        SessionHistoryItem(
-            id=2,
-            status="in_progress",
-            total_score=None,
-            completed_at=None,
-            created_at=datetime(2025, 11, 25, 10, 0, 0)
-        ),
-        SessionHistoryItem(
-            id=3,
-            status="completed",
-            total_score=72.0,
-            completed_at=datetime(2025, 11, 15, 16, 45, 0),
-            created_at=datetime(2025, 11, 15, 16, 0, 0)
-        ),
+            id=s["id"],
+            status=s["status"],
+            total_score=s.get("total_score"),
+            completed_at=s.get("completed_at"),
+            created_at=s["created_at"]
+        )
+        for s in sessions
     ]
     
     return SessionHistoryResponse(
-        sessions=dummy_sessions,
-        total_count=len(dummy_sessions)
+        sessions=session_items,
+        total_count=total
     )
 
 
 @router.post("/submit", response_model=SessionFeedbackResponse)
 def submit_session_answers(
     request: SessionSubmitRequest,
-    current_user = Depends(get_current_user),
-    supabase: Annotated[Client, Depends(get_supabase)] = None
+    supabase: Annotated[Client, Depends(get_supabase)],
+    current_user = Depends(get_current_user)
 ):
     """
     Submit answers and get complete feedback from LLM.
@@ -147,77 +164,90 @@ def submit_session_answers(
 @router.get("/{session_id}", response_model=SessionDetailResponse)
 def get_session_detail(
     session_id: int,
-    current_user = Depends(get_current_user),
-    supabase: Annotated[Client, Depends(get_supabase)] = None
+    supabase: Annotated[Client, Depends(get_supabase)],
+    current_user = Depends(get_current_user)
 ):
     """
     Get detailed view of a student's specific session with feedbacks.
     
     This endpoint is for students to view their own session details and feedback.
+    Uses relational select to fetch session with all feedbacks in a single query.
     Requires: Authentication (JWT token) - student accessing their own session
     
     Parameters:
     - session_id: The ID of the session to retrieve
     
-    Returns: Detailed session information with feedback (dummy data for skeleton)
+    Returns: Detailed session information with feedback
     """
-    # TODO: Verify current_user owns this session (student_id match)
-    # TODO: Fetch actual session and feedback data from database
-    # For now, return dummy data
+    session_service = InterviewSessionService(supabase)
+    user_service = UserProfileService(supabase)
     
-    dummy_detailed_feedback = [
+    # Get the session with all related data in single query
+    session = session_service.get_session_with_feedbacks(session_id)
+    
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found"
+        )
+    
+    # Verify current user owns this session (get student details)
+    student_details = user_service.get_student_details(current_user.id)
+    if student_details and student_details.get("id") != session.get("student_id"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only view your own sessions"
+        )
+    
+    # Transform detailed_feedbacks from database format
+    detailed_feedbacks = session.get("detailed_feedbacks", []) or []
+    feedback_list = [
         FeedbackDetail(
-            question="자기소개를 해주세요.",
-            answer="안녕하세요, 저는 컴퓨터공학을 전공하고 있는 학생입니다.",
-            evaluation="명확하고 간결한 자기소개입니다. 전공 분야를 잘 언급했습니다.",
-            content_relevance_score=8.5,
-            structure_score=8.0,
-            fluency_score=9.0,
-            confidence_score=8.5,
-            overall_score=8.5,
-            is_correct=True
-        ),
-        FeedbackDetail(
-            question="왜 이 직무에 지원하셨나요?",
-            answer="개발에 대한 열정이 있고, 실무 경험을 쌓고 싶습니다.",
-            evaluation="동기는 좋으나 좀 더 구체적인 이유를 제시하면 좋겠습니다.",
-            content_relevance_score=7.0,
-            structure_score=6.5,
-            fluency_score=7.5,
-            confidence_score=7.0,
-            overall_score=7.0,
-            is_correct=True
-        ),
-        FeedbackDetail(
-            question="팀 프로젝트 경험에 대해 말씀해주세요.",
-            answer="학교에서 웹 개발 프로젝트를 진행한 경험이 있습니다.",
-            evaluation="경험을 언급했으나 역할과 성과에 대한 구체적인 설명이 부족합니다.",
-            content_relevance_score=6.5,
-            structure_score=6.0,
-            fluency_score=7.0,
-            confidence_score=6.5,
-            overall_score=6.5,
-            is_correct=True
-        ),
+            question=fb.get("question_text") or "",
+            answer=fb.get("answer_text") or "",
+            evaluation=fb.get("evaluation_text") or "",
+            content_relevance_score=fb.get("content_relevance_score"),
+            structure_score=fb.get("structure_score"),
+            fluency_score=fb.get("fluency_score"),
+            confidence_score=fb.get("confidence_score"),
+            overall_score=fb.get("overall_score"),
+            is_correct=fb.get("is_correct") or False
+        )
+        for fb in sorted(detailed_feedbacks, key=lambda x: x.get("question_order", 0))
+    ]
+    
+    # Get summary data
+    summaries = session.get("summaries")
+    strength_summary = None
+    areas_for_growth = None
+    if summaries:
+        # summaries could be a list or dict depending on DB structure
+        if isinstance(summaries, list) and len(summaries) > 0:
+            strength_summary = summaries[0].get("strength_text")
+            areas_for_growth = summaries[0].get("areas_for_growth_text")
+        elif isinstance(summaries, dict):
+            strength_summary = summaries.get("strength_text")
+            areas_for_growth = summaries.get("areas_for_growth_text")
+    
+    # Get next steps
+    next_steps_data = session.get("next_steps", []) or []
+    next_steps = [
+        ns.get("title", "") or ns.get("description_text", "")
+        for ns in sorted(next_steps_data, key=lambda x: x.get("next_step_order", 0))
     ]
     
     return SessionDetailResponse(
-        session_id=session_id,
-        student_id=1,  # TODO: Get actual student_id from current_user
-        status="completed",
-        total_score=85.5,
-        created_at=datetime(2025, 11, 20, 14, 0, 0),
-        completed_at=datetime(2025, 11, 20, 14, 30, 0),
-        overall_score=85.5,
-        strength_summary="명확한 의사소통 능력과 기본적인 기술 지식을 보여주셨습니다. 자기소개가 간결하고 전공 분야를 잘 어필했습니다.",
-        areas_for_growth="답변에 구체적인 예시와 수치를 포함하면 더 설득력이 있을 것입니다. 경험을 설명할 때 STAR 기법(상황-과제-행동-결과)을 활용해보세요.",
-        detailed_feedback=dummy_detailed_feedback,
-        next_steps=[
-            "STAR 기법을 활용한 답변 연습하기",
-            "프로젝트 경험에 대한 구체적인 수치와 성과 정리하기",
-            "지원 직무와 관련된 기술 질문 대비하기",
-            "모의 면접을 통해 실전 감각 익히기"
-        ]
+        session_id=session["id"],
+        student_id=session["student_id"],
+        status=session["status"],
+        total_score=session.get("total_score"),
+        created_at=session["created_at"],
+        completed_at=session.get("completed_at"),
+        overall_score=session.get("total_score"),
+        strength_summary=strength_summary,
+        areas_for_growth=areas_for_growth,
+        detailed_feedback=feedback_list if feedback_list else None,
+        next_steps=next_steps if next_steps else None
     )
 
 

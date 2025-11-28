@@ -3,6 +3,9 @@ from typing import Optional, Any
 from fastapi import HTTPException
 from supabase import Client
 
+# Explicit columns to select for documents (avoiding SELECT *)
+DOCUMENT_COLUMNS = "id, session_id, cleaned_text"
+
 
 class DocumentService:
     """Service for handling document database operations"""
@@ -54,7 +57,7 @@ class DocumentService:
     
     def get_document_by_session(self, session_id: int) -> Optional[Any]:
         """
-        Get document by session ID
+        Get document by session ID with explicit column selection
         
         Args:
             session_id: Session ID
@@ -63,7 +66,7 @@ class DocumentService:
             dict or None: Document record if found
         """
         try:
-            response = self.supabase.table('documents').select('*').eq('session_id', session_id).execute()
+            response = self.supabase.table('documents').select(DOCUMENT_COLUMNS).eq('session_id', session_id).execute()
             return response.data[0] if response.data else None
         except Exception as e:
             raise HTTPException(
