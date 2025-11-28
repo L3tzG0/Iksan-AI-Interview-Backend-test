@@ -3,6 +3,7 @@ from datetime import datetime
 from pydantic import BaseModel, EmailStr
 from uuid import UUID
 from app.schemas.role import RoleResponse
+from app.schemas.types import FlexibleDateTime
 
 class UserProfileBase(BaseModel):
     email: EmailStr
@@ -24,8 +25,8 @@ class UserProfileUpdate(BaseModel):
 
 class UserProfileResponse(UserProfileBase):
     id: UUID
-    created_at: datetime
-    updated_at: datetime
+    created_at: FlexibleDateTime
+    updated_at: FlexibleDateTime
 
     class Config:
         from_attributes = True

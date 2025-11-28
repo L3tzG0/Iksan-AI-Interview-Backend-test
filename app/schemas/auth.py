@@ -1,6 +1,7 @@
 from typing import Optional, Any, Dict
 from datetime import datetime
 from pydantic import BaseModel, EmailStr
+from app.schemas.types import FlexibleDateTime
 
 class Token(BaseModel):
     access_token: str
@@ -28,9 +29,7 @@ class UserResponse(BaseModel):
     role_name: Optional[str] = None
     student_details: Optional[Dict[str, Any]] = None
     teacher_details: Optional[Dict[str, Any]] = None
-    created_at: datetime
-    
+    created_at: FlexibleDateTime
+
     class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat() if v else None
-        }
+        from_attributes = True
