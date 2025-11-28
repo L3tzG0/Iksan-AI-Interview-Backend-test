@@ -5,6 +5,15 @@ from io import BytesIO
 
 logger = logging.getLogger(__name__)
 
+_WHITESPACE_PATTERN = re.compile(r'[ \t]+')
+_NEWLINE_PATTERN = re.compile(r'\n{3,}')
+_ALLOWED_CONTROL_CHARS = {'\n', '\t'}
+_CONTROL_CHARS = ''.join(
+    chr(code) for code in range(32)
+    if chr(code) not in _ALLOWED_CONTROL_CHARS
+)
+_CONTROL_CHAR_TABLE = str.maketrans('', '', _CONTROL_CHARS)
+
 
 class TextExtractionService:
     """
@@ -132,9 +141,9 @@ class TextExtractionService:
             table_texts = []
             for table in doc.tables:
                 for row in table.rows:
-                    row_text = ' | '.join(cell.text.strip() for cell in row.cells)
-                    if row_text.strip():
-                        table_texts.append(row_text)
+                    cells = [cell.text.strip() for cell in row.cells]
+                    if any(cells):
+                        table_texts.append(' | '.join(cells))
             
             # Combine all text
             all_text = paragraphs + table_texts
@@ -199,18 +208,8 @@ class TextExtractionService:
         if not text:
             return ""
         
-        # 1. Normalize spacing - replace multiple spaces/tabs with single space
-        text = re.sub(r'[ \t]+', ' ', text)
-        
-        # 2. Normalize newlines - max 2 consecutive newlines
-        text = re.sub(r'\n{3,}', '\n\n', text)
-        
-        # 3. Remove control characters except newline and tab
-        text = ''.join(c for c in text if c.isprintable() or c in '\n\t')
-        
-        # 4. Unicode normalization (NFKC - compatibility composition)
-        # Handles edge cases like ligatures, superscripts, etc.
         text = unicodedata.normalize('NFKC', text)
-        
-        # 5. Strip leading/trailing whitespace
+        text = _WHITESPACE_PATTERN.sub(' ', text)
+        text = _NEWLINE_PATTERN.sub('\n\n', text)
+        text = text.translate(_CONTROL_CHAR_TABLE)
         return text.strip()

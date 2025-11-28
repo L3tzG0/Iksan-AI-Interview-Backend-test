@@ -1,4 +1,4 @@
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, Any
 from supabase import Client
 from fastapi import HTTPException, status
 from app.schemas.user import UserProfileCreate, UserProfileUpdate
@@ -15,6 +15,20 @@ USER_PROFILE_COLUMNS_WITH_ROLE = """
 USER_FULL_DETAILS_QUERY = """
     id, email, full_name, role_id, created_at, updated_at,
     roles(id, role_name)
+"""
+
+USER_FULL_CONTEXT_QUERY = """
+    id, email, full_name, role_id, created_at, updated_at,
+    roles(id, role_name),
+    students!user_id(
+        id, user_id, school_id, major_id, current_class_id, created_at, updated_at,
+        schools(id, school_name),
+        majors(id, major_name),
+        classes(id, class_name, grade_level)
+    ),
+    teachers!user_id(
+        id, user_id, created_at, updated_at
+    )
 """
 
 
@@ -65,45 +79,28 @@ class UserProfileService:
         Returns a dict with profile, role, and optional student/teacher details.
         """
         try:
-            # Get profile with role in single query
-            profile_response = self.supabase.table('user_profiles').select(
-                USER_PROFILE_COLUMNS_WITH_ROLE
+            response = self.supabase.table('user_profiles').select(
+                USER_FULL_CONTEXT_QUERY
             ).eq('id', str(user_id)).execute()
-            
-            if not profile_response.data:
+
+            if not response.data:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User profile not found")
-            
-            profile = profile_response.data[0]
-            result = {
-                "profile": profile,
-                "student_details": None,
-                "teacher_details": None
+
+            payload = response.data[0]
+            profile = {
+                key: value
+                for key, value in payload.items()
+                if key not in ("students", "teachers")
             }
-            
-            # Based on role_id, fetch student or teacher details
-            # Only make the necessary query based on role
-            role_id = profile.get("role_id")
-            
-            # Try to get student details (with relations in single query)
-            student_response = self.supabase.table('students').select(
-                """id, user_id, school_id, major_id, current_class_id, created_at, updated_at,
-                   schools(id, school_name),
-                   majors(id, major_name),
-                   classes(id, class_name, grade_level)"""
-            ).eq('user_id', str(user_id)).execute()
-            
-            if student_response.data:
-                result["student_details"] = student_response.data[0]
-            else:
-                # Try teacher if not a student
-                teacher_response = self.supabase.table('teachers').select(
-                    "id, user_id, created_at, updated_at"
-                ).eq('user_id', str(user_id)).execute()
-                
-                if teacher_response.data:
-                    result["teacher_details"] = teacher_response.data[0]
-            
-            return result
+
+            student_details = self._first_relationship_record(payload.get("students"))
+            teacher_details = self._first_relationship_record(payload.get("teachers"))
+
+            return {
+                "profile": profile,
+                "student_details": student_details,
+                "teacher_details": teacher_details
+            }
         except HTTPException:
             raise
         except Exception as e:
@@ -159,6 +156,15 @@ class UserProfileService:
             raise
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    @staticmethod
+    def _first_relationship_record(relationship: Any) -> Optional[dict]:
+        """Return the first related record regardless of Supabase response shape."""
+        if not relationship:
+            return None
+        if isinstance(relationship, list):
+            return relationship[0] if relationship else None
+        return relationship
     
     def get_all_profiles(
         self,

@@ -92,15 +92,10 @@ def get_student_sessions(
     )
     
     # Transform to SessionHistoryItem format
+    session_payloads = session_service.build_history_payloads(sessions)
     session_items = [
-        SessionHistoryItem(
-            id=s["id"],
-            status=s["status"],
-            total_score=s.get("total_score"),
-            completed_at=s.get("completed_at"),
-            created_at=s["created_at"]
-        )
-        for s in sessions
+        SessionHistoryItem.model_construct(**payload)
+        for payload in session_payloads
     ]
     
     return SessionHistoryResponse(
@@ -150,7 +145,10 @@ def get_session_detail(
         )
     
     # Transform detailed_feedbacks from database format
-    detailed_feedbacks = session.get("detailed_feedbacks", []) or []
+    sorted_feedbacks = session_service.normalize_ordered_records(
+        session.get("detailed_feedbacks"),
+        "question_order"
+    )
     feedback_list = [
         FeedbackDetail(
             question=fb.get("question_text", ""),
@@ -163,7 +161,7 @@ def get_session_detail(
             overall_score=fb.get("overall_score"),
             is_correct=fb.get("is_correct", False)
         )
-        for fb in sorted(detailed_feedbacks, key=lambda x: x.get("question_order", 0))
+        for fb in sorted_feedbacks
     ]
     
     # Get summary data
@@ -179,10 +177,13 @@ def get_session_detail(
             areas_for_growth = summaries.get("areas_for_growth_text")
     
     # Get next steps
-    next_steps_data = session.get("next_steps", []) or []
+    sorted_next_steps = session_service.normalize_ordered_records(
+        session.get("next_steps"),
+        "next_step_order"
+    )
     next_steps = [
         ns.get("title", "") or ns.get("description_text", "")
-        for ns in sorted(next_steps_data, key=lambda x: x.get("next_step_order", 0))
+        for ns in sorted_next_steps
     ]
     
     return SessionDetailResponse(

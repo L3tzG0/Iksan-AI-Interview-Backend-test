@@ -42,8 +42,12 @@ run it in a thread pool automatically.
 Current Status: Skeleton implementation with placeholder data.
 """
 
+import re
 from typing import List
 from app.core.config import settings
+
+
+_NUMBERING_PATTERN = re.compile(r'^\d{1,2}[.):]\s*')
 
 
 class LLMService:
@@ -183,17 +187,18 @@ Return the questions as a numbered list.
         """
         # Placeholder - implement based on actual LLM response format
         # Example: split by newlines, filter numbered items, clean up
-        lines = llm_response.strip().split('\n')
-        questions = []
+        lines = llm_response.strip().splitlines()
+        questions: List[str] = []
+        append_question = questions.append
+
         for line in lines:
-            line = line.strip()
-            # Remove numbering (e.g., "1.", "1)", "1:")
-            if line and line[0].isdigit():
-                # Find where the actual question starts
-                for i, char in enumerate(line):
-                    if char in '.):' and i < 3:
-                        line = line[i+1:].strip()
-                        break
-            if line:
-                questions.append(line)
-        return questions[:self.num_questions]
+            cleaned = line.strip()
+            if not cleaned:
+                continue
+            cleaned = _NUMBERING_PATTERN.sub('', cleaned)
+            if cleaned:
+                append_question(cleaned)
+            if len(questions) >= self.num_questions:
+                break
+
+        return questions

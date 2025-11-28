@@ -77,15 +77,10 @@ def get_my_sessions(
     )
     
     # Transform to SessionHistoryItem format
+    session_payloads = session_service.build_history_payloads(sessions)
     session_items = [
-        SessionHistoryItem(
-            id=s["id"],
-            status=s["status"],
-            total_score=s.get("total_score"),
-            completed_at=s.get("completed_at"),
-            created_at=s["created_at"]
-        )
-        for s in sessions
+        SessionHistoryItem.model_construct(**payload)
+        for payload in session_payloads
     ]
     
     response = SessionHistoryResponse(
@@ -211,7 +206,10 @@ def get_session_detail(
         )
     
     # Transform detailed_feedbacks from database format
-    detailed_feedbacks = session.get("detailed_feedbacks", []) or []
+    sorted_feedbacks = session_service.normalize_ordered_records(
+        session.get("detailed_feedbacks"),
+        "question_order"
+    )
     feedback_list = [
         FeedbackDetail(
             question=fb.get("question_text") or "",
@@ -224,7 +222,7 @@ def get_session_detail(
             overall_score=fb.get("overall_score"),
             is_correct=fb.get("is_correct") or False
         )
-        for fb in sorted(detailed_feedbacks, key=lambda x: x.get("question_order", 0))
+        for fb in sorted_feedbacks
     ]
     
     # Get summary data
@@ -241,10 +239,13 @@ def get_session_detail(
             areas_for_growth = summaries.get("areas_for_growth_text")
     
     # Get next steps
-    next_steps_data = session.get("next_steps", []) or []
+    sorted_next_steps = session_service.normalize_ordered_records(
+        session.get("next_steps"),
+        "next_step_order"
+    )
     next_steps = [
-        ns.get("title", "") or ns.get("description_text", "")
-        for ns in sorted(next_steps_data, key=lambda x: x.get("next_step_order", 0))
+        ns.get("title") or ns.get("description_text") or ""
+        for ns in sorted_next_steps
     ]
     
     response = SessionDetailResponse(
@@ -352,17 +353,41 @@ def initiate_interview_session(
             # File provided - process it (ignore raw_text if also provided)
             # Step 3a: Validate file type and filename
             storage_service.validate_file(file)
-            
-            # Step 3b: Read file bytes (sync read from SpooledTemporaryFile)
-            # Note: file.file is the underlying SpooledTemporaryFile which supports sync read
-            file_bytes = file.file.read()
-            
-            # Validate file size
-            if len(file_bytes) > settings.MAX_FILE_SIZE:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"File too large. Maximum size: {settings.MAX_FILE_SIZE / (1024*1024):.1f}MB"
-                )
+
+            # Step 3b: Guard against oversized uploads before loading into memory
+            max_size_message = (
+                f"File too large. Maximum size: {settings.MAX_FILE_SIZE / (1024*1024):.1f}MB"
+            )
+            content_length_header = request.headers.get("content-length")
+            if content_length_header:
+                try:
+                    content_length = int(content_length_header)
+                except ValueError:
+                    content_length = None
+                else:
+                    if content_length and content_length > settings.MAX_FILE_SIZE:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=max_size_message
+                        )
+
+            # Stream the file in manageable chunks to cap memory usage while reading
+            chunk_size = 1024 * 1024  # 1MB
+            total_read = 0
+            buffer = bytearray()
+            while True:
+                chunk = file.file.read(chunk_size)
+                if not chunk:
+                    break
+                total_read += len(chunk)
+                if total_read > settings.MAX_FILE_SIZE:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=max_size_message
+                    )
+                buffer.extend(chunk)
+
+            file_bytes = bytes(buffer)
             
             # Verify file signature (magic numbers)
             content_type = file.content_type or "application/octet-stream"

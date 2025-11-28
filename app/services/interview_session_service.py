@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Optional, Tuple, List
+from operator import itemgetter
 from supabase import Client
 from fastapi import HTTPException, status
 
@@ -287,3 +288,33 @@ class InterviewSessionService:
                 status_code=500,
                 detail=f"Failed to fetch sessions: {str(e)}"
             )
+
+    @staticmethod
+    def build_history_payloads(sessions: List[dict]) -> List[dict]:
+        """Create lightweight session payloads for history responses without validation overhead."""
+        return [
+            {
+                "id": session["id"],
+                "status": session["status"],
+                "total_score": session.get("total_score"),
+                "completed_at": session.get("completed_at"),
+                "created_at": session["created_at"]
+            }
+            for session in sessions
+        ]
+
+    @staticmethod
+    def normalize_ordered_records(records: Optional[List[dict]], key: str) -> List[dict]:
+        """Return records sorted by key while defaulting missing order values to zero."""
+        if not records:
+            return []
+
+        normalized: List[dict] = []
+        for record in records:
+            order_value = record.get(key)
+            if order_value is None:
+                normalized.append({**record, key: 0})
+            else:
+                normalized.append(record)
+
+        return sorted(normalized, key=itemgetter(key))
