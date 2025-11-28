@@ -135,8 +135,9 @@ Iksan-AI-Interview-Backend/
 │   │           └── feedback.py      # Feedback generation & retrieval
 │   ├── core/
 │   │   ├── config.py               # Configuration settings (env vars)
-│   │   ├── database.py             # Supabase client initialization
+│   │   ├── database.py             # Supabase client dependency (via app.state)
 │   │   └── security.py             # JWT validation & auth helpers
+│   ├── main.py                     # FastAPI app with lifespan management
 │   ├── services/
 │   │   ├── auth_service.py         # Authentication logic
 │   │   ├── student_service.py      # Student data operations

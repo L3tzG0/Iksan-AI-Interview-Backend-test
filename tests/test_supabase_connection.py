@@ -10,8 +10,11 @@ ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
-from app.core.database import supabase
+from supabase import create_client
 from app.core.config import settings
+
+# Create Supabase client for testing (outside of FastAPI request context)
+supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
 
 def test_connection():
     """Test Supabase connection and retrieve schools data"""
