@@ -30,6 +30,14 @@ class Settings(BaseSettings):
         ]
     )
     
+    # Rate Limiting Configuration
+    # Format: "X/period" where period can be: second, minute, hour, day
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_DEFAULT: str = "60/minute"  # Default limit for most endpoints
+    RATE_LIMIT_AUTH: str = "5/minute"  # Strict limit for auth endpoints (login, register)
+    RATE_LIMIT_LLM: str = "10/minute"  # Limit for LLM-heavy endpoints (initiate, submit)
+    RATE_LIMIT_HEALTH: str = "120/minute"  # Relaxed limit for health checks
+    
     # CORS
     BACKEND_CORS_ORIGINS: List[str] = ["*"]
 

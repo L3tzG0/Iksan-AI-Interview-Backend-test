@@ -1,10 +1,11 @@
 from typing import List, Annotated, Any, Optional
 from datetime import datetime
-from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException, status, Query
+from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException, status, Query, Request
 from supabase import Client
 from app.core.database import get_supabase
 from app.core.config import settings
 from app.core.security import get_current_user
+from app.core.rate_limit import limiter
 from app.schemas.interview_session import (
     InterviewSessionResponse, 
     InterviewSessionCreate,
@@ -31,7 +32,9 @@ router = APIRouter()
 
 
 @router.get("/", response_model=SessionHistoryResponse)
+@limiter.limit(settings.RATE_LIMIT_DEFAULT)
 def get_my_sessions(
+    request: Request,
     supabase: Annotated[Client, Depends(get_supabase)],
     current_user = Depends(get_current_user),
     skip: int = Query(default=0, ge=0, description="Number of records to skip"),
@@ -90,8 +93,10 @@ def get_my_sessions(
 
 
 @router.post("/submit", response_model=SessionFeedbackResponse)
+@limiter.limit(settings.RATE_LIMIT_LLM)
 def submit_session_answers(
-    request: SessionSubmitRequest,
+    request: Request,
+    submit_request: SessionSubmitRequest,
     supabase: Annotated[Client, Depends(get_supabase)],
     current_user = Depends(get_current_user)
 ):
@@ -147,7 +152,7 @@ def submit_session_answers(
     ]
     
     return SessionFeedbackResponse(
-        session_id=request.session_id,
+        session_id=submit_request.session_id,
         overall_score=73.3,
         strength_summary="명확한 의사소통 능력과 기본적인 기술 지식을 보여주셨습니다. 자기소개가 간결하고 전공 분야를 잘 어필했습니다.",
         areas_for_growth="답변에 구체적인 예시와 수치를 포함하면 더 설득력이 있을 것입니다. 경험을 설명할 때 STAR 기법(상황-과제-행동-결과)을 활용해보세요.",
@@ -162,7 +167,9 @@ def submit_session_answers(
 
 
 @router.get("/{session_id}", response_model=SessionDetailResponse)
+@limiter.limit(settings.RATE_LIMIT_DEFAULT)
 def get_session_detail(
+    request: Request,
     session_id: int,
     supabase: Annotated[Client, Depends(get_supabase)],
     current_user = Depends(get_current_user)
@@ -252,7 +259,9 @@ def get_session_detail(
 
 
 @router.post("/initiate", response_model=SessionInitiateResponse)
+@limiter.limit(settings.RATE_LIMIT_LLM)
 def initiate_interview_session(
+    request: Request,
     file: Optional[UploadFile] = File(None, description="Document file (PDF, DOCX, TXT, MD)"),
     raw_text: Optional[str] = Form(None, description="Raw text content"),
     student_id: int = Form(..., description="Student ID"),
@@ -263,6 +272,7 @@ def initiate_interview_session(
     Initiate new interview session by processing document text or raw text.
     
     Requires: Authentication (any logged-in user)
+    Rate limited: 10 requests per minute per user.
     
     Parameters:
     - file (optional): Document file to process (PDF, DOCX, TXT, MD)

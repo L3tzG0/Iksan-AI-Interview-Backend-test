@@ -1,8 +1,11 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from supabase import create_client
 from app.core.config import settings
+from app.core.rate_limit import limiter, rate_limit_exceeded_handler
 from app.api.v1.router import api_router
 
 
@@ -24,6 +27,9 @@ async def lifespan(app: FastAPI):
     # Startup: Initialize Supabase client
     app.state.supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
     
+    # Initialize rate limiter state
+    app.state.limiter = limiter
+    
     yield
     
     # Shutdown: Cleanup (optional - httpx handles connection cleanup automatically)
@@ -36,6 +42,9 @@ app = FastAPI(
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     lifespan=lifespan
 )
+
+# Add rate limit exception handler
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
 # Set all CORS enabled origins
 if settings.BACKEND_CORS_ORIGINS:
@@ -50,9 +59,11 @@ if settings.BACKEND_CORS_ORIGINS:
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
 @app.get("/")
-async def root():
+@limiter.limit(settings.RATE_LIMIT_HEALTH)
+async def root(request: Request):
     return {"message": "Welcome to Iksan AI Interview Backend"}
 
 @app.get("/health")
-async def health_check():
+@limiter.limit(settings.RATE_LIMIT_HEALTH)
+async def health_check(request: Request):
     return {"status": "healthy"}

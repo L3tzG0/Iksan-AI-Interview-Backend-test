@@ -1,8 +1,10 @@
 from typing import Annotated
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from supabase import Client
 from app.core.database import get_supabase
 from app.core.security import get_current_user
+from app.core.config import settings
+from app.core.rate_limit import limiter, get_ip_address
 from app.services.auth_service import AuthService
 from app.services.user_service import UserProfileService
 from app.schemas.auth import Token, LoginRequest, RegisterRequest, UserResponse
@@ -10,13 +12,17 @@ from app.schemas.auth import Token, LoginRequest, RegisterRequest, UserResponse
 router = APIRouter()
 
 @router.post("/register", response_model=UserResponse)
+@limiter.limit(settings.RATE_LIMIT_AUTH, key_func=get_ip_address)
 def register_user(
+    request: Request,
     user_in: RegisterRequest,
     supabase: Annotated[Client, Depends(get_supabase)]
 ):
     """
     Register a new user with Supabase Auth.
     A user profile will be automatically created via database trigger.
+    
+    Rate limited: 5 requests per minute per IP address.
     """
     auth_service = AuthService(supabase)
     result = auth_service.register_user(user_in)
@@ -30,13 +36,17 @@ def register_user(
     )
 
 @router.post("/login", response_model=Token)
+@limiter.limit(settings.RATE_LIMIT_AUTH, key_func=get_ip_address)
 def login_for_access_token(
+    request: Request,
     login_data: LoginRequest,
     supabase: Annotated[Client, Depends(get_supabase)]
 ):
     """
     Login with email and password to get access token.
     Uses Supabase Auth for authentication.
+    
+    Rate limited: 5 requests per minute per IP address.
     """
     auth_service = AuthService(supabase)
     result = auth_service.authenticate_user(login_data)
@@ -48,7 +58,9 @@ def login_for_access_token(
     )
 
 @router.post("/logout")
+@limiter.limit(settings.RATE_LIMIT_DEFAULT)
 def logout(
+    request: Request,
     supabase: Annotated[Client, Depends(get_supabase)],
     current_user = Depends(get_current_user)
 ):
@@ -59,7 +71,9 @@ def logout(
     return auth_service.sign_out()
 
 @router.get("/me", response_model=UserResponse)
+@limiter.limit(settings.RATE_LIMIT_DEFAULT)
 def read_users_me(
+    request: Request,
     current_user = Depends(get_current_user),
     supabase: Client = Depends(get_supabase)
 ):
