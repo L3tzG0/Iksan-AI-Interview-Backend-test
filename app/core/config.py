@@ -29,7 +29,10 @@ class Settings(BaseSettings):
             "text/plain"
         ]
     )
-    
+
+    # CORS
+    BACKEND_CORS_ORIGINS: List[str] = ["*"]
+        
     # Rate Limiting Configuration
     # Format: "X/period" where period can be: second, minute, hour, day
     RATE_LIMIT_ENABLED: bool = True
@@ -38,8 +41,6 @@ class Settings(BaseSettings):
     RATE_LIMIT_LLM: str = "10/minute"  # Limit for LLM-heavy endpoints (initiate, submit)
     RATE_LIMIT_HEALTH: str = "120/minute"  # Relaxed limit for health checks
     
-    # CORS
-    BACKEND_CORS_ORIGINS: List[str] = ["*"]
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
 

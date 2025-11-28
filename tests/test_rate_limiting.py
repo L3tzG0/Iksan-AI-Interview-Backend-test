@@ -236,7 +236,7 @@ def main():
         # Test 3: Default rate limit endpoint (60/minute)
         print("\n📌 Test Group 3: API Endpoints (60/minute)")
         tester.test_endpoint(
-            endpoint="/api/v1/users",
+            endpoint="/api/v1/users/",
             limit_type="60/minute",
             requests_to_make=70,
             delay_between_requests=0.01

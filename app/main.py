@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -43,27 +44,26 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Add CORS middleware FIRST (before other middleware)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.BACKEND_CORS_ORIGINS if settings.BACKEND_CORS_ORIGINS else ["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Add rate limit exception handler
 app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
-
-# Set all CORS enabled origins
-if settings.BACKEND_CORS_ORIGINS:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=[str(origin) for origin in settings.BACKEND_CORS_ORIGINS],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
 @app.get("/")
 @limiter.limit(settings.RATE_LIMIT_HEALTH)
 async def root(request: Request):
-    return {"message": "Welcome to Iksan AI Interview Backend"}
+    return JSONResponse(content={"message": "Welcome to Iksan AI Interview Backend"})
 
 @app.get("/health")
 @limiter.limit(settings.RATE_LIMIT_HEALTH)
 async def health_check(request: Request):
-    return {"status": "healthy"}
+    return JSONResponse(content={"status": "healthy"})

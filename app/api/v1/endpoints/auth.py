@@ -1,5 +1,7 @@
 from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi.responses import JSONResponse
+from fastapi.encoders import jsonable_encoder
 from supabase import Client
 from app.core.database import get_supabase
 from app.core.security import get_current_user
@@ -27,13 +29,15 @@ def register_user(
     auth_service = AuthService(supabase)
     result = auth_service.register_user(user_in)
     
-    return UserResponse(
+    user_response = UserResponse(
         id=result["user"].id,
         email=result["user"].email,
         full_name=result["user"].user_metadata.get("full_name"),
         role_id=result["user"].user_metadata.get("role_id"),
         created_at=result["user"].created_at
     )
+
+    return JSONResponse(content=jsonable_encoder(user_response.dict(exclude_none=True)))
 
 @router.post("/login", response_model=Token)
 @limiter.limit(settings.RATE_LIMIT_AUTH, key_func=get_ip_address)
@@ -51,11 +55,13 @@ def login_for_access_token(
     auth_service = AuthService(supabase)
     result = auth_service.authenticate_user(login_data)
     
-    return Token(
+    token_response = Token(
         access_token=result["access_token"],
         token_type="bearer",
         refresh_token=result["refresh_token"]
     )
+
+    return JSONResponse(content=token_response.dict(exclude_none=True))
 
 @router.post("/logout")
 @limiter.limit(settings.RATE_LIMIT_DEFAULT)
@@ -68,7 +74,8 @@ def logout(
     Sign out the current user.
     """
     auth_service = AuthService(supabase)
-    return auth_service.sign_out()
+    sign_out_payload = auth_service.sign_out()
+    return JSONResponse(content=sign_out_payload)
 
 @router.get("/me", response_model=UserResponse)
 @limiter.limit(settings.RATE_LIMIT_DEFAULT)
@@ -113,7 +120,7 @@ def read_users_me(
         student_dict = dict(student_details) if student_details and isinstance(student_details, dict) else None
         teacher_dict = dict(teacher_details) if teacher_details and isinstance(teacher_details, dict) else None
         
-        return UserResponse(
+        user_response = UserResponse(
             id=current_user.id,
             email=current_user.email,
             full_name=full_name_str,
@@ -123,12 +130,16 @@ def read_users_me(
             teacher_details=teacher_dict,
             created_at=current_user.created_at
         )
+
+        return JSONResponse(content=jsonable_encoder(user_response.dict(exclude_none=True)))
     except HTTPException:
         # Fallback to user_metadata if profile not found
-        return UserResponse(
+        user_response = UserResponse(
             id=current_user.id,
             email=current_user.email,
             full_name=current_user.user_metadata.get("full_name"),
             role_id=current_user.user_metadata.get("role_id"),
             created_at=current_user.created_at
         )
+
+        return JSONResponse(content=jsonable_encoder(user_response.dict(exclude_none=True)))
