@@ -33,8 +33,8 @@ def require_role(role_names: Union[str, List[str]]):
     allowed_roles = [role_names] if isinstance(role_names, str) else role_names
     
     def role_checker(
-        current_user = Depends(get_current_user),
-        supabase: Annotated[Client, Depends(get_supabase)] = Depends(get_supabase)
+        supabase: Annotated[Client, Depends(get_supabase)],
+        current_user = Depends(get_current_user)
     ):
         try:
             # Get user profile with role information from database

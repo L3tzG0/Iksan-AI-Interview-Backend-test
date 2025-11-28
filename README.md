@@ -18,7 +18,7 @@ A FastAPI-based backend service for the Iksan AI Interview platform, powered by 
 - pip (Python package manager)
 - Git
 
-## 🛠️ Installation
+## Installation
 
 ### 1. Clone the Repository
 

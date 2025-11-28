@@ -1,11 +1,14 @@
 from typing import List, Annotated, Any, Optional
 from datetime import datetime
 from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException, status, Query, Request
+from fastapi.responses import JSONResponse
+from fastapi.encoders import jsonable_encoder
 from supabase import Client
 from app.core.database import get_supabase
 from app.core.config import settings
 from app.core.security import get_current_user
 from app.core.rate_limit import limiter
+from app.api.dependencies import require_role
 from app.schemas.interview_session import (
     InterviewSessionResponse, 
     InterviewSessionCreate,
@@ -24,7 +27,6 @@ from app.services.document_service import DocumentService
 from app.services.interview_session_service import InterviewSessionService
 from app.services.text_extraction_service import TextExtractionService
 from app.services.feedback_service import FeedbackService
-from app.services.student_service import StudentService
 from app.services.user_service import UserProfileService
 from app.services.llm_service import LLMService
 
@@ -86,10 +88,11 @@ def get_my_sessions(
         for s in sessions
     ]
     
-    return SessionHistoryResponse(
+    response = SessionHistoryResponse(
         sessions=session_items,
         total_count=total
     )
+    return JSONResponse(content=jsonable_encoder(response.dict()))
 
 
 @router.post("/submit", response_model=SessionFeedbackResponse)
@@ -151,7 +154,7 @@ def submit_session_answers(
         ),
     ]
     
-    return SessionFeedbackResponse(
+    response = SessionFeedbackResponse(
         session_id=submit_request.session_id,
         overall_score=73.3,
         strength_summary="명확한 의사소통 능력과 기본적인 기술 지식을 보여주셨습니다. 자기소개가 간결하고 전공 분야를 잘 어필했습니다.",
@@ -164,6 +167,7 @@ def submit_session_answers(
             "모의 면접을 통해 실전 감각 익히기"
         ]
     )
+    return JSONResponse(content=jsonable_encoder(response.dict()))
 
 
 @router.get("/{session_id}", response_model=SessionDetailResponse)
@@ -243,7 +247,7 @@ def get_session_detail(
         for ns in sorted(next_steps_data, key=lambda x: x.get("next_step_order", 0))
     ]
     
-    return SessionDetailResponse(
+    response = SessionDetailResponse(
         session_id=session["id"],
         student_id=session["student_id"],
         status=session["status"],
@@ -256,6 +260,7 @@ def get_session_detail(
         detailed_feedback=feedback_list if feedback_list else None,
         next_steps=next_steps if next_steps else None
     )
+    return JSONResponse(content=jsonable_encoder(response.dict()))
 
 
 @router.post("/initiate", response_model=SessionInitiateResponse)
@@ -264,36 +269,36 @@ def initiate_interview_session(
     request: Request,
     file: Optional[UploadFile] = File(None, description="Document file (PDF, DOCX, TXT, MD)"),
     raw_text: Optional[str] = Form(None, description="Raw text content"),
-    student_id: int = Form(..., description="Student ID"),
-    current_user = Depends(get_current_user),
+    current_user = Depends(require_role("student")),
     supabase: Client = Depends(get_supabase)
 ):
     """
     Initiate new interview session by processing document text or raw text.
     
-    Requires: Authentication (any logged-in user)
+    Requires: Authentication (JWT token) - Student role only
     Rate limited: 10 requests per minute per user.
     
     Parameters:
     - file (optional): Document file to process (PDF, DOCX, TXT, MD)
     - raw_text (optional): Raw text content
-    - student_id (required): Student ID
     
     Note: At least one of 'file' or 'raw_text' must be provided.
     If both are provided, the file will be processed and raw_text will be ignored.
+    Student ID is derived from the authenticated user's token (not from request body).
     
     Security measures:
     - Authentication required (JWT token)
-    - Student existence validation
+    - Role-based access: Only students can initiate sessions
+    - Student ID derived from token (prevents IDOR attacks)
     - File type validation (MIME type) - when file is provided
     - File signature verification (magic numbers) - when file is provided
     - Filename sanitization - when file is provided
     - File size limits - when file is provided
     
     Simplified flow (no storage):
-    1. Validates authentication
-    2. Validates at least one of file or raw_text is provided
-    3. Validates student exists
+    1. Validates authentication and student role
+    2. Derives student_id from authenticated user's token
+    3. Validates at least one of file or raw_text is provided
     4. If file provided: validates file type, signature, and size, extracts text
     5. If only raw_text provided: uses raw_text directly
     6. Creates session with status "in_progress"
@@ -309,8 +314,8 @@ def initiate_interview_session(
     document_service = DocumentService(supabase)
     extraction_service = TextExtractionService()
     feedback_service = FeedbackService(supabase)
-    student_service = StudentService(supabase)
     llm_service = LLMService()
+    user_service = UserProfileService(supabase)
     
     session_id: int | None = None
     
@@ -322,8 +327,16 @@ def initiate_interview_session(
                 detail="Either 'file' or 'raw_text' must be provided"
             )
         
-        # Step 1: Validate student exists
-        student = student_service.get_student(student_id)
+        # Step 1: Get student_id from token-derived current_user
+        student_details = user_service.get_student_details(current_user.id)
+        
+        if not student_details:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Current user is not associated with a student record"
+            )
+        
+        student_id = student_details.get("id")
         
         # Step 2: Create session
         session = session_service.create_session(student_id=student_id, status="in_progress")
@@ -391,12 +404,13 @@ def initiate_interview_session(
             for idx, q_text in enumerate(question_texts)
         ]
         
-        return SessionInitiateResponse(
+        response = SessionInitiateResponse(
             success=True,
             message="Interview session initiated successfully with 10 questions",
             session_id=session['id'],
             questions=generated_questions
         )
+        return JSONResponse(content=jsonable_encoder(response.dict()))
         
     except HTTPException:
         # HTTPExceptions already have proper status codes and messages

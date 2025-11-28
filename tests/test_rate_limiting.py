@@ -178,14 +178,14 @@ class RateLimitTester:
     def print_summary(self):
         """Print a summary of all test results."""
         print("\n" + "="*70)
-        print("📊 RATE LIMITING TEST SUMMARY")
+        print("RATE LIMITING TEST SUMMARY")
         print("="*70)
         
         total_tests = len(self.results)
         passed_tests = sum(1 for r in self.results if r.test_passed)
         
         for result in self.results:
-            status = "✅ PASSED" if result.test_passed else "❌ FAILED"
+            status = "✓ PASSED" if result.test_passed else "❌ FAILED"
             print(f"\n{status} - {result.endpoint} ({result.limit_type})")
             print(f"   Total Requests: {result.total_requests}")
             print(f"   Successful (200): {result.successful_requests}")
@@ -246,7 +246,7 @@ def main():
         all_passed = tester.print_summary()
         
         if all_passed:
-            print("✅ All rate limiting tests PASSED!")
+            print("All rate limiting tests PASSED!")
             return 0
         else:
             print("❌ Some rate limiting tests FAILED!")
