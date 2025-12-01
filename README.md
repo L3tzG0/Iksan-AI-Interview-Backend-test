@@ -69,8 +69,21 @@ SUPABASE_KEY=your-anon-key-here
 3. Go to **Settings** → **API**
 4. Copy the **Project URL** and **anon/public** key
 
-### 5. Set Up Database Schema
-Go to your Supabase Dashboard → SQL Editor and run the SQL queries in `/queries`
+### 5. Set Up Database
+
+#### Step 5a: Initialize Schema (One-Time)
+In Supabase Dashboard → SQL Editor, copy and run `queries/initialize_tables.sql`
+
+#### Step 5b: Seed Reference Data
+```bash
+# Check database status
+python scripts/init_db.py --check
+
+# Seed reference data (roles, schools, majors)
+python scripts/init_db.py --seed
+```
+
+> 📖 For detailed setup instructions, see [DATABASE_SETUP_GUIDE.md](docs/DATABASE_SETUP_GUIDE.md)
 
 ### 6. Run the Application
 
@@ -169,6 +182,9 @@ Iksan-AI-Interview-Backend/
 │   ├── initialize_tables.sql      # Database initialization
 │   ├── seed_reference_data.sql    # Reference data seeding
 │   └── ...
+├── scripts/
+│   ├── init_db.py                 # Database setup automation script
+│   └── reset_db.py                # Database hard reset script (dev only)
 ├── tests/
 │   ├── test_setup.py              # Setup validation tests
 │   ├── test_supabase_connection.py # Database connection tests

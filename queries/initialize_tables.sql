@@ -26,21 +26,21 @@ CREATE TABLE user_profiles (
   updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Enable Row Level Security
-ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
+-- -- Enable Row Level Security
+-- ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
 
--- RLS Policies for user_profiles
-CREATE POLICY "Users can view own profile"
-    ON user_profiles FOR SELECT
-    USING (auth.uid() = id);
+-- -- RLS Policies for user_profiles
+-- CREATE POLICY "Users can view own profile"
+--     ON user_profiles FOR SELECT
+--     USING (auth.uid() = id);
 
-CREATE POLICY "Users can update own profile"
-    ON user_profiles FOR UPDATE
-    USING (auth.uid() = id);
+-- CREATE POLICY "Users can update own profile"
+--     ON user_profiles FOR UPDATE
+--     USING (auth.uid() = id);
 
-CREATE POLICY "Service role can insert profiles"
-    ON user_profiles FOR INSERT
-    WITH CHECK (true);
+-- CREATE POLICY "Service role can insert profiles"
+--     ON user_profiles FOR INSERT
+--     WITH CHECK (true);
 
 -- Optional: teachers are users
 CREATE TABLE teachers (
@@ -67,19 +67,19 @@ CREATE TABLE students (
   updated_at            TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Enable RLS for students
-ALTER TABLE students ENABLE ROW LEVEL SECURITY;
+-- -- Enable RLS for students
+-- ALTER TABLE students ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Students can view own data"
-    ON students FOR SELECT
-    USING (auth.uid() = user_id);
+-- CREATE POLICY "Students can view own data"
+--     ON students FOR SELECT
+--     USING (auth.uid() = user_id);
 
--- Enable RLS for teachers
-ALTER TABLE teachers ENABLE ROW LEVEL SECURITY;
+-- -- Enable RLS for teachers
+-- ALTER TABLE teachers ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Teachers can view own data"
-    ON teachers FOR SELECT
-    USING (auth.uid() = user_id);
+-- CREATE POLICY "Teachers can view own data"
+--     ON teachers FOR SELECT
+--     USING (auth.uid() = user_id);
 
 -- Sessions and related artifacts
 CREATE TABLE sessions (
@@ -173,6 +173,7 @@ CREATE TRIGGER set_teachers_updated_at
     EXECUTE FUNCTION handle_updated_at();
 
 -- Trigger function to auto-create user profile when auth user is created
+-- Also creates role-specific records (students/teachers) based on role_name
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -181,7 +182,7 @@ SET search_path = public
 AS $$
 DECLARE
     v_role_id bigint;
-    v_role_exists boolean;
+    v_role_name text;
 BEGIN
     -- Extract role_id from metadata
     v_role_id := CASE 
@@ -190,11 +191,11 @@ BEGIN
         ELSE NULL
     END;
     
-    -- Validate role exists if role_id is provided
+    -- Validate role exists and get role_name (roles table is source of truth)
     IF v_role_id IS NOT NULL THEN
-        SELECT EXISTS(SELECT 1 FROM public.roles WHERE id = v_role_id) INTO v_role_exists;
+        SELECT role_name INTO v_role_name FROM public.roles WHERE id = v_role_id;
         
-        IF NOT v_role_exists THEN
+        IF v_role_name IS NULL THEN
             RAISE EXCEPTION 'Role with id % does not exist. Please seed roles table first.', v_role_id;
         END IF;
     END IF;
@@ -211,6 +212,16 @@ BEGIN
         ),
         v_role_id
     );
+    
+    -- Create role-specific record based on role_name (source of truth)
+    IF v_role_name = 'student' THEN
+        INSERT INTO public.students (user_id)
+        VALUES (NEW.id);
+    ELSIF v_role_name = 'teacher' THEN
+        INSERT INTO public.teachers (user_id)
+        VALUES (NEW.id);
+    END IF;
+    -- Admin role doesn't require a separate record
     
     RETURN NEW;
 EXCEPTION
@@ -237,24 +248,42 @@ GRANT ALL ON public.students TO supabase_auth_admin;
 GRANT ALL ON public.teachers TO supabase_auth_admin;
 
 -- Grant sequence permissions for user_profiles (needed for auto-generated fields)
-GRANT USAGE, SELECT ON SEQUENCE user_profiles_id_seq TO supabase_auth_admin;
 GRANT USAGE, SELECT ON SEQUENCE students_id_seq TO supabase_auth_admin;
 GRANT USAGE, SELECT ON SEQUENCE teachers_id_seq TO supabase_auth_admin;
 
 -- Grant sequence permissions to service_role and other roles for BIGSERIAL columns
--- This fixes "permission denied for sequence" errors
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO service_role, authenticated, anon;
 
--- Grant table permissions to service_role (used by backend with SUPABASE_KEY)
-GRANT ALL ON public.roles TO service_role;
-GRANT ALL ON public.schools TO service_role;
-GRANT ALL ON public.majors TO service_role;
-GRANT ALL ON public.user_profiles TO service_role;
-GRANT ALL ON public.teachers TO service_role;
-GRANT ALL ON public.classes TO service_role;
-GRANT ALL ON public.students TO service_role;
-GRANT ALL ON public.sessions TO service_role;
-GRANT ALL ON public.documents TO service_role;
-GRANT ALL ON public.summaries TO service_role;
-GRANT ALL ON public.detailed_feedbacks TO service_role;
-GRANT ALL ON public.next_steps TO service_role;
+-- Ensure service_role has all necessary permissions on tables
+GRANT ALL ON public.roles TO authenticated, anon, service_role;
+GRANT ALL ON public.schools TO authenticated, anon, service_role;
+GRANT ALL ON public.majors TO authenticated, anon, service_role;
+GRANT ALL ON public.user_profiles TO authenticated, anon, service_role;
+GRANT ALL ON public.teachers TO authenticated, anon, service_role;
+GRANT ALL ON public.classes TO authenticated, anon, service_role;
+GRANT ALL ON public.students TO authenticated, anon, service_role;
+GRANT ALL ON public.sessions TO authenticated, anon, service_role;
+GRANT ALL ON public.documents TO authenticated, anon, service_role;
+GRANT ALL ON public.summaries TO authenticated, anon, service_role;
+GRANT ALL ON public.detailed_feedbacks TO authenticated, anon, service_role;
+GRANT ALL ON public.next_steps TO authenticated, anon, service_role;
+
+-- Grant sequence permissions for BIGSERIAL tables
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated, anon, service_role;
+
+-- Apply to specific sequences created by BIGSERIAL columns
+GRANT USAGE, SELECT ON SEQUENCE public.roles_id_seq TO authenticated, anon, service_role;
+GRANT USAGE, SELECT ON SEQUENCE public.schools_id_seq TO authenticated, anon, service_role;
+GRANT USAGE, SELECT ON SEQUENCE public.majors_id_seq TO authenticated, anon, service_role;
+GRANT USAGE, SELECT ON SEQUENCE public.teachers_id_seq TO authenticated, anon, service_role;
+GRANT USAGE, SELECT ON SEQUENCE public.classes_id_seq TO authenticated, anon, service_role;
+GRANT USAGE, SELECT ON SEQUENCE public.students_id_seq TO authenticated, anon, service_role;
+GRANT USAGE, SELECT ON SEQUENCE public.sessions_id_seq TO authenticated, anon, service_role;
+GRANT USAGE, SELECT ON SEQUENCE public.documents_id_seq TO authenticated, anon, service_role;
+GRANT USAGE, SELECT ON SEQUENCE public.summaries_id_seq TO authenticated, anon, service_role;
+GRANT USAGE, SELECT ON SEQUENCE public.detailed_feedbacks_id_seq TO authenticated, anon, service_role;
+GRANT USAGE, SELECT ON SEQUENCE public.next_steps_id_seq TO authenticated, anon, service_role;
+
+-- Grant table permissions to allow full operations
+GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated, anon, service_role;
+GRANT USAGE ON SCHEMA public TO authenticated, anon, service_role;
