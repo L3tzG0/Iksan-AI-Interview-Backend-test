@@ -1,13 +1,29 @@
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, TYPE_CHECKING
 from datetime import datetime
 from pydantic import BaseModel, EmailStr, field_validator, model_validator
 from app.schemas.types import FlexibleDateTime
 import re
 
+
+class UserResponse(BaseModel):
+    id: str
+    email: str
+    full_name: Optional[str] = None
+    role_id: Optional[int] = None
+    role_name: Optional[str] = None
+    student_details: Optional[Dict[str, Any]] = None
+    teacher_details: Optional[Dict[str, Any]] = None
+    created_at: FlexibleDateTime
+
+    class Config:
+        from_attributes = True
+
+
 class Token(BaseModel):
     access_token: str
     token_type: str
     refresh_token: Optional[str] = None
+    user: Optional[UserResponse] = None
 
 class TokenData(BaseModel):
     email: Optional[str] = None
@@ -88,15 +104,3 @@ class RegisterRequest(BaseModel):
     student_data: Optional[StudentRegistrationData] = None
     teacher_data: Optional[TeacherRegistrationData] = None
 
-class UserResponse(BaseModel):
-    id: str
-    email: str
-    full_name: Optional[str] = None
-    role_id: Optional[int] = None
-    role_name: Optional[str] = None
-    student_details: Optional[Dict[str, Any]] = None
-    teacher_details: Optional[Dict[str, Any]] = None
-    created_at: FlexibleDateTime
-
-    class Config:
-        from_attributes = True

@@ -49,19 +49,67 @@ def login_for_access_token(
     """
     Login with email and password to get access token.
     Uses Supabase Auth for authentication.
+    Returns token along with user profile data (same as /auth/me).
     
     Rate limited: 5 requests per minute per IP address.
     """
     auth_service = AuthService(supabase)
     result = auth_service.authenticate_user(login_data)
     
+    # Get user context (same as /auth/me)
+    profile_service = UserProfileService(supabase)
+    user = result["user"]
+    
+    try:
+        user_context = profile_service.get_full_user_context(user.id)
+        profile = user_context["profile"]
+        student_details = user_context["student_details"]
+        teacher_details = user_context["teacher_details"]
+        
+        # Extract role information
+        role_name = None
+        roles_data = profile.get("roles") if isinstance(profile, dict) else None
+        if roles_data and isinstance(roles_data, dict):
+            role_name = roles_data.get("role_name")
+        
+        full_name = profile.get("full_name") if isinstance(profile, dict) else None
+        full_name_str = str(full_name) if full_name is not None else None
+        
+        role_id = profile.get("role_id") if isinstance(profile, dict) else None
+        role_id_int = int(role_id) if role_id is not None and isinstance(role_id, (int, float, str)) else None
+        role_name_str = str(role_name) if role_name is not None else None
+        
+        student_dict = dict(student_details) if student_details and isinstance(student_details, dict) else None
+        teacher_dict = dict(teacher_details) if teacher_details and isinstance(teacher_details, dict) else None
+        
+        user_response = UserResponse(
+            id=user.id,
+            email=user.email,
+            full_name=full_name_str,
+            role_id=role_id_int,
+            role_name=role_name_str,
+            student_details=student_dict,
+            teacher_details=teacher_dict,
+            created_at=user.created_at
+        )
+    except HTTPException:
+        # Fallback to user_metadata if profile not found
+        user_response = UserResponse(
+            id=user.id,
+            email=user.email,
+            full_name=user.user_metadata.get("full_name"),
+            role_id=user.user_metadata.get("role_id"),
+            created_at=user.created_at
+        )
+    
     token_response = Token(
         access_token=result["access_token"],
         token_type="bearer",
-        refresh_token=result["refresh_token"]
+        refresh_token=result["refresh_token"],
+        user=user_response
     )
 
-    return JSONResponse(content=token_response.dict(exclude_none=True))
+    return JSONResponse(content=jsonable_encoder(token_response.dict(exclude_none=True)))
 
 @router.post("/logout")
 @limiter.limit(settings.RATE_LIMIT_DEFAULT)

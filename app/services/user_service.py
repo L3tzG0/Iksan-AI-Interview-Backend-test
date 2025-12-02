@@ -27,7 +27,8 @@ USER_FULL_CONTEXT_QUERY = """
         classes(id, class_name, grade_level)
     ),
     teachers!user_id(
-        id, user_id, created_at, updated_at
+        id, user_id, created_at, updated_at,
+        schools(id, school_name)
     )
 """
 
