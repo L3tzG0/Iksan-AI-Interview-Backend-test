@@ -83,7 +83,7 @@ python scripts/init_db.py --check
 python scripts/init_db.py --seed
 ```
 
-> 📖 For detailed setup instructions, see [DATABASE_SETUP_GUIDE.md](docs/DATABASE_SETUP_GUIDE.md)
+> For detailed setup instructions, see [DATABASE_SETUP_GUIDE.md](docs/DATABASE_SETUP_GUIDE.md)
 
 ### 6. Run the Application
 

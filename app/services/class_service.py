@@ -7,7 +7,7 @@ from app.schemas.class_schema import ClassCreate, ClassUpdate
 CLASS_COLUMNS = "id, class_name, grade_level, homeroom_teacher_id"
 CLASS_COLUMNS_WITH_TEACHER = """
     id, class_name, grade_level, homeroom_teacher_id,
-    teachers(id, user_id, user_profiles(id, full_name, email))
+    teachers(id, user_id, school_id, user_profiles(id, full_name, email), schools(id, school_name))
 """
 
 

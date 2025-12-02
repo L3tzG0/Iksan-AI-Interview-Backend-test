@@ -19,10 +19,11 @@ class AuthService:
         """
         Register a new user with Supabase Auth.
         Validates that the role_id exists before registration.
+        For teachers, also validates and includes school_id.
         """
         try:
-            # Validate that role exists
-            role_response = self.supabase.table("roles").select("id").eq("id", register_data.role_id).execute()
+            # Validate that role exists and get role_name
+            role_response = self.supabase.table("roles").select("id, role_name").eq("id", register_data.role_id).execute()
             
             if not role_response.data or len(role_response.data) == 0:
                 raise HTTPException(
@@ -30,15 +31,33 @@ class AuthService:
                     detail=f"Role with id {register_data.role_id} does not exist. Please ensure roles are seeded in the database."
                 )
             
+            role_name = role_response.data[0].get("role_name")
+            
+            # Validate school_id if provided
+            if register_data.school_id is not None:
+                school_response = self.supabase.table("schools").select("id").eq("id", register_data.school_id).execute()
+                if not school_response.data or len(school_response.data) == 0:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"School with id {register_data.school_id} does not exist. Please ensure schools are seeded in the database."
+                    )
+            
+            # Build metadata for Supabase Auth
+            user_metadata = {
+                "full_name": register_data.full_name,
+                "role_id": register_data.role_id
+            }
+            
+            # Include school_id in metadata for teachers
+            if register_data.school_id is not None:
+                user_metadata["school_id"] = register_data.school_id
+            
             # Sign up user with Supabase Auth
             response = self.supabase.auth.sign_up({
                 "email": register_data.email,
                 "password": register_data.password,
                 "options": {
-                    "data": {
-                        "full_name": register_data.full_name,
-                        "role_id": register_data.role_id
-                    }
+                    "data": user_metadata
                 }
             })
             

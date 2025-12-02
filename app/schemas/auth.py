@@ -20,6 +20,7 @@ class RegisterRequest(BaseModel):
     password: str
     full_name: str
     role_id: int
+    school_id: Optional[int] = None  # Required for teachers, optional otherwise
 
 class UserResponse(BaseModel):
     id: str

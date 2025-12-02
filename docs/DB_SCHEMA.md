@@ -34,6 +34,7 @@ erDiagram
     TEACHERS {
         int id PK
         uuid user_id FK
+        int school_id FK
         timestamp created_at
         timestamp updated_at
     }
@@ -104,6 +105,7 @@ erDiagram
     ROLES ||--o{ USER_PROFILES : "assigned to"
     USER_PROFILES ||--o| TEACHERS : "may be"
     USER_PROFILES ||--o| STUDENTS : "may be"
+    SCHOOLS ||--o{ TEACHERS : "employs"
     SCHOOLS ||--o{ STUDENTS : "has"
     MAJORS ||--o{ STUDENTS : "has"
     CLASSES ||--o{ STUDENTS : "contains"

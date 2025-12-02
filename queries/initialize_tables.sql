@@ -46,6 +46,7 @@ CREATE TABLE user_profiles (
 CREATE TABLE teachers (
   id                BIGSERIAL PRIMARY KEY,
   user_id           UUID UNIQUE REFERENCES user_profiles(id) ON DELETE CASCADE,
+  school_id         BIGINT REFERENCES schools(id) ON DELETE SET NULL,
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -144,6 +145,7 @@ CREATE INDEX idx_students_school_id ON students(school_id);
 CREATE INDEX idx_students_major_id ON students(major_id);
 CREATE INDEX idx_students_class_id ON students(current_class_id);
 CREATE INDEX idx_teachers_user_id ON teachers(user_id);
+CREATE INDEX idx_teachers_school_id ON teachers(school_id);
 
 -- Trigger function to auto-update updated_at timestamp
 CREATE OR REPLACE FUNCTION handle_updated_at()
@@ -183,11 +185,19 @@ AS $$
 DECLARE
     v_role_id bigint;
     v_role_name text;
+    v_school_id bigint;
 BEGIN
     -- Extract role_id from metadata
     v_role_id := CASE 
         WHEN NEW.raw_user_meta_data->>'role_id' IS NOT NULL 
         THEN (NEW.raw_user_meta_data->>'role_id')::bigint
+        ELSE NULL
+    END;
+    
+    -- Extract school_id from metadata (for teachers)
+    v_school_id := CASE 
+        WHEN NEW.raw_user_meta_data->>'school_id' IS NOT NULL 
+        THEN (NEW.raw_user_meta_data->>'school_id')::bigint
         ELSE NULL
     END;
     
@@ -197,6 +207,13 @@ BEGIN
         
         IF v_role_name IS NULL THEN
             RAISE EXCEPTION 'Role with id % does not exist. Please seed roles table first.', v_role_id;
+        END IF;
+    END IF;
+    
+    -- Validate school exists if provided
+    IF v_school_id IS NOT NULL THEN
+        IF NOT EXISTS (SELECT 1 FROM public.schools WHERE id = v_school_id) THEN
+            RAISE EXCEPTION 'School with id % does not exist. Please seed schools table first.', v_school_id;
         END IF;
     END IF;
     
@@ -218,8 +235,8 @@ BEGIN
         INSERT INTO public.students (user_id)
         VALUES (NEW.id);
     ELSIF v_role_name = 'teacher' THEN
-        INSERT INTO public.teachers (user_id)
-        VALUES (NEW.id);
+        INSERT INTO public.teachers (user_id, school_id)
+        VALUES (NEW.id, v_school_id);
     END IF;
     -- Admin role doesn't require a separate record
     
