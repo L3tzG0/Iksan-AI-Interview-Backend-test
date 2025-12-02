@@ -1,3 +1,4 @@
+import asyncio # Import needed for async calls
 from typing import List, Annotated, Any, Optional
 from datetime import datetime
 from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException, status, Query, Request
@@ -9,6 +10,11 @@ from app.core.config import settings
 from app.core.security import get_current_user
 from app.core.rate_limit import limiter
 from app.api.dependencies import require_role
+
+# New service imports (replacing LLMService)
+from app.services.question_generator import generate_interview_questions
+from app.services.evaluation_generator import generate_session_evaluation
+
 from app.schemas.interview_session import (
     InterviewSessionResponse, 
     InterviewSessionCreate,
@@ -19,7 +25,8 @@ from app.schemas.interview_session import (
     SessionFeedbackResponse,
     SessionDetailResponse,
     FeedbackDetail,
-    GeneratedQuestion
+    GeneratedQuestion,
+    QuestionAnswerPair # Needed for safely referencing the data structure
 )
 from app.schemas.pagination import PaginatedResponse, create_paginated_response
 from app.services.storage_service import StorageService
@@ -28,7 +35,10 @@ from app.services.interview_session_service import InterviewSessionService
 from app.services.text_extraction_service import TextExtractionService
 from app.services.feedback_service import FeedbackService
 from app.services.user_service import UserProfileService
-from app.services.llm_service import LLMService
+# from app.services.llm_service import LLMService # REMOVED
+from app.schemas.summary import InterviewSummaryCreate # Explicitly import the schema
+from app.schemas.next_step import InterviewNextStepCreate
+
 
 router = APIRouter()
 
@@ -92,7 +102,7 @@ def get_my_sessions(
 
 @router.post("/submit", response_model=SessionFeedbackResponse)
 @limiter.limit(settings.RATE_LIMIT_LLM)
-def submit_session_answers(
+async def submit_session_answers( # Changed to async
     request: Request,
     submit_request: SessionSubmitRequest,
     supabase: Annotated[Client, Depends(get_supabase)],
@@ -102,67 +112,172 @@ def submit_session_answers(
     Submit answers and get complete feedback from LLM.
     
     FE submits the complete QnA history, and this endpoint will:
-    1. Call LLM with the whole QnA history
-    2. Generate comprehensive feedback
-    3. Return scores, summaries, and next steps
-    
-    Requires: Authentication (JWT token)
-    
-    Returns: Complete feedback response (dummy data for skeleton implementation)
+    1. Validate and fetch existing session (must be in_progress)
+    2. Call LLM with the whole QnA history and get feedback
+    3. Update the database with scores, summaries, next steps, and detailed feedback
+    4. Update session status to "completed" or "failed"
+    5. Return the complete feedback response
     """
-    # TODO: Implement actual LLM call with QnA history
-    # For now, return dummy feedback data
+    session_service = InterviewSessionService(supabase)
+    feedback_service = FeedbackService(supabase)
+    user_service = UserProfileService(supabase)
     
-    dummy_detailed_feedback = [
-        FeedbackDetail(
-            question="자기소개를 해주세요.",
-            answer="안녕하세요, 저는 컴퓨터공학을 전공하고 있는 학생입니다.",
-            evaluation="명확하고 간결한 자기소개입니다. 전공 분야를 잘 언급했습니다.",
-            content_relevance_score=8.5,
-            structure_score=8.0,
-            fluency_score=9.0,
-            confidence_score=8.5,
-            overall_score=8.5,
-            is_correct=True
-        ),
-        FeedbackDetail(
-            question="왜 이 직무에 지원하셨나요?",
-            answer="개발에 대한 열정이 있고, 실무 경험을 쌓고 싶습니다.",
-            evaluation="동기는 좋으나 좀 더 구체적인 이유를 제시하면 좋겠습니다.",
-            content_relevance_score=7.0,
-            structure_score=6.5,
-            fluency_score=7.5,
-            confidence_score=7.0,
-            overall_score=7.0,
-            is_correct=True
-        ),
-        FeedbackDetail(
-            question="팀 프로젝트 경험에 대해 말씀해주세요.",
-            answer="학교에서 웹 개발 프로젝트를 진행한 경험이 있습니다.",
-            evaluation="경험을 언급했으나 역할과 성과에 대한 구체적인 설명이 부족합니다.",
-            content_relevance_score=6.5,
-            structure_score=6.0,
-            fluency_score=7.0,
-            confidence_score=6.5,
-            overall_score=6.5,
-            is_correct=True
-        ),
-    ]
+    session_id = submit_request.session_id
     
-    response = SessionFeedbackResponse(
-        session_id=submit_request.session_id,
-        overall_score=73.3,
-        strength_summary="명확한 의사소통 능력과 기본적인 기술 지식을 보여주셨습니다. 자기소개가 간결하고 전공 분야를 잘 어필했습니다.",
-        areas_for_growth="답변에 구체적인 예시와 수치를 포함하면 더 설득력이 있을 것입니다. 경험을 설명할 때 STAR 기법(상황-과제-행동-결과)을 활용해보세요.",
-        detailed_feedback=dummy_detailed_feedback,
-        next_steps=[
-            "STAR 기법을 활용한 답변 연습하기",
-            "프로젝트 경험에 대한 구체적인 수치와 성과 정리하기",
-            "지원 직무와 관련된 기술 질문 대비하기",
-            "모의 면접을 통해 실전 감각 익히기"
+    # 1. Fetch and validate session state & ownership
+    session = session_service.get_session(session_id)
+    if not session or session.get("status") != "in_progress":
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Session {session_id} not found or not in 'in_progress' status."
+        )
+    
+    student_details = user_service.get_student_details(current_user.id)
+    student_id = student_details.get("id")
+    if session.get("student_id") != student_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, 
+            detail="You are not authorized to submit to this session."
+        )
+        
+    if not submit_request.qa_pairs:
+         session_service.update_session_status(session_id, status="completed", total_score=0.0)
+         raise HTTPException(
+            status_code=400, 
+            detail="No question and answer pairs provided for evaluation."
+        )
+
+    try:
+        # 2. Call LLM Evaluation Service
+        # submit_request.qa_pairs is List[QuestionAnswerPair], which the service expects
+        evaluation_result = await generate_session_evaluation(submit_request.qa_pairs)
+
+        # 3. Update Database with results
+        
+        # A. Update main session table with overall score (scaling from 0-10 to 0-100)
+        overall_score_10 = round(evaluation_result.overall_scores.overall_score, 1)
+
+        session_service.update_session_status(
+            session_id=session_id, 
+            status="completed",
+            total_score=overall_score_10,
+            completed_at=datetime.now()
+        )
+        
+        # B. Save summaries
+        # feedback_service.create_session_summary(
+        #     session_id=session_id,
+        #     strength_text=evaluation_result.session_summary.strength_text,
+        #     areas_for_growth_text=evaluation_result.session_summary.areas_for_growth_text
+        # )
+        summary_data = InterviewSummaryCreate(
+            session_id=session_id,
+            strength_text=evaluation_result.session_summary.strength_text,
+            areas_for_growth_text=evaluation_result.session_summary.areas_for_growth_text
+        )
+        
+        # Now pass the single Pydantic object to the service method
+        feedback_service.create_session_summary(summary=summary_data)
+
+        # C. Save next steps
+        # feedback_service.create_next_steps_batch(
+        #     session_id=session_id,
+        #     next_steps=evaluation_result.next_steps # List[NextStepItem]
+        # )
+        next_step_creates = [
+            InterviewNextStepCreate(
+                session_id=session_id,
+                next_step_order=idx + 1, # Use index here for order
+                title=ns.title,
+                description_text=ns.description_text
+            )
+            for idx, ns in enumerate(evaluation_result.next_steps)
         ]
-    )
-    return JSONResponse(content=jsonable_encoder(response.dict()))
+
+        feedback_service.create_next_steps_batch(
+            next_steps=next_step_creates # Pass the mapped list of objects
+        )
+
+         # D. Update detailed feedbacks (Q&A and scores)
+        # 1. Create a map of question_order to answer_text from the request
+        qa_map = {p.question_order: p.answer_text for p in submit_request.qa_pairs}
+        
+        # 2. Merge answer_text into the LLM's per-question feedback structure
+        combined_feedback_updates = []
+        for fb_item in evaluation_result.per_question_feedback:
+            # Convert the Pydantic object to a mutable dictionary
+            # We use model_dump() here to include all the LLM-generated fields (scores/evaluation_text)
+            update_data = fb_item.model_dump(exclude_none=True, exclude_unset=True)
+            
+            # Look up the corresponding answer text using the question order
+            answer_text_for_q = qa_map.get(fb_item.question_order)
+            
+            # Add the answer_text to the update payload
+            if answer_text_for_q is not None:
+                update_data["answer_text"] = answer_text_for_q
+            
+            combined_feedback_updates.append(update_data)
+
+        # 3. Send the updated list of dictionaries (which now includes answer_text) to the service
+        feedback_service.update_detailed_feedbacks_batch(
+            session_id=session_id,
+            # We pass a list of dicts/Any, which is handled in the service
+            feedback_updates=combined_feedback_updates 
+        )
+        # 4. Construct final response model
+        
+        # Helper map to link feedback (which lacks Q&A text) back to the input request
+        qa_map = {p.question_order: (p.question_text, p.answer_text) for p in submit_request.qa_pairs}
+        detailed_feedback_list = []
+
+        for fb in evaluation_result.per_question_feedback:
+            # Skip placeholder feedback items from the LLM (unanswered questions)
+            if fb.evaluation_text == "Question not answered by the candidate.":
+                 continue
+            
+            # Get the original Q&A text from the request body
+            q_text, a_text = qa_map.get(
+                fb.question_order, 
+                (f"Question {fb.question_order} (Unanswered)", "N/A")
+            )
+            
+            detailed_feedback_list.append(
+                FeedbackDetail(
+                    question=q_text,
+                    answer=a_text,
+                    evaluation=fb.evaluation_text,
+                    content_relevance_score=fb.content_relevance_score,
+                    structure_score=fb.structure_score,
+                    fluency_score=fb.fluency_score,
+                    confidence_score=fb.confidence_score,
+                    overall_score=fb.overall_score,
+                    is_correct=fb.is_correct
+                )
+            )
+        
+        response_payload = SessionFeedbackResponse(
+            session_id=session_id,
+            overall_score=overall_score_10,
+            strength_summary=evaluation_result.session_summary.strength_text,
+            areas_for_growth=evaluation_result.session_summary.areas_for_growth_text,
+            detailed_feedback=detailed_feedback_list,
+            next_steps=[ns.title or ns.description_text for ns in evaluation_result.next_steps]
+        )
+        
+        # 5. Return success response
+        return JSONResponse(content=jsonable_encoder(response_payload.dict()))
+
+    except Exception as e:
+        # 6. Handle errors and rollback status
+        error_detail = str(e)
+        # Ensure the session is marked as failed on error
+        session_service.update_session_status(session_id, status="failed")
+        print(f"Error during session evaluation (ID: {session_id}): {e}")
+        
+        raise HTTPException(
+            status_code=500,
+            detail=f"AI Session Evaluation or Database Update failed. Error: {error_detail}"
+        )
 
 
 @router.get("/{session_id}", response_model=SessionDetailResponse)
@@ -223,6 +338,7 @@ def get_session_detail(
             is_correct=fb.get("is_correct") or False
         )
         for fb in sorted_feedbacks
+        if fb.get("overall_score") is not None and fb.get("overall_score") > 0.0 # Only show evaluated items
     ]
     
     # Get summary data
@@ -232,6 +348,7 @@ def get_session_detail(
     if summaries:
         # summaries could be a list or dict depending on DB structure
         if isinstance(summaries, list) and len(summaries) > 0:
+            # We assume the first (or only) summary record is the right one
             strength_summary = summaries[0].get("strength_text")
             areas_for_growth = summaries[0].get("areas_for_growth_text")
         elif isinstance(summaries, dict):
@@ -248,6 +365,7 @@ def get_session_detail(
         for ns in sorted_next_steps
     ]
     
+    # Total score in DB is 0-100, use it for overall_score in response
     response = SessionDetailResponse(
         session_id=session["id"],
         student_id=session["student_id"],
@@ -266,10 +384,13 @@ def get_session_detail(
 
 @router.post("/initiate", response_model=SessionInitiateResponse)
 @limiter.limit(settings.RATE_LIMIT_LLM)
-def initiate_interview_session(
+async def initiate_interview_session( # Changed to async
     request: Request,
     file: Optional[UploadFile] = File(None, description="Document file (PDF, DOCX, TXT, MD)"),
     raw_text: Optional[str] = Form(None, description="Raw text content"),
+    # ADDED: Required for targeted question generation
+    field: str = Form(..., description="Target industry/field for the interview."),
+    role: str = Form(..., description="Target job role for the interview."),
     current_user = Depends(require_role("student")),
     supabase: Client = Depends(get_supabase)
 ):
@@ -278,44 +399,14 @@ def initiate_interview_session(
     
     Requires: Authentication (JWT token) - Student role only
     Rate limited: 10 requests per minute per user.
-    
-    Parameters:
-    - file (optional): Document file to process (PDF, DOCX, TXT, MD)
-    - raw_text (optional): Raw text content
-    
-    Note: At least one of 'file' or 'raw_text' must be provided.
-    If both are provided, the file will be processed and raw_text will be ignored.
-    Student ID is derived from the authenticated user's token (not from request body).
-    
-    Security measures:
-    - Authentication required (JWT token)
-    - Role-based access: Only students can initiate sessions
-    - Student ID derived from token (prevents IDOR attacks)
-    - File type validation (MIME type) - when file is provided
-    - File signature verification (magic numbers) - when file is provided
-    - Filename sanitization - when file is provided
-    - File size limits - when file is provided
-    
-    Simplified flow (no storage):
-    1. Validates authentication and student role
-    2. Derives student_id from authenticated user's token
-    3. Validates at least one of file or raw_text is provided
-    4. If file provided: validates file type, signature, and size, extracts text
-    5. If only raw_text provided: uses raw_text directly
-    6. Creates session with status "in_progress"
-    7. Saves raw_text to documents table
-    8. Creates initial detailed_feedbacks record
-    9. Returns success response
-    
-    If any step fails, the session is marked as failed.
     """
     # Initialize services
-    storage_service = StorageService(supabase)  # Used for validation only
+    storage_service = StorageService(supabase) # Used for validation only
     session_service = InterviewSessionService(supabase)
     document_service = DocumentService(supabase)
     extraction_service = TextExtractionService()
     feedback_service = FeedbackService(supabase)
-    llm_service = LLMService()
+    # llm_service removed
     user_service = UserProfileService(supabase)
     
     session_id: int | None = None
@@ -328,6 +419,13 @@ def initiate_interview_session(
                 detail="Either 'file' or 'raw_text' must be provided"
             )
         
+        # Validate field and role are not empty
+        if not field or not role:
+            raise HTTPException(
+                status_code=400,
+                detail="Target 'field' and 'role' must be provided for question generation."
+            )
+
         # Step 1: Get student_id from token-derived current_user
         student_details = user_service.get_student_details(current_user.id)
         
@@ -372,11 +470,11 @@ def initiate_interview_session(
                         )
 
             # Stream the file in manageable chunks to cap memory usage while reading
-            chunk_size = 1024 * 1024  # 1MB
+            chunk_size = 1024 * 1024 # 1MB
             total_read = 0
             buffer = bytearray()
             while True:
-                chunk = file.file.read(chunk_size)
+                chunk = await file.read(chunk_size) # Changed to await file.read()
                 if not chunk:
                     break
                 total_read += len(chunk)
@@ -400,7 +498,6 @@ def initiate_interview_session(
             )
         else:
             # Only raw_text provided - use it directly as cleaned text
-            # At this point raw_text is guaranteed to be str due to validation above
             if raw_text is None:
                 raise HTTPException(status_code=400, detail="raw_text cannot be None")
             cleaned_text_extracted = raw_text
@@ -411,30 +508,33 @@ def initiate_interview_session(
             cleaned_text=cleaned_text_extracted
         )
         
-        # Step 5: Generate interview questions using LLM
-        question_texts = llm_service.generate_interview_questions(cleaned_text_extracted)
+        # Step 5: Generate interview questions using LLM (using the new service)
+        # Service returns List[GeneratedQuestion]
+        generated_questions_list = await generate_interview_questions(
+            cv_text=cleaned_text_extracted,
+            field=field,
+            role=role
+        )
         
         # Step 6: Create detailed_feedbacks records (10 rows with questions)
+        # This step uses the list of Pydantic models (correct).
         feedback_service.create_detailed_feedbacks_batch(
             session_id=session_id,
-            questions=question_texts
+            questions=generated_questions_list
         )
         
         # Step 7: Build response with all generated questions
-        generated_questions = [
-            GeneratedQuestion(
-                question_order=idx + 1,
-                question_text=q_text
-            )
-            for idx, q_text in enumerate(question_texts)
-        ]
-        
+        # The redundant loop from before has been removed. We use the list directly.
         response = SessionInitiateResponse(
             success=True,
             message="Interview session initiated successfully with 10 questions",
             session_id=session['id'],
-            questions=generated_questions
+            # Directly use the list of GeneratedQuestion objects from the service
+            questions=generated_questions_list
         )
+        
+        # FastAPI's jsonable_encoder correctly converts the List[GeneratedQuestion] 
+        # objects into List[dict] for the JSON response body.
         return JSONResponse(content=jsonable_encoder(response.dict()))
         
     except HTTPException:
@@ -458,9 +558,6 @@ def _rollback_session_creation(
 ):
     """
     Rollback changes if session initiation fails.
-    
-    Simplified: Only marks session as failed (no storage cleanup needed).
-    We keep the session record for debugging purposes.
     """
     # Mark session as failed (keep for debugging, don't delete)
     if session_id:
