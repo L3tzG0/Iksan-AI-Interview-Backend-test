@@ -236,12 +236,6 @@ def print_success_message(seeded: bool):
 ║                                                                            ║
 ║  2. Register users via API:                                                ║
 ║     POST /api/v1/auth/register                                             ║
-║     {                                                                      ║
-║       "email": "student@seed.com",                                      ║
-║       "password": "SecurePass123!",                                        ║
-║       "full_name": "Test Student",                                         ║
-║       "role_id": 3                                                         ║
-║     }                                                                      ║
 ║                                                                            ║
 ║  Valid role_ids: 1 (admin), 2 (teacher), 3 (student)                       ║
 ║                                                                            ║

@@ -11,6 +11,7 @@ from app.schemas.class_schema import ClassResponse
 
 class StudentBase(BaseModel):
     user_id: UUID
+    student_id: str  # Student ID number (e.g., school-issued ID)
 
 
 class StudentCreate(StudentBase):
@@ -20,22 +21,26 @@ class StudentCreate(StudentBase):
 
 
 class StudentUpdate(BaseModel):
+    student_id: Optional[str] = None
     school_id: Optional[int] = None
     major_id: Optional[int] = None
     current_class_id: Optional[int] = None
 
 
-class StudentResponse(StudentBase):
+class StudentResponse(BaseModel):
     id: int
-    school_id: Optional[int] = None
-    major_id: Optional[int] = None
-    current_class_id: Optional[int] = None
+    user_id: UUID
+    student_id: str
+    school_id: int
+    major_id: int
+    current_class_id: int
 
     class Config:
         from_attributes = True
 
+
 class StudentWithDetails(StudentResponse):
-    user_profile: UserProfileResponse
-    school: SchoolResponse
-    major: MajorResponse
-    current_class: ClassResponse
+    user_profile: Optional[UserProfileResponse] = None
+    school: Optional[SchoolResponse] = None
+    major: Optional[MajorResponse] = None
+    current_class: Optional[ClassResponse] = None

@@ -4,9 +4,10 @@ from fastapi import HTTPException, status
 from app.schemas.student import StudentCreate, StudentUpdate
 
 # Explicit columns to select for students (avoiding SELECT *)
-STUDENT_COLUMNS = "id, user_id, school_id, major_id, current_class_id, created_at, updated_at"
+STUDENT_COLUMNS = "id, student_id, user_id, school_id, major_id, current_class_id, created_at, updated_at"
 STUDENT_COLUMNS_WITH_RELATIONS = """
-    id, user_id, school_id, major_id, current_class_id, created_at, updated_at,
+    id, student_id, user_id, school_id, major_id, current_class_id, created_at, updated_at,
+    user_profiles(id, email, full_name, role_id),
     schools(id, school_name),
     majors(id, major_name),
     classes(id, class_name, grade_level)
@@ -33,9 +34,33 @@ class StudentService:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     def get_student(self, student_id: int):
-        """Get student by ID with explicit column selection"""
+        """Get student by ID (primary key) with explicit column selection"""
         try:
             response = self.supabase.table('students').select(STUDENT_COLUMNS).eq('id', student_id).execute()
+            if not response.data:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found")
+            return response.data[0]
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    def get_student_by_student_id(self, student_id_number: str):
+        """Get student by student_id (the student's ID number, not primary key)"""
+        try:
+            response = self.supabase.table('students').select(STUDENT_COLUMNS).eq('student_id', student_id_number).execute()
+            if not response.data:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found")
+            return response.data[0]
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    def get_student_by_user_id(self, user_id: str):
+        """Get student by user_id (UUID from user_profiles)"""
+        try:
+            response = self.supabase.table('students').select(STUDENT_COLUMNS).eq('user_id', user_id).execute()
             if not response.data:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found")
             return response.data[0]
@@ -65,6 +90,7 @@ class StudentService:
         self,
         skip: int = 0,
         limit: int = 20,
+        student_id_filter: Optional[str] = None,
         school_id: Optional[int] = None,
         major_id: Optional[int] = None,
         class_id: Optional[int] = None,
@@ -76,6 +102,7 @@ class StudentService:
         Args:
             skip: Number of records to skip
             limit: Maximum records to return
+            student_id_filter: Filter by student ID number (partial match)
             school_id: Filter by school ID
             major_id: Filter by major ID
             class_id: Filter by class ID
@@ -90,6 +117,8 @@ class StudentService:
             # Build query with filters
             query = self.supabase.table('students').select(columns, count='exact')
             
+            if student_id_filter is not None:
+                query = query.ilike('student_id', f'%{student_id_filter}%')
             if school_id is not None:
                 query = query.eq('school_id', school_id)
             if major_id is not None:
