@@ -243,3 +243,50 @@ python ./tests/test_supabase_connection.py
 - [PERFORMANCE_REVIEW.md](docs/PERFORMANCE_REVIEW.md) - Performance optimization
 - [INTERVIEW_SESSION_INITIATION.md](docs/INTERVIEW_SESSION_INITIATION.md) - Session workflow
 
+## Deployment
+
+### Deploy to Render
+
+This project is configured for easy deployment to [Render](https://render.com).
+
+#### Option 1: One-Click Deploy (Recommended)
+
+1. Push your code to GitHub
+2. Go to [Render Dashboard](https://dashboard.render.com)
+3. Click **New** → **Web Service**
+4. Connect your GitHub repository
+5. Render will auto-detect the `render.yaml` configuration
+6. Set the required environment variables in the Render dashboard:
+   - `SUPABASE_URL` - Your Supabase project URL
+   - `SUPABASE_KEY` - Your Supabase anon/public key
+   - `SUPABASE_STORAGE_BUCKET` - Your storage bucket name
+   - `LLM_API_KEY` - Your LLM API key (if using AI features)
+7. Click **Create Web Service**
+
+#### Option 2: Manual Configuration
+
+If not using `render.yaml`:
+
+1. **Build Command:** `pip install -r requirements.txt`
+2. **Start Command:** `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+3. **Python Version:** 3.11
+
+#### Environment Variables for Production
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `SUPABASE_URL` | Yes | Your Supabase project URL |
+| `SUPABASE_KEY` | Yes | Your Supabase anon/public key |
+| `SUPABASE_STORAGE_BUCKET` | No | Storage bucket name |
+| `LLM_API_KEY` | No | LLM provider API key |
+| `LLM_MODEL` | No | LLM model name (default: gemini-2.5-flash) |
+| `BACKEND_CORS_ORIGINS` | No | Allowed origins (default: ["*"]) |
+| `ENVIRONMENT` | No | Environment name (default: development) |
+
+#### Post-Deployment
+
+After deployment, verify your service is running:
+
+- **Health Check:** `https://your-app.onrender.com/health`
+- **API Docs:** `https://your-app.onrender.com/docs`
+

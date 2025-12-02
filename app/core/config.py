@@ -1,16 +1,21 @@
 from typing import List, Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
+import os
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "Iksan AI Interview Backend"
     API_V1_STR: str = "/api/v1"
     
+    # Environment
+    ENVIRONMENT: str = "development"  # development, staging, production
+    DEBUG: bool = Field(default=False)
+    
     # Supabase
     SUPABASE_URL: str
     SUPABASE_KEY: str
     # DEPRECATED: Storage bucket not currently in use - kept for future implementation
-    SUPABASE_STORAGE_BUCKET: str
+    SUPABASE_STORAGE_BUCKET: str = ""
     
     # LLM Configuration
     # TODO: Set these values in .env when integrating with actual LLM provider
