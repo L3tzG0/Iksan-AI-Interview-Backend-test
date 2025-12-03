@@ -1,5 +1,6 @@
 from typing import Optional, Tuple, List
 from supabase import AsyncClient
+from postgrest.exceptions import APIError
 from fastapi import HTTPException, status
 from app.schemas.teacher import TeacherCreate, TeacherUpdate
 
@@ -116,10 +117,20 @@ class TeacherService:
                 query = query.eq('school_id', school_id)
             
             # Single query with pagination - PostgreSQL returns total count with data
-            response = await query.offset(skip).limit(limit).execute()
-            total = response.count if response.count is not None else 0
-            
-            return response.data, total
+            # Handle 416 error when offset exceeds total records
+            try:
+                response = await query.offset(skip).limit(limit).execute()
+                total = response.count if response.count is not None else 0
+                return response.data, total
+            except APIError as e:
+                if e.code == '416' or e.code == 416:  # Range not satisfiable - offset beyond total
+                    count_query = self.supabase.table('teachers').select(columns, count='exact')
+                    if school_id is not None:
+                        count_query = count_query.eq('school_id', school_id)
+                    count_response = await count_query.limit(0).execute()
+                    total = count_response.count if count_response.count is not None else 0
+                    return [], total
+                raise
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 

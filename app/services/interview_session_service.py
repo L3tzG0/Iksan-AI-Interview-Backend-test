@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Optional, Tuple, List
 from operator import itemgetter
 from supabase import AsyncClient
+from postgrest.exceptions import APIError
 from fastapi import HTTPException, status
 
 # Explicit columns to select for sessions (avoiding SELECT *)
@@ -232,11 +233,23 @@ class InterviewSessionService:
                 query = query.eq('status', status_filter)
             
             # Single query with pagination - PostgreSQL returns total count with data
+            # Handle 416 error when offset exceeds total records
             query = query.order('created_at', desc=True)
-            response = await query.offset(skip).limit(limit).execute()
-            total = response.count if response.count is not None else 0
-            
-            return response.data, total
+            try:
+                response = await query.offset(skip).limit(limit).execute()
+                total = response.count if response.count is not None else 0
+                return response.data, total
+            except APIError as e:
+                if e.code == '416' or e.code == 416:  # Range not satisfiable - offset beyond total
+                    count_query = self.supabase.table('sessions').select(
+                        SESSION_COLUMNS, count='exact'
+                    ).eq('student_id', student_id)
+                    if status_filter:
+                        count_query = count_query.eq('status', status_filter)
+                    count_response = await count_query.limit(0).execute()
+                    total = count_response.count if count_response.count is not None else 0
+                    return [], total
+                raise
         except Exception as e:
             raise HTTPException(
                 status_code=500,
@@ -275,11 +288,23 @@ class InterviewSessionService:
                 query = query.eq('status', status_filter)
             
             # Single query with pagination - PostgreSQL returns total count with data
+            # Handle 416 error when offset exceeds total records
             query = query.order('created_at', desc=True)
-            response = await query.offset(skip).limit(limit).execute()
-            total = response.count if response.count is not None else 0
-            
-            return response.data, total
+            try:
+                response = await query.offset(skip).limit(limit).execute()
+                total = response.count if response.count is not None else 0
+                return response.data, total
+            except APIError as e:
+                if e.code == '416' or e.code == 416:  # Range not satisfiable - offset beyond total
+                    count_query = self.supabase.table('sessions').select(columns, count='exact')
+                    if student_id is not None:
+                        count_query = count_query.eq('student_id', student_id)
+                    if status_filter:
+                        count_query = count_query.eq('status', status_filter)
+                    count_response = await count_query.limit(0).execute()
+                    total = count_response.count if count_response.count is not None else 0
+                    return [], total
+                raise
         except Exception as e:
             raise HTTPException(
                 status_code=500,

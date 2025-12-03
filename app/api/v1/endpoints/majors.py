@@ -1,6 +1,7 @@
 from typing import List, Annotated, Optional
 from fastapi import APIRouter, Depends, Query
 from supabase import AsyncClient
+from postgrest.exceptions import APIError
 from app.core.database import get_supabase
 from app.schemas.major import MajorResponse, MajorCreate
 from app.schemas.pagination import PaginatedResponse, create_paginated_response
@@ -32,10 +33,20 @@ async def read_majors(
         query = query.ilike('major_name', f'%{search}%')
     
     # Single query with pagination - PostgreSQL returns total count with data
-    response = await query.offset(skip).limit(limit).execute()
-    total = response.count if response.count is not None else 0
-    
-    return create_paginated_response(items=response.data, total=total, skip=skip, limit=limit)
+    # Handle 416 error when offset exceeds total records
+    try:
+        response = await query.offset(skip).limit(limit).execute()
+        total = response.count if response.count is not None else 0
+        return create_paginated_response(items=response.data, total=total, skip=skip, limit=limit)
+    except APIError as e:
+        if e.code == '416' or e.code == 416:  # Range not satisfiable - offset beyond total
+            count_query = supabase.table('majors').select(MAJOR_COLUMNS, count='exact')
+            if search:
+                count_query = count_query.ilike('major_name', f'%{search}%')
+            count_response = await count_query.limit(0).execute()
+            total = count_response.count if count_response.count is not None else 0
+            return create_paginated_response(items=[], total=total, skip=skip, limit=limit)
+        raise
 
 @router.post("/", response_model=MajorResponse)
 async def create_major(
