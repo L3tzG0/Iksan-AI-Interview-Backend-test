@@ -5,7 +5,7 @@ from app.schemas.teacher import TeacherResponse
 class ClassBase(BaseModel):
     class_name: str
     grade_level: str
-    homeroom_teacher_id: int
+    homeroom_teacher_id: Optional[int] = None
 
 class ClassCreate(ClassBase):
     pass
