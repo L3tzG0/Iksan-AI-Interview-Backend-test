@@ -245,31 +245,46 @@ python ./tests/test_supabase_connection.py
 
 ## Deployment
 
-### Deploy to Render
+### Deploy to Railway
 
-This project is configured for easy deployment to [Render](https://render.com).
+This project is configured for easy deployment to [Railway](https://railway.app).
 
-#### Option 1: One-Click Deploy (Recommended)
+#### Option 1: Deploy from GitHub (Recommended)
 
 1. Push your code to GitHub
-2. Go to [Render Dashboard](https://dashboard.render.com)
-3. Click **New** → **Web Service**
-4. Connect your GitHub repository
-5. Render will auto-detect the `render.yaml` configuration
-6. Set the required environment variables in the Render dashboard:
+2. Go to [Railway Dashboard](https://railway.app/dashboard)
+3. Click **New Project** → **Deploy from GitHub repo**
+4. Select your repository
+5. Railway will auto-detect the `railway.json` configuration
+6. Set the required environment variables in the Railway dashboard:
    - `SUPABASE_URL` - Your Supabase project URL
    - `SUPABASE_KEY` - Your Supabase anon/public key
    - `SUPABASE_STORAGE_BUCKET` - Your storage bucket name
    - `LLM_API_KEY` - Your LLM API key (if using AI features)
-7. Click **Create Web Service**
+7. Deploy!
 
-#### Option 2: Manual Configuration
+#### Option 2: Deploy using Railway CLI
 
-If not using `render.yaml`:
+```bash
+# Install Railway CLI
+npm install -g @railway/cli
 
-1. **Build Command:** `pip install -r requirements.txt`
-2. **Start Command:** `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-3. **Python Version:** 3.11
+# Login to Railway
+railway login
+
+# Initialize project (in your repo directory)
+railway init
+
+# Deploy
+railway up
+```
+
+#### Option 3: Manual Configuration
+
+If not using `railway.json`, configure in the Railway dashboard:
+
+1. **Start Command:** `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+2. **Health Check Path:** `/health`
 
 #### Environment Variables for Production
 
@@ -281,12 +296,13 @@ If not using `render.yaml`:
 | `LLM_API_KEY` | No | LLM provider API key |
 | `LLM_MODEL` | No | LLM model name (default: gemini-2.5-flash) |
 | `BACKEND_CORS_ORIGINS` | No | Allowed origins (default: ["*"]) |
-| `ENVIRONMENT` | No | Environment name (default: development) |
 
 #### Post-Deployment
 
-After deployment, verify your service is running:
+After deployment:
 
-- **Health Check:** `https://your-app.onrender.com/health`
-- **API Docs:** `https://your-app.onrender.com/docs`
+1. Go to **Settings** → **Networking** → **Generate Domain** to get a public URL
+2. Verify your service is running:
+   - **Health Check:** `https://your-app.up.railway.app/health`
+   - **API Docs:** `https://your-app.up.railway.app/docs`
 
