@@ -14,33 +14,45 @@ erDiagram
         string major_name
     }
 
-    USERS {
-        int id PK
-        string full_name
+    AUTH_USERS {
+        uuid id PK "Managed by Supabase Auth"
         string email
-        string password_hash
-        int role_id
+        string encrypted_password "Managed by Supabase Auth"
+        jsonb raw_user_meta_data
+        timestamp created_at
+    }
+
+    USER_PROFILES {
+        uuid id PK
+        string email
+        string full_name
+        int role_id FK
         timestamp created_at
         timestamp updated_at
     }
 
     TEACHERS {
-        int user_id PK
+        int id PK
+        uuid user_id FK
+        timestamp created_at
+        timestamp updated_at
     }
 
     CLASSES {
         int id PK
         string class_name
         string grade_level
-        int homeroom_teacher_id
+        int homeroom_teacher_id FK
     }
 
     STUDENTS {
         int id PK
-        int user_id
-        int school_id
-        int major_id
-        int current_class_id
+        uuid user_id FK
+        int school_id FK
+        int major_id FK
+        int current_class_id FK
+        timestamp created_at
+        timestamp updated_at
     }
 
     SESSIONS {
@@ -97,9 +109,10 @@ erDiagram
         text description_text
     }
 
-    ROLES ||--o{ USERS : "assigned to"
-    USERS ||--|| TEACHERS : "may be"
-    USERS ||--|| STUDENTS : "may be"
+    AUTH_USERS ||--|| USER_PROFILES : "synced via trigger"
+    ROLES ||--o{ USER_PROFILES : "assigned to"
+    USER_PROFILES ||--o| TEACHERS : "may be"
+    USER_PROFILES ||--o| STUDENTS : "may be"
     SCHOOLS ||--o{ STUDENTS : "has"
     MAJORS ||--o{ STUDENTS : "has"
     CLASSES ||--o{ STUDENTS : "contains"

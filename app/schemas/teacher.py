@@ -1,17 +1,18 @@
 from pydantic import BaseModel
-from app.schemas.user import UserResponse
+from uuid import UUID
+from app.schemas.user import UserProfileResponse
 
 class TeacherBase(BaseModel):
-    user_id: int
+    user_id: UUID
 
 class TeacherCreate(TeacherBase):
     pass
 
 class TeacherResponse(TeacherBase):
-    pass
+    id: int
 
     class Config:
         from_attributes = True
 
 class TeacherWithUser(TeacherResponse):
-    user: UserResponse
+    user_profile: UserProfileResponse

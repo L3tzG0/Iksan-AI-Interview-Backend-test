@@ -1,7 +1,7 @@
 from typing import Optional
 from pydantic import BaseModel
 
-class DetailedFeedbackBase(BaseModel):
+class InterviewDetailedFeedbackBase(BaseModel):
     session_id: int
     question_order: int
     question_text: str
@@ -12,14 +12,14 @@ class DetailedFeedbackBase(BaseModel):
     transcript: str
     audio_path: str
 
-class DetailedFeedbackCreate(DetailedFeedbackBase):
+class InterviewDetailedFeedbackCreate(InterviewDetailedFeedbackBase):
     pass
 
-class DetailedFeedbackUpdate(BaseModel):
+class InterviewDetailedFeedbackUpdate(BaseModel):
     evaluation_text: Optional[str] = None
     score: Optional[float] = None
 
-class DetailedFeedbackResponse(DetailedFeedbackBase):
+class InterviewDetailedFeedbackResponse(InterviewDetailedFeedbackBase):
     id: int
 
     class Config:

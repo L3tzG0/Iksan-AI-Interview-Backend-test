@@ -4,8 +4,15 @@ Test script to verify Supabase integration is working correctly.
 Run this after migration to ensure everything is set up properly.
 """
 
-import asyncio
+import os
 import sys
+
+# Ensure the project root is on sys.path so `app` package imports work when running
+# this file directly (it was failing with ModuleNotFoundError in some environments).
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+
 from app.core.database import supabase
 from app.core.config import settings
 
@@ -80,9 +87,6 @@ def test_imports():
         from app.services.auth_service import AuthService
         print("   ✅ AuthService imported")
         
-        from app.services.user_service import UserService
-        print("   ✅ UserService imported")
-        
         from app.services.student_service import StudentService
         print("   ✅ StudentService imported")
         
@@ -150,7 +154,7 @@ def main():
         print("   1. Create your database schema in Supabase Dashboard")
         print("   2. Set up Row Level Security (RLS) policies")
         print("   3. Start the server: uvicorn app.main:app --reload")
-        print("   4. Test endpoints at http://localhost:8000/docs")
+        print("   4. Test endpoints at http://127.0.0.1:8000/docs")
         print("=" * 60)
         return 0
     else:

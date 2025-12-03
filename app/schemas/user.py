@@ -1,28 +1,34 @@
 from typing import Optional
 from datetime import datetime
 from pydantic import BaseModel, EmailStr
+from uuid import UUID
 from app.schemas.role import RoleResponse
 
-class UserBase(BaseModel):
+class UserProfileBase(BaseModel):
     email: EmailStr
     full_name: str
     role_id: int
 
-class UserCreate(UserBase):
-    password: str
+class UserProfileCreate(UserProfileBase):
+    """
+    Schema for creating user profile.
+    Note: Password is NOT included here as it's handled by Supabase Auth.
+    The profile is auto-created via database trigger.
+    """
+    pass
 
-class UserUpdate(BaseModel):
+class UserProfileUpdate(BaseModel):
     email: Optional[EmailStr] = None
     full_name: Optional[str] = None
-    password: Optional[str] = None
+    role_id: Optional[int] = None
 
-class UserResponse(UserBase):
-    id: int
+class UserProfileResponse(UserProfileBase):
+    id: UUID
     created_at: datetime
     updated_at: datetime
 
     class Config:
         from_attributes = True
 
-class UserWithRole(UserResponse):
+class UserProfileWithRole(UserProfileResponse):
     role: RoleResponse

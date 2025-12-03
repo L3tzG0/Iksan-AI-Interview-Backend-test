@@ -75,8 +75,8 @@ Client Request → FastAPI Endpoint → Supabase Client → PostgreSQL → Respo
 ## API Documentation
 
 Once running, visit:
-- Swagger UI: `http://localhost:8000/docs`
-- ReDoc: `http://localhost:8000/redoc`
+- Swagger UI: `http://127.0.0.1:8000/docs`
+- ReDoc: `http://127.0.0.1:8000/redoc`
 
 ## Project Structure
 
@@ -103,47 +103,6 @@ app/
 └── main.py                   # FastAPI application
 ```
 
-## Database Schema Setup
-
-### Via Supabase Dashboard
-
-1. Go to **Table Editor** in Supabase Dashboard
-2. Create tables:
-
-```sql
--- Users table (extends auth.users)
-CREATE TABLE public.users (
-    id UUID PRIMARY KEY REFERENCES auth.users(id),
-    email TEXT UNIQUE NOT NULL,
-    full_name TEXT,
-    role_id INTEGER,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Students table
-CREATE TABLE public.students (
-    id SERIAL PRIMARY KEY,
-    user_id UUID REFERENCES public.users(id),
-    school_id INTEGER,
-    major_id INTEGER,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Teachers table
-CREATE TABLE public.teachers (
-    id SERIAL PRIMARY KEY,
-    user_id UUID REFERENCES public.users(id),
-    school_id INTEGER,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Enable Row Level Security
-ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.students ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.teachers ENABLE ROW LEVEL SECURITY;
-```
-
-3. Set up RLS policies (see MIGRATION_GUIDE.md)
 
 ## Testing
 
@@ -151,7 +110,7 @@ ALTER TABLE public.teachers ENABLE ROW LEVEL SECURITY;
 
 **Register:**
 ```bash
-curl -X POST http://localhost:8000/api/v1/auth/register \
+curl -X POST http://127.0.0.1:8000/api/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "email": "test@example.com",
@@ -163,7 +122,7 @@ curl -X POST http://localhost:8000/api/v1/auth/register \
 
 **Login:**
 ```bash
-curl -X POST http://localhost:8000/api/v1/auth/login \
+curl -X POST http://127.0.0.1:8000/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "test@example.com",
@@ -173,7 +132,7 @@ curl -X POST http://localhost:8000/api/v1/auth/login \
 
 **Protected Route:**
 ```bash
-curl http://localhost:8000/api/v1/auth/me \
+curl http://127.0.0.1:8000/api/v1/auth/me \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
@@ -261,7 +220,3 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 - [Supabase Documentation](https://supabase.com/docs)
 - [FastAPI Documentation](https://fastapi.tiangolo.com)
 - [Project Issues](link-to-your-issues)
-
-## License
-
-[Your License]
