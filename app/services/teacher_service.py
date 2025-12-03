@@ -110,15 +110,23 @@ class TeacherService:
             else:
                 columns = TEACHER_COLUMNS
             
-            query = self.supabase.table('teachers').select(columns, count='exact')
+            # First get count with limit(0) to avoid 416 error when skip > total
+            count_query = self.supabase.table('teachers').select(columns, count='exact')
+            if school_id is not None:
+                count_query = count_query.eq('school_id', school_id)
+            count_response = count_query.limit(0).execute()
+            total = count_response.count if count_response.count is not None else 0
             
+            # If skip is beyond total, return empty result
+            if skip >= total:
+                return [], total
+            
+            # Re-build query for actual data fetch
+            query = self.supabase.table('teachers').select(columns, count='exact')
             if school_id is not None:
                 query = query.eq('school_id', school_id)
             
-            query = query.range(skip, skip + limit - 1)
-            
-            response = query.execute()
-            total = response.count if response.count is not None else len(response.data)
+            response = query.offset(skip).limit(limit).execute()
             
             return response.data, total
         except Exception as e:

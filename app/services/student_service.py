@@ -114,9 +114,25 @@ class StudentService:
         try:
             columns = STUDENT_COLUMNS_WITH_RELATIONS if with_details else STUDENT_COLUMNS
             
-            # Build query with filters
-            query = self.supabase.table('students').select(columns, count='exact')
+            # First get count with limit(0) to avoid 416 error when skip > total
+            count_query = self.supabase.table('students').select(columns, count='exact')
+            if student_id_filter is not None:
+                count_query = count_query.ilike('student_id', f'%{student_id_filter}%')
+            if school_id is not None:
+                count_query = count_query.eq('school_id', school_id)
+            if major_id is not None:
+                count_query = count_query.eq('major_id', major_id)
+            if class_id is not None:
+                count_query = count_query.eq('current_class_id', class_id)
+            count_response = count_query.limit(0).execute()
+            total = count_response.count if count_response.count is not None else 0
             
+            # If skip is beyond total, return empty result
+            if skip >= total:
+                return [], total
+            
+            # Re-build query for actual data fetch
+            query = self.supabase.table('students').select(columns, count='exact')
             if student_id_filter is not None:
                 query = query.ilike('student_id', f'%{student_id_filter}%')
             if school_id is not None:
@@ -126,11 +142,7 @@ class StudentService:
             if class_id is not None:
                 query = query.eq('current_class_id', class_id)
             
-            # Apply pagination
-            query = query.range(skip, skip + limit - 1)
-            
-            response = query.execute()
-            total = response.count if response.count is not None else len(response.data)
+            response = query.offset(skip).limit(limit).execute()
             
             return response.data, total
         except Exception as e:

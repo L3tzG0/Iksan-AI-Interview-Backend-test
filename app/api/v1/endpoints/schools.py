@@ -25,15 +25,26 @@ def read_schools(
     - **limit**: Max records to return (default: 20, max: 100)
     - **search**: Search by school name (partial match)
     """
+    # Build base query with filters
     query = supabase.table('schools').select(SCHOOL_COLUMNS, count='exact')
     
     if search:
         query = query.ilike('school_name', f'%{search}%')
     
-    query = query.range(skip, skip + limit - 1)
-    response = query.execute()
+    # First get count with limit(0) to avoid 416 error when skip > total
+    count_response = query.limit(0).execute()
+    total = count_response.count if count_response.count is not None else 0
     
-    total = response.count if response.count is not None else len(response.data)
+    # If skip is beyond total, return empty result
+    if skip >= total:
+        return create_paginated_response(items=[], total=total, skip=skip, limit=limit)
+    
+    # Re-build query for actual data fetch
+    query = supabase.table('schools').select(SCHOOL_COLUMNS, count='exact')
+    if search:
+        query = query.ilike('school_name', f'%{search}%')
+    
+    response = query.offset(skip).limit(limit).execute()
     return create_paginated_response(items=response.data, total=total, skip=skip, limit=limit)
 
 @router.post("/", response_model=SchoolResponse)

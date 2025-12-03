@@ -224,19 +224,29 @@ class InterviewSessionService:
             Tuple of (list of sessions, total count)
         """
         try:
+            # First get count with limit(0) to avoid 416 error when skip > total
+            count_query = self.supabase.table('sessions').select(
+                SESSION_COLUMNS, count='exact'
+            ).eq('student_id', student_id)
+            if status_filter:
+                count_query = count_query.eq('status', status_filter)
+            count_response = count_query.limit(0).execute()
+            total = count_response.count if count_response.count is not None else 0
+            
+            # If skip is beyond total, return empty result
+            if skip >= total:
+                return [], total
+            
+            # Re-build query for actual data fetch
             query = self.supabase.table('sessions').select(
                 SESSION_COLUMNS, count='exact'
             ).eq('student_id', student_id)
-            
             if status_filter:
                 query = query.eq('status', status_filter)
             
             # Order by most recent first
             query = query.order('created_at', desc=True)
-            query = query.range(skip, skip + limit - 1)
-            
-            response = query.execute()
-            total = response.count if response.count is not None else len(response.data)
+            response = query.offset(skip).limit(limit).execute()
             
             return response.data, total
         except Exception as e:
@@ -269,18 +279,28 @@ class InterviewSessionService:
         try:
             columns = SESSION_COLUMNS_WITH_DETAILS if with_student else SESSION_COLUMNS
             
-            query = self.supabase.table('sessions').select(columns, count='exact')
+            # First get count with limit(0) to avoid 416 error when skip > total
+            count_query = self.supabase.table('sessions').select(columns, count='exact')
+            if student_id is not None:
+                count_query = count_query.eq('student_id', student_id)
+            if status_filter:
+                count_query = count_query.eq('status', status_filter)
+            count_response = count_query.limit(0).execute()
+            total = count_response.count if count_response.count is not None else 0
             
+            # If skip is beyond total, return empty result
+            if skip >= total:
+                return [], total
+            
+            # Re-build query for actual data fetch
+            query = self.supabase.table('sessions').select(columns, count='exact')
             if student_id is not None:
                 query = query.eq('student_id', student_id)
             if status_filter:
                 query = query.eq('status', status_filter)
             
             query = query.order('created_at', desc=True)
-            query = query.range(skip, skip + limit - 1)
-            
-            response = query.execute()
-            total = response.count if response.count is not None else len(response.data)
+            response = query.offset(skip).limit(limit).execute()
             
             return response.data, total
         except Exception as e:
