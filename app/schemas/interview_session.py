@@ -27,3 +27,13 @@ class InterviewSessionResponse(InterviewSessionBase):
 
 class InterviewSessionWithDetails(InterviewSessionResponse):
     student: StudentResponse
+
+
+class SessionInitiateResponse(BaseModel):
+    """Response schema for session initiation - simplified without storage"""
+    success: bool
+    message: str
+    session_id: int
+
+    class Config:
+        from_attributes = True

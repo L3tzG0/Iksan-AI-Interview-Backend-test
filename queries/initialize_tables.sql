@@ -96,9 +96,7 @@ CREATE INDEX idx_sessions_student_id ON sessions(student_id);
 CREATE TABLE documents (
   id                    BIGSERIAL PRIMARY KEY,
   session_id            BIGINT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-  raw_text              TEXT,
-  document_path         TEXT,
-  processed_at          TIMESTAMPTZ
+  cleaned_text              TEXT
 );
 
 CREATE INDEX idx_documents_session_id ON documents(session_id);
@@ -123,14 +121,13 @@ CREATE TABLE summaries (
 CREATE TABLE detailed_feedbacks (
   id                    BIGSERIAL PRIMARY KEY,
   session_id            BIGINT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-  question_order        INT NOT NULL,
+  question_order        INT,
   question_text         TEXT,
   answer_text           TEXT,
   evaluation_text       TEXT,
   is_correct            BOOLEAN DEFAULT FALSE,
   score                 NUMERIC(5,2) CHECK (score >= 0),
-  transcript            TEXT,
-  audio_path            TEXT
+  transcript            TEXT
 );
 
 CREATE INDEX idx_detailed_feedbacks_session_id ON detailed_feedbacks(session_id);
@@ -186,23 +183,52 @@ CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = ''
+SET search_path = public
 AS $$
+DECLARE
+    v_role_id bigint;
+    v_role_exists boolean;
 BEGIN
+    -- Extract role_id from metadata
+    v_role_id := CASE 
+        WHEN NEW.raw_user_meta_data->>'role_id' IS NOT NULL 
+        THEN (NEW.raw_user_meta_data->>'role_id')::bigint
+        ELSE NULL
+    END;
+    
+    -- Validate role exists if role_id is provided
+    IF v_role_id IS NOT NULL THEN
+        SELECT EXISTS(SELECT 1 FROM public.roles WHERE id = v_role_id) INTO v_role_exists;
+        
+        IF NOT v_role_exists THEN
+            RAISE EXCEPTION 'Role with id % does not exist. Please seed roles table first.', v_role_id;
+        END IF;
+    END IF;
+    
+    -- Insert user profile
     INSERT INTO public.user_profiles (id, email, full_name, role_id)
     VALUES (
         NEW.id,
         NEW.email,
-        COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.raw_user_meta_data->>'fullName', ''),
-        (NEW.raw_user_meta_data->>'role_id')::integer
+        COALESCE(
+            NEW.raw_user_meta_data->>'full_name',
+            NEW.raw_user_meta_data->>'fullName',
+            ''
+        ),
+        v_role_id
     );
+    
     RETURN NEW;
 EXCEPTION
     WHEN OTHERS THEN
-        RAISE WARNING 'Error creating user profile: %', SQLERRM;
-        RETURN NEW;
+        -- Log the error and re-raise to fail the auth.users insert
+        RAISE LOG 'Error creating user profile for %: %', NEW.email, SQLERRM;
+        RAISE;
 END;
 $$;
+
+-- Drop trigger if exists and recreate
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 
 -- Create trigger on auth.users
 CREATE TRIGGER on_auth_user_created
@@ -210,8 +236,32 @@ CREATE TRIGGER on_auth_user_created
     FOR EACH ROW
     EXECUTE FUNCTION handle_new_user();
 
--- Grant permissions to supabase_auth_admin
+-- Grant permissions to supabase_auth_admin (needed for trigger execution)
 GRANT USAGE ON SCHEMA public TO supabase_auth_admin;
-GRANT ALL ON user_profiles TO supabase_auth_admin;
-GRANT ALL ON students TO supabase_auth_admin;
-GRANT ALL ON teachers TO supabase_auth_admin;
+GRANT ALL ON public.user_profiles TO supabase_auth_admin;
+GRANT ALL ON public.students TO supabase_auth_admin;
+GRANT ALL ON public.teachers TO supabase_auth_admin;
+
+-- Grant sequence permissions for user_profiles (needed for auto-generated fields)
+GRANT USAGE, SELECT ON SEQUENCE user_profiles_id_seq TO supabase_auth_admin;
+GRANT USAGE, SELECT ON SEQUENCE students_id_seq TO supabase_auth_admin;
+GRANT USAGE, SELECT ON SEQUENCE teachers_id_seq TO supabase_auth_admin;
+
+-- Grant sequence permissions to service_role and other roles for BIGSERIAL columns
+-- This fixes "permission denied for sequence" errors
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO service_role, authenticated, anon;
+
+-- Grant table permissions to service_role (used by backend with SUPABASE_KEY)
+GRANT ALL ON public.roles TO service_role;
+GRANT ALL ON public.schools TO service_role;
+GRANT ALL ON public.majors TO service_role;
+GRANT ALL ON public.user_profiles TO service_role;
+GRANT ALL ON public.teachers TO service_role;
+GRANT ALL ON public.classes TO service_role;
+GRANT ALL ON public.students TO service_role;
+GRANT ALL ON public.sessions TO service_role;
+GRANT ALL ON public.documents TO service_role;
+GRANT ALL ON public.scores TO service_role;
+GRANT ALL ON public.summaries TO service_role;
+GRANT ALL ON public.detailed_feedbacks TO service_role;
+GRANT ALL ON public.next_steps TO service_role;
