@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Optional
 from pathlib import Path
 from fastapi import HTTPException, UploadFile
-from supabase import Client
+from supabase import AsyncClient
 from app.core.config import settings
 
 
@@ -25,7 +25,7 @@ class StorageService:
         'text/markdown': []  # Markdown files don't have specific signatures
     }
     
-    def __init__(self, supabase: Client):
+    def __init__(self, supabase: AsyncClient):
         self.supabase = supabase
         self.bucket = settings.SUPABASE_STORAGE_BUCKET
     
@@ -203,7 +203,7 @@ class StorageService:
                 detail=f"Failed to upload file to storage: {str(e)}"
             )
     
-    def delete_document(self, path: str) -> bool:
+    async def delete_document(self, path: str) -> bool:
         """
         Delete document from storage
         
@@ -214,14 +214,14 @@ class StorageService:
             bool: True if successful, False otherwise
         """
         try:
-            self.supabase.storage.from_(self.bucket).remove([path])
+            await self.supabase.storage.from_(self.bucket).remove([path])
             return True
         except Exception as e:
             # Log error but don't raise - this is cleanup operation
             print(f"Warning: Failed to delete file from storage: {str(e)}")
             return False
     
-    def get_public_url(self, path: str) -> str:
+    async def get_public_url(self, path: str) -> str:
         """
         Get public URL for a document
         
@@ -232,7 +232,7 @@ class StorageService:
             str: Public URL
         """
         try:
-            response = self.supabase.storage.from_(self.bucket).get_public_url(path)
+            response = await self.supabase.storage.from_(self.bucket).get_public_url(path)
             return response
         except Exception as e:
             raise HTTPException(

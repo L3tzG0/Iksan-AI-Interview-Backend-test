@@ -1,6 +1,6 @@
 from typing import List, Annotated, Optional
 from fastapi import APIRouter, Depends, Query
-from supabase import Client
+from supabase import AsyncClient
 from app.core.database import get_supabase
 from app.schemas.school import SchoolResponse, SchoolCreate
 from app.schemas.pagination import PaginatedResponse, create_paginated_response
@@ -12,8 +12,8 @@ SCHOOL_COLUMNS = "id, school_name"
 
 
 @router.get("/", response_model=PaginatedResponse[SchoolResponse])
-def read_schools(
-    supabase: Annotated[Client, Depends(get_supabase)],
+async def read_schools(
+    supabase: Annotated[AsyncClient, Depends(get_supabase)],
     skip: int = Query(default=0, ge=0, description="Number of records to skip"),
     limit: int = Query(default=20, ge=1, le=100, description="Maximum records to return"),
     search: Optional[str] = Query(default=None, description="Search by school name")
@@ -32,7 +32,7 @@ def read_schools(
         query = query.ilike('school_name', f'%{search}%')
     
     # First get count with limit(0) to avoid 416 error when skip > total
-    count_response = query.limit(0).execute()
+    count_response = await query.limit(0).execute()
     total = count_response.count if count_response.count is not None else 0
     
     # If skip is beyond total, return empty result
@@ -44,12 +44,12 @@ def read_schools(
     if search:
         query = query.ilike('school_name', f'%{search}%')
     
-    response = query.offset(skip).limit(limit).execute()
+    response = await query.offset(skip).limit(limit).execute()
     return create_paginated_response(items=response.data, total=total, skip=skip, limit=limit)
 
 @router.post("/", response_model=SchoolResponse)
-def create_school(
+async def create_school(
     school_in: SchoolCreate,
-    supabase: Annotated[Client, Depends(get_supabase)]
+    supabase: Annotated[AsyncClient, Depends(get_supabase)]
 ):
     pass

@@ -4,7 +4,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException, status, Query, Request
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
-from supabase import Client
+from supabase import AsyncClient
 from app.core.database import get_supabase
 from app.core.config import settings
 from app.core.security import get_current_user
@@ -45,9 +45,9 @@ router = APIRouter()
 
 @router.get("/", response_model=SessionHistoryResponse)
 @limiter.limit(settings.RATE_LIMIT_DEFAULT)
-def get_my_sessions(
+async def get_my_sessions(
     request: Request,
-    supabase: Annotated[Client, Depends(get_supabase)],
+    supabase: Annotated[AsyncClient, Depends(get_supabase)],
     current_user = Depends(get_current_user),
     skip: int = Query(default=0, ge=0, description="Number of records to skip"),
     limit: int = Query(default=20, ge=1, le=100, description="Maximum records to return"),
@@ -67,7 +67,7 @@ def get_my_sessions(
     """
     # Get student_id from current_user
     user_service = UserProfileService(supabase)
-    student_details = user_service.get_student_details(current_user.id)
+    student_details = await user_service.get_student_details(current_user.id)
     
     if not student_details:
         raise HTTPException(
@@ -79,7 +79,7 @@ def get_my_sessions(
     
     # Fetch real session data with pagination
     session_service = InterviewSessionService(supabase)
-    sessions, total = session_service.get_sessions_by_student(
+    sessions, total = await session_service.get_sessions_by_student(
         student_id=student_id,
         skip=skip,
         limit=limit,
@@ -102,10 +102,10 @@ def get_my_sessions(
 
 @router.post("/submit", response_model=SessionFeedbackResponse)
 @limiter.limit(settings.RATE_LIMIT_LLM)
-async def submit_session_answers( # Changed to async
+async def submit_session_answers(
     request: Request,
     submit_request: SessionSubmitRequest,
-    supabase: Annotated[Client, Depends(get_supabase)],
+    supabase: Annotated[AsyncClient, Depends(get_supabase)],
     current_user = Depends(get_current_user)
 ):
     """
@@ -125,14 +125,14 @@ async def submit_session_answers( # Changed to async
     session_id = submit_request.session_id
     
     # 1. Fetch and validate session state & ownership
-    session = session_service.get_session(session_id)
+    session = await session_service.get_session(session_id)
     if not session or session.get("status") != "in_progress":
         raise HTTPException(
             status_code=400, 
             detail=f"Session {session_id} not found or not in 'in_progress' status."
         )
     
-    student_details = user_service.get_student_details(current_user.id)
+    student_details = await user_service.get_student_details(current_user.id)
     student_id = student_details.get("id")
     if session.get("student_id") != student_id:
         raise HTTPException(
@@ -141,7 +141,7 @@ async def submit_session_answers( # Changed to async
         )
         
     if not submit_request.qa_pairs:
-         session_service.update_session_status(session_id, status="completed", total_score=0.0)
+         await session_service.update_session_status(session_id, status="completed", total_score=0.0)
          raise HTTPException(
             status_code=400, 
             detail="No question and answer pairs provided for evaluation."
@@ -157,7 +157,7 @@ async def submit_session_answers( # Changed to async
         # A. Update main session table with overall score (scaling from 0-10 to 0-100)
         overall_score_10 = round(evaluation_result.overall_scores.overall_score, 1)
 
-        session_service.update_session_status(
+        await session_service.update_session_status(
             session_id=session_id, 
             status="completed",
             total_score=overall_score_10,
@@ -165,11 +165,6 @@ async def submit_session_answers( # Changed to async
         )
         
         # B. Save summaries
-        # feedback_service.create_session_summary(
-        #     session_id=session_id,
-        #     strength_text=evaluation_result.session_summary.strength_text,
-        #     areas_for_growth_text=evaluation_result.session_summary.areas_for_growth_text
-        # )
         summary_data = InterviewSummaryCreate(
             session_id=session_id,
             strength_text=evaluation_result.session_summary.strength_text,
@@ -177,13 +172,9 @@ async def submit_session_answers( # Changed to async
         )
         
         # Now pass the single Pydantic object to the service method
-        feedback_service.create_session_summary(summary=summary_data)
+        await feedback_service.create_session_summary(summary=summary_data)
 
         # C. Save next steps
-        # feedback_service.create_next_steps_batch(
-        #     session_id=session_id,
-        #     next_steps=evaluation_result.next_steps # List[NextStepItem]
-        # )
         next_step_creates = [
             InterviewNextStepCreate(
                 session_id=session_id,
@@ -194,7 +185,7 @@ async def submit_session_answers( # Changed to async
             for idx, ns in enumerate(evaluation_result.next_steps)
         ]
 
-        feedback_service.create_next_steps_batch(
+        await feedback_service.create_next_steps_batch(
             next_steps=next_step_creates # Pass the mapped list of objects
         )
 
@@ -219,7 +210,7 @@ async def submit_session_answers( # Changed to async
             combined_feedback_updates.append(update_data)
 
         # 3. Send the updated list of dictionaries (which now includes answer_text) to the service
-        feedback_service.update_detailed_feedbacks_batch(
+        await feedback_service.update_detailed_feedbacks_batch(
             session_id=session_id,
             # We pass a list of dicts/Any, which is handled in the service
             feedback_updates=combined_feedback_updates 
@@ -271,7 +262,7 @@ async def submit_session_answers( # Changed to async
         # 6. Handle errors and rollback status
         error_detail = str(e)
         # Ensure the session is marked as failed on error
-        session_service.update_session_status(session_id, status="failed")
+        await session_service.update_session_status(session_id, status="failed")
         print(f"Error during session evaluation (ID: {session_id}): {e}")
         
         raise HTTPException(
@@ -282,10 +273,10 @@ async def submit_session_answers( # Changed to async
 
 @router.get("/{session_id}", response_model=SessionDetailResponse)
 @limiter.limit(settings.RATE_LIMIT_DEFAULT)
-def get_session_detail(
+async def get_session_detail(
     request: Request,
     session_id: int,
-    supabase: Annotated[Client, Depends(get_supabase)],
+    supabase: Annotated[AsyncClient, Depends(get_supabase)],
     current_user = Depends(get_current_user)
 ):
     """
@@ -304,7 +295,7 @@ def get_session_detail(
     user_service = UserProfileService(supabase)
     
     # Get the session with all related data in single query
-    session = session_service.get_session_with_feedbacks(session_id)
+    session = await session_service.get_session_with_feedbacks(session_id)
     
     if not session:
         raise HTTPException(
@@ -313,7 +304,7 @@ def get_session_detail(
         )
     
     # Verify current user owns this session (get student details)
-    student_details = user_service.get_student_details(current_user.id)
+    student_details = await user_service.get_student_details(current_user.id)
     if student_details and student_details.get("id") != session.get("student_id"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -384,7 +375,7 @@ def get_session_detail(
 
 @router.post("/initiate", response_model=SessionInitiateResponse)
 @limiter.limit(settings.RATE_LIMIT_LLM)
-async def initiate_interview_session( # Changed to async
+async def initiate_interview_session(
     request: Request,
     file: Optional[UploadFile] = File(None, description="Document file (PDF, DOCX, TXT, MD)"),
     raw_text: Optional[str] = Form(None, description="Raw text content"),
@@ -392,7 +383,7 @@ async def initiate_interview_session( # Changed to async
     field: str = Form(..., description="Target industry/field for the interview."),
     role: str = Form(..., description="Target job role for the interview."),
     current_user = Depends(require_role("student")),
-    supabase: Client = Depends(get_supabase)
+    supabase: AsyncClient = Depends(get_supabase)
 ):
     """
     Initiate new interview session by processing document text or raw text.
@@ -427,7 +418,7 @@ async def initiate_interview_session( # Changed to async
             )
 
         # Step 1: Get student_id from token-derived current_user
-        student_details = user_service.get_student_details(current_user.id)
+        student_details = await user_service.get_student_details(current_user.id)
         
         if not student_details:
             raise HTTPException(
@@ -438,7 +429,7 @@ async def initiate_interview_session( # Changed to async
         student_id = student_details.get("id")
         
         # Step 2: Create session
-        session = session_service.create_session(student_id=student_id, status="in_progress")
+        session = await session_service.create_session(student_id=student_id, status="in_progress")
         session_id = session['id']
         
         # Ensure session_id is set (type narrowing)
@@ -474,7 +465,7 @@ async def initiate_interview_session( # Changed to async
             total_read = 0
             buffer = bytearray()
             while True:
-                chunk = await file.read(chunk_size) # Changed to await file.read()
+                chunk = await file.read(chunk_size)
                 if not chunk:
                     break
                 total_read += len(chunk)
@@ -503,7 +494,7 @@ async def initiate_interview_session( # Changed to async
             cleaned_text_extracted = raw_text
         
         # Step 4: Save cleaned text to documents table
-        document = document_service.create_document(
+        document = await document_service.create_document(
             session_id=session_id,
             cleaned_text=cleaned_text_extracted
         )
@@ -518,7 +509,7 @@ async def initiate_interview_session( # Changed to async
         
         # Step 6: Create detailed_feedbacks records (10 rows with questions)
         # This step uses the list of Pydantic models (correct).
-        feedback_service.create_detailed_feedbacks_batch(
+        await feedback_service.create_detailed_feedbacks_batch(
             session_id=session_id,
             questions=generated_questions_list
         )
@@ -540,19 +531,19 @@ async def initiate_interview_session( # Changed to async
     except HTTPException:
         # HTTPExceptions already have proper status codes and messages
         # Perform rollback before re-raising
-        _rollback_session_creation(session_service, session_id)
+        await _rollback_session_creation(session_service, session_id)
         raise
         
     except Exception as e:
         # Unexpected errors - rollback and return 500
-        _rollback_session_creation(session_service, session_id)
+        await _rollback_session_creation(session_service, session_id)
         raise HTTPException(
             status_code=500,
             detail=f"Failed to initiate interview session: {str(e)}"
         )
 
 
-def _rollback_session_creation(
+async def _rollback_session_creation(
     session_service: InterviewSessionService,
     session_id: int | None = None
 ):
@@ -562,6 +553,6 @@ def _rollback_session_creation(
     # Mark session as failed (keep for debugging, don't delete)
     if session_id:
         try:
-            session_service.update_session_status(session_id, status="failed")
+            await session_service.update_session_status(session_id, status="failed")
         except Exception as e:
             print(f"Warning: Failed to update session status during rollback: {str(e)}")

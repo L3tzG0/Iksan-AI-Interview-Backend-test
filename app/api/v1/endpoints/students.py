@@ -1,7 +1,7 @@
 from typing import List, Annotated, Optional
 from datetime import datetime
 from fastapi import APIRouter, Depends, Query, HTTPException, status
-from supabase import Client
+from supabase import AsyncClient
 from app.core.database import get_supabase
 from app.core.security import get_current_user
 from app.schemas.student import StudentResponse, StudentCreate, StudentUpdate
@@ -14,8 +14,8 @@ router = APIRouter()
 
 
 @router.get("/", response_model=PaginatedResponse[StudentResponse])
-def read_students(
-    supabase: Annotated[Client, Depends(get_supabase)],
+async def read_students(
+    supabase: Annotated[AsyncClient, Depends(get_supabase)],
     skip: int = Query(default=0, ge=0, description="Number of records to skip"),
     limit: int = Query(default=20, ge=1, le=100, description="Maximum records to return"),
     student_id: Optional[str] = Query(default=None, description="Filter by student ID number (partial match)"),
@@ -36,7 +36,7 @@ def read_students(
     - **with_details**: Include related school/major/class info
     """
     service = StudentService(supabase)
-    students, total = service.get_all_students(
+    students, total = await service.get_all_students(
         skip=skip,
         limit=limit,
         student_id_filter=student_id,
@@ -49,9 +49,9 @@ def read_students(
 
 
 @router.get("/by-student-id/{student_id_number}", response_model=StudentResponse)
-def get_student_by_student_id(
+async def get_student_by_student_id(
     student_id_number: str,
-    supabase: Annotated[Client, Depends(get_supabase)]
+    supabase: Annotated[AsyncClient, Depends(get_supabase)]
 ):
     """
     Get a student by their student ID number (not the primary key).
@@ -59,13 +59,13 @@ def get_student_by_student_id(
     - **student_id_number**: The student's ID number (e.g., school-issued ID)
     """
     service = StudentService(supabase)
-    return service.get_student_by_student_id(student_id_number)
+    return await service.get_student_by_student_id(student_id_number)
 
 
 @router.post("/", response_model=StudentResponse)
-def create_student(
+async def create_student(
     student_in: StudentCreate,
-    supabase: Annotated[Client, Depends(get_supabase)]
+    supabase: Annotated[AsyncClient, Depends(get_supabase)]
 ):
     """
     Create a new student record.
@@ -74,14 +74,14 @@ def create_student(
     This endpoint is for administrative purposes.
     """
     service = StudentService(supabase)
-    return service.create_student(student_in)
+    return await service.create_student(student_in)
 
 
 @router.patch("/{id}", response_model=StudentResponse)
-def update_student(
+async def update_student(
     id: int,
     student_in: StudentUpdate,
-    supabase: Annotated[Client, Depends(get_supabase)]
+    supabase: Annotated[AsyncClient, Depends(get_supabase)]
 ):
     """
     Update a student's information.
@@ -89,13 +89,13 @@ def update_student(
     - **id**: The primary key ID of the student record
     """
     service = StudentService(supabase)
-    return service.update_student(id, student_in)
+    return await service.update_student(id, student_in)
 
 
 @router.get("/{student_id}/sessions", response_model=SessionHistoryResponse)
-def get_student_sessions(
+async def get_student_sessions(
     student_id: int,
-    supabase: Annotated[Client, Depends(get_supabase)],
+    supabase: Annotated[AsyncClient, Depends(get_supabase)],
     current_user = Depends(get_current_user),
     skip: int = Query(default=0, ge=0, description="Number of records to skip"),
     limit: int = Query(default=20, ge=1, le=100, description="Maximum records to return"),
@@ -119,11 +119,11 @@ def get_student_sessions(
     
     # Verify student exists
     student_service = StudentService(supabase)
-    student_service.get_student(student_id)  # Raises 404 if not found
+    await student_service.get_student(student_id)  # Raises 404 if not found
     
     # Fetch actual session data with pagination
     session_service = InterviewSessionService(supabase)
-    sessions, total = session_service.get_sessions_by_student(
+    sessions, total = await session_service.get_sessions_by_student(
         student_id=student_id,
         skip=skip,
         limit=limit,
@@ -144,10 +144,10 @@ def get_student_sessions(
 
 
 @router.get("/{student_id}/sessions/{session_id}", response_model=SessionDetailResponse)
-def get_session_detail(
+async def get_session_detail(
     student_id: int,
     session_id: int,
-    supabase: Annotated[Client, Depends(get_supabase)],
+    supabase: Annotated[AsyncClient, Depends(get_supabase)],
     current_user = Depends(get_current_user)
 ):
     """
@@ -168,7 +168,7 @@ def get_session_detail(
     session_service = InterviewSessionService(supabase)
     
     # Get the session with all related data in single query
-    session = session_service.get_session_with_feedbacks(session_id)
+    session = await session_service.get_session_with_feedbacks(session_id)
     
     if not session:
         raise HTTPException(

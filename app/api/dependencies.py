@@ -1,13 +1,13 @@
 """
 FastAPI dependencies for the API using Supabase client and auth.
 
-All dependency functions that call Supabase are synchronous (def) because
-the Supabase Python client uses synchronous HTTP calls internally.
-FastAPI will automatically run sync dependencies in a thread pool.
+All dependency functions that call Supabase are async because
+the Supabase AsyncClient uses async HTTP calls. This ensures proper
+connection handling under concurrent load.
 """
 from typing import Annotated, Union, List, Any, Optional
 from fastapi import Depends, HTTPException, status
-from supabase import Client
+from supabase import AsyncClient
 from app.core.database import get_supabase
 from app.core.security import get_current_user
 
@@ -32,13 +32,13 @@ def require_role(role_names: Union[str, List[str]]):
     # Normalize role_names to always be a list
     allowed_roles = [role_names] if isinstance(role_names, str) else role_names
     
-    def role_checker(
-        supabase: Annotated[Client, Depends(get_supabase)],
+    async def role_checker(
+        supabase: Annotated[AsyncClient, Depends(get_supabase)],
         current_user = Depends(get_current_user)
     ):
         try:
             # Get user profile with role information from database
-            response = supabase.table('user_profiles').select(
+            response = await supabase.table('user_profiles').select(
                 '*, roles(id, role_name)'
             ).eq('id', str(current_user.id)).execute()
             

@@ -1,6 +1,6 @@
 from typing import List, Annotated, Optional
 from fastapi import APIRouter, Depends, Query
-from supabase import Client
+from supabase import AsyncClient
 from app.core.database import get_supabase
 from app.schemas.teacher import TeacherResponse, TeacherCreate, TeacherUpdate
 from app.schemas.pagination import PaginatedResponse, create_paginated_response
@@ -10,8 +10,8 @@ router = APIRouter()
 
 
 @router.get("/", response_model=PaginatedResponse[TeacherResponse])
-def read_teachers(
-    supabase: Annotated[Client, Depends(get_supabase)],
+async def read_teachers(
+    supabase: Annotated[AsyncClient, Depends(get_supabase)],
     skip: int = Query(default=0, ge=0, description="Number of records to skip"),
     limit: int = Query(default=20, ge=1, le=100, description="Maximum records to return"),
     school_id: Optional[int] = Query(default=None, description="Filter by school ID"),
@@ -28,7 +28,7 @@ def read_teachers(
     - **with_details**: Include user profile and school info (overrides with_user)
     """
     service = TeacherService(supabase)
-    teachers, total = service.get_all_teachers(
+    teachers, total = await service.get_all_teachers(
         skip=skip,
         limit=limit,
         school_id=school_id,
@@ -39,9 +39,9 @@ def read_teachers(
 
 
 @router.get("/{teacher_id}", response_model=TeacherResponse)
-def read_teacher(
+async def read_teacher(
     teacher_id: int,
-    supabase: Annotated[Client, Depends(get_supabase)],
+    supabase: Annotated[AsyncClient, Depends(get_supabase)],
     with_details: bool = Query(default=False, description="Include user profile and school details")
 ):
     """
@@ -52,14 +52,14 @@ def read_teacher(
     """
     service = TeacherService(supabase)
     if with_details:
-        return service.get_teacher_with_details(teacher_id)
-    return service.get_teacher(teacher_id)
+        return await service.get_teacher_with_details(teacher_id)
+    return await service.get_teacher(teacher_id)
 
 
 @router.post("/", response_model=TeacherResponse)
-def create_teacher(
+async def create_teacher(
     teacher_in: TeacherCreate,
-    supabase: Annotated[Client, Depends(get_supabase)]
+    supabase: Annotated[AsyncClient, Depends(get_supabase)]
 ):
     """
     Create a new teacher.
@@ -68,14 +68,14 @@ def create_teacher(
     - **school_id**: Optional school ID to assign the teacher to
     """
     service = TeacherService(supabase)
-    return service.create_teacher(teacher_in)
+    return await service.create_teacher(teacher_in)
 
 
 @router.patch("/{teacher_id}", response_model=TeacherResponse)
-def update_teacher(
+async def update_teacher(
     teacher_id: int,
     teacher_in: TeacherUpdate,
-    supabase: Annotated[Client, Depends(get_supabase)]
+    supabase: Annotated[AsyncClient, Depends(get_supabase)]
 ):
     """
     Update a teacher's information (e.g., school assignment).
@@ -84,4 +84,4 @@ def update_teacher(
     - **school_id**: New school ID to assign the teacher to
     """
     service = TeacherService(supabase)
-    return service.update_teacher(teacher_id, teacher_in)
+    return await service.update_teacher(teacher_id, teacher_in)

@@ -1,5 +1,5 @@
 from typing import Optional, Tuple, List
-from supabase import Client
+from supabase import AsyncClient
 from fastapi import HTTPException, status
 from app.schemas.student import StudentCreate, StudentUpdate
 
@@ -18,25 +18,25 @@ class StudentService:
     """
     Service for student database operations.
     
-    All methods are synchronous (def) because the Supabase Python client
-    uses synchronous HTTP calls internally. FastAPI will automatically
-    run these in a thread pool when called from async endpoints.
+    All methods are async because the Supabase AsyncClient
+    uses async HTTP calls. This ensures proper connection handling
+    under concurrent load.
     """
-    def __init__(self, supabase: Client):
+    def __init__(self, supabase: AsyncClient):
         self.supabase = supabase
 
-    def create_student(self, student: StudentCreate):
+    async def create_student(self, student: StudentCreate):
         """Create a new student"""
         try:
-            response = self.supabase.table('students').insert(student.model_dump()).execute()
+            response = await self.supabase.table('students').insert(student.model_dump()).execute()
             return response.data[0]
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-    def get_student(self, student_id: int):
+    async def get_student(self, student_id: int):
         """Get student by ID (primary key) with explicit column selection"""
         try:
-            response = self.supabase.table('students').select(STUDENT_COLUMNS).eq('id', student_id).execute()
+            response = await self.supabase.table('students').select(STUDENT_COLUMNS).eq('id', student_id).execute()
             if not response.data:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found")
             return response.data[0]
@@ -45,10 +45,10 @@ class StudentService:
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-    def get_student_by_student_id(self, student_id_number: str):
+    async def get_student_by_student_id(self, student_id_number: str):
         """Get student by student_id (the student's ID number, not primary key)"""
         try:
-            response = self.supabase.table('students').select(STUDENT_COLUMNS).eq('student_id', student_id_number).execute()
+            response = await self.supabase.table('students').select(STUDENT_COLUMNS).eq('student_id', student_id_number).execute()
             if not response.data:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found")
             return response.data[0]
@@ -57,10 +57,10 @@ class StudentService:
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-    def get_student_by_user_id(self, user_id: str):
+    async def get_student_by_user_id(self, user_id: str):
         """Get student by user_id (UUID from user_profiles)"""
         try:
-            response = self.supabase.table('students').select(STUDENT_COLUMNS).eq('user_id', user_id).execute()
+            response = await self.supabase.table('students').select(STUDENT_COLUMNS).eq('user_id', user_id).execute()
             if not response.data:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found")
             return response.data[0]
@@ -69,13 +69,13 @@ class StudentService:
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-    def get_student_with_details(self, student_id: int):
+    async def get_student_with_details(self, student_id: int):
         """
         Get student by ID with related school, major, and class info.
         Uses relational select to avoid N+1 queries.
         """
         try:
-            response = self.supabase.table('students').select(
+            response = await self.supabase.table('students').select(
                 STUDENT_COLUMNS_WITH_RELATIONS
             ).eq('id', student_id).execute()
             if not response.data:
@@ -86,7 +86,7 @@ class StudentService:
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-    def get_all_students(
+    async def get_all_students(
         self,
         skip: int = 0,
         limit: int = 20,
@@ -124,7 +124,7 @@ class StudentService:
                 count_query = count_query.eq('major_id', major_id)
             if class_id is not None:
                 count_query = count_query.eq('current_class_id', class_id)
-            count_response = count_query.limit(0).execute()
+            count_response = await count_query.limit(0).execute()
             total = count_response.count if count_response.count is not None else 0
             
             # If skip is beyond total, return empty result
@@ -142,16 +142,16 @@ class StudentService:
             if class_id is not None:
                 query = query.eq('current_class_id', class_id)
             
-            response = query.offset(skip).limit(limit).execute()
+            response = await query.offset(skip).limit(limit).execute()
             
             return response.data, total
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-    def update_student(self, student_id: int, student: StudentUpdate):
+    async def update_student(self, student_id: int, student: StudentUpdate):
         """Update student information"""
         try:
-            response = self.supabase.table('students').update(student.model_dump(exclude_unset=True)).eq('id', student_id).execute()
+            response = await self.supabase.table('students').update(student.model_dump(exclude_unset=True)).eq('id', student_id).execute()
             if not response.data:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found")
             return response.data[0]

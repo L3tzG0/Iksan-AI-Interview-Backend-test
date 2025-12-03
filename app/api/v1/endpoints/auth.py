@@ -2,7 +2,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
-from supabase import Client
+from supabase import AsyncClient
 from app.core.database import get_supabase
 from app.core.security import get_current_user
 from app.core.config import settings
@@ -15,10 +15,10 @@ router = APIRouter()
 
 @router.post("/register", response_model=UserResponse)
 @limiter.limit(settings.RATE_LIMIT_AUTH, key_func=get_ip_address)
-def register_user(
+async def register_user(
     request: Request,
     user_in: RegisterRequest,
-    supabase: Annotated[Client, Depends(get_supabase)]
+    supabase: Annotated[AsyncClient, Depends(get_supabase)]
 ):
     """
     Register a new user with Supabase Auth.
@@ -27,7 +27,7 @@ def register_user(
     Rate limited: 5 requests per minute per IP address.
     """
     auth_service = AuthService(supabase)
-    result = auth_service.register_user(user_in)
+    result = await auth_service.register_user(user_in)
     
     user_response = UserResponse(
         id=result["user"].id,
@@ -41,10 +41,10 @@ def register_user(
 
 @router.post("/login", response_model=Token)
 @limiter.limit(settings.RATE_LIMIT_AUTH, key_func=get_ip_address)
-def login_for_access_token(
+async def login_for_access_token(
     request: Request,
     login_data: LoginRequest,
-    supabase: Annotated[Client, Depends(get_supabase)]
+    supabase: Annotated[AsyncClient, Depends(get_supabase)]
 ):
     """
     Login with email and password to get access token.
@@ -54,14 +54,14 @@ def login_for_access_token(
     Rate limited: 5 requests per minute per IP address.
     """
     auth_service = AuthService(supabase)
-    result = auth_service.authenticate_user(login_data)
+    result = await auth_service.authenticate_user(login_data)
     
     # Get user context (same as /auth/me)
     profile_service = UserProfileService(supabase)
     user = result["user"]
     
     try:
-        user_context = profile_service.get_full_user_context(user.id)
+        user_context = await profile_service.get_full_user_context(user.id)
         profile = user_context["profile"]
         student_details = user_context["student_details"]
         teacher_details = user_context["teacher_details"]
@@ -113,24 +113,24 @@ def login_for_access_token(
 
 @router.post("/logout")
 @limiter.limit(settings.RATE_LIMIT_DEFAULT)
-def logout(
+async def logout(
     request: Request,
-    supabase: Annotated[Client, Depends(get_supabase)],
+    supabase: Annotated[AsyncClient, Depends(get_supabase)],
     current_user = Depends(get_current_user)
 ):
     """
     Sign out the current user.
     """
     auth_service = AuthService(supabase)
-    sign_out_payload = auth_service.sign_out()
+    sign_out_payload = await auth_service.sign_out()
     return JSONResponse(content=sign_out_payload)
 
 @router.get("/me", response_model=UserResponse)
 @limiter.limit(settings.RATE_LIMIT_DEFAULT)
-def read_users_me(
+async def read_users_me(
     request: Request,
     current_user = Depends(get_current_user),
-    supabase: Client = Depends(get_supabase)
+    supabase: AsyncClient = Depends(get_supabase)
 ):
     """
     Get current authenticated user information.
@@ -144,7 +144,7 @@ def read_users_me(
     
     try:
         # Get complete user context in optimized queries (avoids N+1)
-        user_context = profile_service.get_full_user_context(current_user.id)
+        user_context = await profile_service.get_full_user_context(current_user.id)
         
         profile = user_context["profile"]
         student_details = user_context["student_details"]

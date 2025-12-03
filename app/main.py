@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from supabase import create_client
+from supabase import acreate_client, AsyncClient
 from app.core.config import settings
 from app.core.rate_limit import limiter, rate_limit_exceeded_handler
 from app.api.v1.router import api_router
@@ -16,26 +16,26 @@ async def lifespan(app: FastAPI):
     Lifespan context manager for FastAPI application.
     
     Handles startup and shutdown events:
-    - Startup: Initialize Supabase client and store in app.state
-    - Shutdown: Cleanup resources (optional for httpx-based clients)
+    - Startup: Initialize async Supabase client and store in app.state
+    - Shutdown: Cleanup resources
     
     This pattern ensures:
-    - Single client instance shared across all requests
+    - Single async client instance shared across all requests
     - Explicit lifecycle management
     - Better testability (can override app.state in tests)
-    - Connection pooling handled by underlying httpx client
+    - Proper async connection pooling under concurrent load
     """
-    # Startup: Initialize Supabase client
-    app.state.supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
+    # Startup: Initialize async Supabase client
+    app.state.supabase = await acreate_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
     
     # Initialize rate limiter state
     app.state.limiter = limiter
     
     yield
     
-    # Shutdown: Cleanup (optional - httpx handles connection cleanup automatically)
-    # If explicit cleanup is needed in the future, add it here
-    # Example: app.state.supabase.postgrest.aclose()
+    # Shutdown: Cleanup async client resources
+    # Close the async client's underlying httpx session
+    await app.state.supabase.postgrest.aclose()
 
 
 app = FastAPI(

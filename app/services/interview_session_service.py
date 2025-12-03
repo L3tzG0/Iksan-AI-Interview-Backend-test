@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional, Tuple, List
 from operator import itemgetter
-from supabase import Client
+from supabase import AsyncClient
 from fastapi import HTTPException, status
 
 # Explicit columns to select for sessions (avoiding SELECT *)
@@ -29,10 +29,10 @@ SESSION_WITH_FEEDBACKS = """
 class InterviewSessionService:
     """Service for handling interview session database operations"""
     
-    def __init__(self, supabase: Client):
+    def __init__(self, supabase: AsyncClient):
         self.supabase = supabase
     
-    def create_session(self, student_id: int, status: str = "in_progress") -> dict:
+    async def create_session(self, student_id: int, status: str = "in_progress") -> dict:
         """
         Create new interview session
         
@@ -52,7 +52,7 @@ class InterviewSessionService:
                 "status": status
             }
             
-            response = self.supabase.table('sessions').insert(session_data).execute()
+            response = await self.supabase.table('sessions').insert(session_data).execute()
             
             if not response.data:
                 raise HTTPException(
@@ -70,7 +70,7 @@ class InterviewSessionService:
                 detail=f"Database error while creating session: {str(e)}"
             )
     
-    def update_session_status(
+    async def update_session_status(
         self, 
         session_id: int, 
         status: str,
@@ -100,7 +100,7 @@ class InterviewSessionService:
             if total_score is not None:
                 update_data["total_score"] = total_score
             
-            response = self.supabase.table('sessions').update(update_data).eq('id', session_id).execute()
+            response = await self.supabase.table('sessions').update(update_data).eq('id', session_id).execute()
             
             if not response.data:
                 raise HTTPException(
@@ -118,7 +118,7 @@ class InterviewSessionService:
                 detail=f"Failed to update session: {str(e)}"
             )
     
-    def delete_session(self, session_id: int) -> bool:
+    async def delete_session(self, session_id: int) -> bool:
         """
         Delete session (hard delete for rollback)
         
@@ -132,7 +132,7 @@ class InterviewSessionService:
             HTTPException: If deletion fails
         """
         try:
-            response = self.supabase.table('sessions').delete().eq('id', session_id).execute()
+            response = await self.supabase.table('sessions').delete().eq('id', session_id).execute()
             return True
             
         except Exception as e:
@@ -141,7 +141,7 @@ class InterviewSessionService:
                 detail=f"Failed to delete session: {str(e)}"
             )
     
-    def get_session(self, session_id: int) -> Optional[dict]:
+    async def get_session(self, session_id: int) -> Optional[dict]:
         """
         Get session by ID with explicit column selection
         
@@ -152,7 +152,7 @@ class InterviewSessionService:
             dict or None: Session record if found
         """
         try:
-            response = self.supabase.table('sessions').select(SESSION_COLUMNS).eq('id', session_id).execute()
+            response = await self.supabase.table('sessions').select(SESSION_COLUMNS).eq('id', session_id).execute()
             return response.data[0] if response.data else None
         except Exception as e:
             raise HTTPException(
@@ -160,7 +160,7 @@ class InterviewSessionService:
                 detail=f"Failed to fetch session: {str(e)}"
             )
 
-    def get_session_with_details(self, session_id: int) -> Optional[dict]:
+    async def get_session_with_details(self, session_id: int) -> Optional[dict]:
         """
         Get session by ID with student and related info (single query).
         Uses relational select to avoid N+1 queries.
@@ -172,7 +172,7 @@ class InterviewSessionService:
             dict or None: Session with nested student details
         """
         try:
-            response = self.supabase.table('sessions').select(
+            response = await self.supabase.table('sessions').select(
                 SESSION_COLUMNS_WITH_DETAILS
             ).eq('id', session_id).execute()
             return response.data[0] if response.data else None
@@ -182,7 +182,7 @@ class InterviewSessionService:
                 detail=f"Failed to fetch session with details: {str(e)}"
             )
 
-    def get_session_with_feedbacks(self, session_id: int) -> Optional[dict]:
+    async def get_session_with_feedbacks(self, session_id: int) -> Optional[dict]:
         """
         Get session with all feedbacks, summary, and next steps in single query.
         Uses relational select to avoid N+1 queries.
@@ -194,7 +194,7 @@ class InterviewSessionService:
             dict or None: Session with nested feedback data
         """
         try:
-            response = self.supabase.table('sessions').select(
+            response = await self.supabase.table('sessions').select(
                 SESSION_WITH_FEEDBACKS
             ).eq('id', session_id).execute()
             return response.data[0] if response.data else None
@@ -204,7 +204,7 @@ class InterviewSessionService:
                 detail=f"Failed to fetch session with feedbacks: {str(e)}"
             )
 
-    def get_sessions_by_student(
+    async def get_sessions_by_student(
         self,
         student_id: int,
         skip: int = 0,
@@ -230,7 +230,7 @@ class InterviewSessionService:
             ).eq('student_id', student_id)
             if status_filter:
                 count_query = count_query.eq('status', status_filter)
-            count_response = count_query.limit(0).execute()
+            count_response = await count_query.limit(0).execute()
             total = count_response.count if count_response.count is not None else 0
             
             # If skip is beyond total, return empty result
@@ -246,7 +246,7 @@ class InterviewSessionService:
             
             # Order by most recent first
             query = query.order('created_at', desc=True)
-            response = query.offset(skip).limit(limit).execute()
+            response = await query.offset(skip).limit(limit).execute()
             
             return response.data, total
         except Exception as e:
@@ -255,7 +255,7 @@ class InterviewSessionService:
                 detail=f"Failed to fetch student sessions: {str(e)}"
             )
 
-    def get_all_sessions(
+    async def get_all_sessions(
         self,
         skip: int = 0,
         limit: int = 20,
@@ -285,7 +285,7 @@ class InterviewSessionService:
                 count_query = count_query.eq('student_id', student_id)
             if status_filter:
                 count_query = count_query.eq('status', status_filter)
-            count_response = count_query.limit(0).execute()
+            count_response = await count_query.limit(0).execute()
             total = count_response.count if count_response.count is not None else 0
             
             # If skip is beyond total, return empty result
@@ -300,7 +300,7 @@ class InterviewSessionService:
                 query = query.eq('status', status_filter)
             
             query = query.order('created_at', desc=True)
-            response = query.offset(skip).limit(limit).execute()
+            response = await query.offset(skip).limit(limit).execute()
             
             return response.data, total
         except Exception as e:

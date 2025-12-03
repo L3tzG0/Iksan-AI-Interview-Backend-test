@@ -1,5 +1,5 @@
 from typing import Optional, Tuple, List, Any
-from supabase import Client
+from supabase import AsyncClient
 from fastapi import HTTPException, status
 from app.schemas.user import UserProfileCreate, UserProfileUpdate
 from uuid import UUID
@@ -39,17 +39,17 @@ class UserProfileService:
     Note: User profiles are auto-created via database trigger when users register.
     This service is mainly for querying and updating existing profiles.
     
-    All methods are synchronous (def) because the Supabase Python client
-    uses synchronous HTTP calls internally. FastAPI will automatically
-    run these in a thread pool when called from async endpoints.
+    All methods are async because the Supabase AsyncClient
+    uses async HTTP calls. This ensures proper connection handling
+    under concurrent load.
     """
-    def __init__(self, supabase: Client):
+    def __init__(self, supabase: AsyncClient):
         self.supabase = supabase
 
-    def get_profile(self, user_id: UUID):
+    async def get_profile(self, user_id: UUID):
         """Get user profile by UUID from user_profiles table with explicit columns"""
         try:
-            response = self.supabase.table('user_profiles').select(USER_PROFILE_COLUMNS).eq('id', str(user_id)).execute()
+            response = await self.supabase.table('user_profiles').select(USER_PROFILE_COLUMNS).eq('id', str(user_id)).execute()
             if not response.data:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User profile not found")
             return response.data[0]
@@ -58,10 +58,10 @@ class UserProfileService:
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-    def get_profile_with_role(self, user_id: UUID):
+    async def get_profile_with_role(self, user_id: UUID):
         """Get user profile with role information using relational select"""
         try:
-            response = self.supabase.table('user_profiles').select(
+            response = await self.supabase.table('user_profiles').select(
                 USER_PROFILE_COLUMNS_WITH_ROLE
             ).eq('id', str(user_id)).execute()
             if not response.data:
@@ -72,7 +72,7 @@ class UserProfileService:
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-    def get_full_user_context(self, user_id: UUID):
+    async def get_full_user_context(self, user_id: UUID):
         """
         Get complete user context including profile, role, and student/teacher details
         in optimized queries to avoid N+1 patterns.
@@ -80,7 +80,7 @@ class UserProfileService:
         Returns a dict with profile, role, and optional student/teacher details.
         """
         try:
-            response = self.supabase.table('user_profiles').select(
+            response = await self.supabase.table('user_profiles').select(
                 USER_FULL_CONTEXT_QUERY
             ).eq('id', str(user_id)).execute()
 
@@ -107,10 +107,10 @@ class UserProfileService:
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-    def get_student_details(self, user_id: UUID):
+    async def get_student_details(self, user_id: UUID):
         """Get student details by user_id with related information in single query"""
         try:
-            response = self.supabase.table('students').select(
+            response = await self.supabase.table('students').select(
                 """id, user_id, school_id, major_id, current_class_id, created_at, updated_at,
                    schools(id, school_name),
                    majors(id, major_name),
@@ -122,10 +122,10 @@ class UserProfileService:
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-    def get_teacher_details(self, user_id: UUID):
+    async def get_teacher_details(self, user_id: UUID):
         """Get teacher details by user_id with explicit columns"""
         try:
-            response = self.supabase.table('teachers').select(
+            response = await self.supabase.table('teachers').select(
                 "id, user_id, created_at, updated_at"
             ).eq('user_id', str(user_id)).execute()
             if response.data:
@@ -134,20 +134,20 @@ class UserProfileService:
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-    def get_profile_by_email(self, email: str):
+    async def get_profile_by_email(self, email: str):
         """Get user profile by email from user_profiles table with explicit columns"""
         try:
-            response = self.supabase.table('user_profiles').select(USER_PROFILE_COLUMNS).eq('email', email).execute()
+            response = await self.supabase.table('user_profiles').select(USER_PROFILE_COLUMNS).eq('email', email).execute()
             if not response.data:
                 return None
             return response.data[0]
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-    def update_profile(self, user_id: UUID, profile: UserProfileUpdate):
+    async def update_profile(self, user_id: UUID, profile: UserProfileUpdate):
         """Update user profile information"""
         try:
-            response = self.supabase.table('user_profiles').update(
+            response = await self.supabase.table('user_profiles').update(
                 profile.model_dump(exclude_unset=True)
             ).eq('id', str(user_id)).execute()
             if not response.data:
@@ -167,7 +167,7 @@ class UserProfileService:
             return relationship[0] if relationship else None
         return relationship
     
-    def get_all_profiles(
+    async def get_all_profiles(
         self,
         skip: int = 0,
         limit: int = 20,
@@ -197,7 +197,7 @@ class UserProfileService:
                 count_query = count_query.eq('role_id', role_id)
             if search:
                 count_query = count_query.or_(f"full_name.ilike.%{search}%,email.ilike.%{search}%")
-            count_response = count_query.limit(0).execute()
+            count_response = await count_query.limit(0).execute()
             total = count_response.count if count_response.count is not None else 0
             
             # If skip is beyond total, return empty result
@@ -212,7 +212,7 @@ class UserProfileService:
                 # Search in both full_name and email
                 query = query.or_(f"full_name.ilike.%{search}%,email.ilike.%{search}%")
             
-            response = query.offset(skip).limit(limit).execute()
+            response = await query.offset(skip).limit(limit).execute()
             
             return response.data, total
         except Exception as e:

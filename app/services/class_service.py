@@ -1,5 +1,5 @@
 from typing import Optional, Tuple, List
-from supabase import Client
+from supabase import AsyncClient
 from fastapi import HTTPException, status
 from app.schemas.class_schema import ClassCreate, ClassUpdate
 
@@ -15,25 +15,25 @@ class ClassService:
     """
     Service for class database operations.
     
-    All methods are synchronous (def) because the Supabase Python client
-    uses synchronous HTTP calls internally. FastAPI will automatically
-    run these in a thread pool when called from async endpoints.
+    All methods are async because the Supabase AsyncClient
+    uses async HTTP calls. This ensures proper connection handling
+    under concurrent load.
     """
-    def __init__(self, supabase: Client):
+    def __init__(self, supabase: AsyncClient):
         self.supabase = supabase
 
-    def create_class(self, class_data: ClassCreate):
+    async def create_class(self, class_data: ClassCreate):
         """Create a new class"""
         try:
-            response = self.supabase.table('classes').insert(class_data.model_dump()).execute()
+            response = await self.supabase.table('classes').insert(class_data.model_dump()).execute()
             return response.data[0]
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-    def get_class(self, class_id: int):
+    async def get_class(self, class_id: int):
         """Get class by ID with explicit column selection"""
         try:
-            response = self.supabase.table('classes').select(CLASS_COLUMNS).eq('id', class_id).execute()
+            response = await self.supabase.table('classes').select(CLASS_COLUMNS).eq('id', class_id).execute()
             if not response.data:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Class not found")
             return response.data[0]
@@ -42,13 +42,13 @@ class ClassService:
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-    def get_class_with_teacher(self, class_id: int):
+    async def get_class_with_teacher(self, class_id: int):
         """
         Get class by ID with homeroom teacher info.
         Uses relational select to avoid N+1 queries.
         """
         try:
-            response = self.supabase.table('classes').select(
+            response = await self.supabase.table('classes').select(
                 CLASS_COLUMNS_WITH_TEACHER
             ).eq('id', class_id).execute()
             if not response.data:
@@ -59,7 +59,7 @@ class ClassService:
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-    def get_all_classes(
+    async def get_all_classes(
         self,
         skip: int = 0,
         limit: int = 20,
@@ -89,7 +89,7 @@ class ClassService:
                 count_query = count_query.eq('grade_level', grade_level)
             if homeroom_teacher_id is not None:
                 count_query = count_query.eq('homeroom_teacher_id', homeroom_teacher_id)
-            count_response = count_query.limit(0).execute()
+            count_response = await count_query.limit(0).execute()
             total = count_response.count if count_response.count is not None else 0
             
             # If skip is beyond total, return empty result
@@ -103,16 +103,16 @@ class ClassService:
             if homeroom_teacher_id is not None:
                 query = query.eq('homeroom_teacher_id', homeroom_teacher_id)
             
-            response = query.offset(skip).limit(limit).execute()
+            response = await query.offset(skip).limit(limit).execute()
             
             return response.data, total
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-    def update_class(self, class_id: int, class_data: ClassUpdate):
+    async def update_class(self, class_id: int, class_data: ClassUpdate):
         """Update class information"""
         try:
-            response = self.supabase.table('classes').update(
+            response = await self.supabase.table('classes').update(
                 class_data.model_dump(exclude_unset=True)
             ).eq('id', class_id).execute()
             if not response.data:

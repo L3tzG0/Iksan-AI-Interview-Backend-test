@@ -1,6 +1,6 @@
 from typing import List, Annotated, Optional
 from fastapi import APIRouter, Depends, Query
-from supabase import Client
+from supabase import AsyncClient
 from app.core.database import get_supabase
 from app.schemas.class_schema import ClassResponse, ClassCreate
 from app.schemas.pagination import PaginatedResponse, create_paginated_response
@@ -10,8 +10,8 @@ router = APIRouter()
 
 
 @router.get("/", response_model=PaginatedResponse[ClassResponse])
-def read_classes(
-    supabase: Annotated[Client, Depends(get_supabase)],
+async def read_classes(
+    supabase: Annotated[AsyncClient, Depends(get_supabase)],
     skip: int = Query(default=0, ge=0, description="Number of records to skip"),
     limit: int = Query(default=20, ge=1, le=100, description="Maximum records to return"),
     grade_level: Optional[str] = Query(default=None, description="Filter by grade level"),
@@ -28,7 +28,7 @@ def read_classes(
     - **with_teacher**: Include homeroom teacher details
     """
     service = ClassService(supabase)
-    classes, total = service.get_all_classes(
+    classes, total = await service.get_all_classes(
         skip=skip,
         limit=limit,
         grade_level=grade_level,
@@ -38,8 +38,8 @@ def read_classes(
     return create_paginated_response(items=classes, total=total, skip=skip, limit=limit)
 
 @router.post("/", response_model=ClassResponse)
-def create_class(
+async def create_class(
     class_in: ClassCreate,
-    supabase: Annotated[Client, Depends(get_supabase)]
+    supabase: Annotated[AsyncClient, Depends(get_supabase)]
 ):
     pass
