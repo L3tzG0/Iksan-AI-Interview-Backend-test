@@ -45,7 +45,6 @@ def main():
         ("students/", "Students"),
         ("teachers/", "Teachers"),
         ("sessions/", "Interview Sessions"),
-        ("scores/", "Interview Scores"),
     ]
     
     results = []
