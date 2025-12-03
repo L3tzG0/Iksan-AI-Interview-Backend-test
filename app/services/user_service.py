@@ -191,28 +191,16 @@ class UserProfileService:
         try:
             columns = USER_PROFILE_COLUMNS_WITH_ROLE if with_role else USER_PROFILE_COLUMNS
             
-            # First get count with limit(0) to avoid 416 error when skip > total
-            count_query = self.supabase.table('user_profiles').select(columns, count='exact')
-            if role_id is not None:
-                count_query = count_query.eq('role_id', role_id)
-            if search:
-                count_query = count_query.or_(f"full_name.ilike.%{search}%,email.ilike.%{search}%")
-            count_response = await count_query.limit(0).execute()
-            total = count_response.count if count_response.count is not None else 0
-            
-            # If skip is beyond total, return empty result
-            if skip >= total:
-                return [], total
-            
-            # Re-build query for actual data fetch
+            # Build query with filters - count='exact' returns total count with data
             query = self.supabase.table('user_profiles').select(columns, count='exact')
             if role_id is not None:
                 query = query.eq('role_id', role_id)
             if search:
-                # Search in both full_name and email
                 query = query.or_(f"full_name.ilike.%{search}%,email.ilike.%{search}%")
             
+            # Single query with pagination - PostgreSQL returns total count with data
             response = await query.offset(skip).limit(limit).execute()
+            total = response.count if response.count is not None else 0
             
             return response.data, total
         except Exception as e:

@@ -110,23 +110,14 @@ class TeacherService:
             else:
                 columns = TEACHER_COLUMNS
             
-            # First get count with limit(0) to avoid 416 error when skip > total
-            count_query = self.supabase.table('teachers').select(columns, count='exact')
-            if school_id is not None:
-                count_query = count_query.eq('school_id', school_id)
-            count_response = await count_query.limit(0).execute()
-            total = count_response.count if count_response.count is not None else 0
-            
-            # If skip is beyond total, return empty result
-            if skip >= total:
-                return [], total
-            
-            # Re-build query for actual data fetch
+            # Build query with filters - count='exact' returns total count with data
             query = self.supabase.table('teachers').select(columns, count='exact')
             if school_id is not None:
                 query = query.eq('school_id', school_id)
             
+            # Single query with pagination - PostgreSQL returns total count with data
             response = await query.offset(skip).limit(limit).execute()
+            total = response.count if response.count is not None else 0
             
             return response.data, total
         except Exception as e:

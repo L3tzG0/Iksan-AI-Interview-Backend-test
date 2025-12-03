@@ -25,26 +25,16 @@ async def read_schools(
     - **limit**: Max records to return (default: 20, max: 100)
     - **search**: Search by school name (partial match)
     """
-    # Build base query with filters
+    # Build query with filters - count='exact' returns total count with data
     query = supabase.table('schools').select(SCHOOL_COLUMNS, count='exact')
     
     if search:
         query = query.ilike('school_name', f'%{search}%')
     
-    # First get count with limit(0) to avoid 416 error when skip > total
-    count_response = await query.limit(0).execute()
-    total = count_response.count if count_response.count is not None else 0
-    
-    # If skip is beyond total, return empty result
-    if skip >= total:
-        return create_paginated_response(items=[], total=total, skip=skip, limit=limit)
-    
-    # Re-build query for actual data fetch
-    query = supabase.table('schools').select(SCHOOL_COLUMNS, count='exact')
-    if search:
-        query = query.ilike('school_name', f'%{search}%')
-    
+    # Single query with pagination - PostgreSQL returns total count with data
     response = await query.offset(skip).limit(limit).execute()
+    total = response.count if response.count is not None else 0
+    
     return create_paginated_response(items=response.data, total=total, skip=skip, limit=limit)
 
 @router.post("/", response_model=SchoolResponse)
