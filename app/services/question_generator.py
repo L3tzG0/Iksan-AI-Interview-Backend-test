@@ -3,7 +3,7 @@ import json
 import time
 import httpx
 import asyncio
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
 
 # NOTE: Importing core models from the existing schema file
@@ -72,7 +72,13 @@ def get_question_generation_schema() -> Dict[str, Any]:
     return schema_definition
 
 
-async def generate_interview_questions(cv_text: str, field: str, role: str) -> List[GeneratedQuestion]:
+async def generate_interview_questions(
+        cv_text: str,
+        field: str,
+        role: str,
+        # New parameter for RAG context
+        reference_questions: Optional[List[str]] = None
+) -> List[GeneratedQuestion]:
     """
     Calls the Gemini API to generate structured interview questions based on CV text, 
     guided by the target field and role.
@@ -84,10 +90,19 @@ async def generate_interview_questions(cv_text: str, field: str, role: str) -> L
     # Get the correctly structured schema
     response_schema = get_question_generation_schema()
 
+    # Incorporate RAG context into the User Query
+    rag_context_text = ""
+    if reference_questions:
+        # Join the retrieved questions into a block
+        rag_context_joined = "\n- ".join(reference_questions)
+        rag_context_text = f"REFERENCE QUESTIONS (Use these for topic and style guidance, but do not repeat them exactly in your final output): - {rag_context_joined}"
+    
+    print(f"RAG Context Text:\n{rag_context_text}\n")
     # Incorporate field and role into the user query
     user_query = (
         f"Generate the 10 questions for a candidate applying for the '{role}' role "
         f"in the '{field}' industry. Use the following student background as context:\n\n---\n{cv_text}\n---"
+        f"{rag_context_text}"
     )
     
     payload = {

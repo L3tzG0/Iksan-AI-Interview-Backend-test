@@ -49,6 +49,7 @@ class Settings(BaseSettings):
 
     DEEPGRAM_API_KEY: str
     GEMINI_API_KEY: str
+    DB_PASSWORD: str
     
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
 

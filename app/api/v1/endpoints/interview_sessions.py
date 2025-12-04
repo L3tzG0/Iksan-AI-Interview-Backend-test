@@ -15,6 +15,8 @@ from app.api.dependencies import require_role
 from app.services.question_generator import generate_interview_questions
 from app.services.evaluation_generator import generate_session_evaluation
 
+from app.services.rag_service import retrieve_questions_from_rag
+
 from app.schemas.interview_session import (
     InterviewSessionResponse, 
     InterviewSessionCreate,
@@ -35,8 +37,7 @@ from app.services.interview_session_service import InterviewSessionService
 from app.services.text_extraction_service import TextExtractionService
 from app.services.feedback_service import FeedbackService
 from app.services.user_service import UserProfileService
-# from app.services.llm_service import LLMService # REMOVED
-from app.schemas.summary import InterviewSummaryCreate # Explicitly import the schema
+from app.schemas.summary import InterviewSummaryCreate
 from app.schemas.next_step import InterviewNextStepCreate
 
 
@@ -406,7 +407,6 @@ async def initiate_interview_session( # Changed to async
     document_service = DocumentService(supabase)
     extraction_service = TextExtractionService()
     feedback_service = FeedbackService(supabase)
-    # llm_service removed
     user_service = UserProfileService(supabase)
     
     session_id: int | None = None
@@ -508,12 +508,17 @@ async def initiate_interview_session( # Changed to async
             cleaned_text=cleaned_text_extracted
         )
         
+        # RAG Implementation
+
+        rag_context = await retrieve_questions_from_rag(cv_text=cleaned_text_extracted, k=5) # Using k=5 for 5 questions
+
         # Step 5: Generate interview questions using LLM (using the new service)
         # Service returns List[GeneratedQuestion]
         generated_questions_list = await generate_interview_questions(
             cv_text=cleaned_text_extracted,
             field=field,
-            role=role
+            role=role,
+            reference_questions=rag_context.reference_questions
         )
         
         # Step 6: Create detailed_feedbacks records (10 rows with questions)
@@ -527,7 +532,7 @@ async def initiate_interview_session( # Changed to async
         # The redundant loop from before has been removed. We use the list directly.
         response = SessionInitiateResponse(
             success=True,
-            message="Interview session initiated successfully with 10 questions",
+            message=f"Interview session initiated successfully with 10 questions. RAG query used: {rag_context.source_query[:50]}...",
             session_id=session['id'],
             # Directly use the list of GeneratedQuestion objects from the service
             questions=generated_questions_list

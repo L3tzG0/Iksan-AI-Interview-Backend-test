@@ -9,4 +9,8 @@ email-validator>=2.3.0
 PyMuPDF>=1.26.6
 python-docx>=1.2.0
 slowapi>=0.1.9
-deepgram-sdk==3.*
+deepgram-sdk==3.11.0
+langchain==1.1.0
+langchain-google-genai==3.2.0
+langchain-postgres==0.0.16
+psycopg2-binary==2.9.11
