@@ -41,8 +41,7 @@ erDiagram
 
     CLASSES {
         int id PK
-        string class_name
-        string grade_level
+        int class_year
         int homeroom_teacher_id FK
     }
 

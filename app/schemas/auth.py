@@ -42,10 +42,9 @@ class StudentRegistrationData(BaseModel):
     # Major: either ID or name
     major_id: Optional[int] = None
     major_name: Optional[str] = None
-    # Class: either ID or (name + grade_level)
+    # Class: either ID or class_year
     class_id: Optional[int] = None
-    class_name: Optional[str] = None
-    grade_level: Optional[str] = None
+    class_year: Optional[int] = None
 
     @model_validator(mode='after')
     def validate_school_input(self):
@@ -67,17 +66,14 @@ class StudentRegistrationData(BaseModel):
 
     @model_validator(mode='after')
     def validate_class_input(self):
-        """Ensure either class_id or (class_name + grade_level) is provided"""
+        """Ensure either class_id or class_year is provided, not both"""
         has_class_id = self.class_id is not None
-        has_class_name = self.class_name is not None
-        has_grade_level = self.grade_level is not None
+        has_class_year = self.class_year is not None
         
-        if has_class_id and (has_class_name or has_grade_level):
-            raise ValueError('Provide either class_id or (class_name + grade_level), not both')
-        if not has_class_id and not has_class_name:
-            raise ValueError('Either class_id or class_name must be provided')
-        if has_class_name and not has_grade_level:
-            raise ValueError('grade_level is required when providing class_name')
+        if has_class_id and has_class_year:
+            raise ValueError('Provide either class_id or class_year, not both')
+        if not has_class_id and not has_class_year:
+            raise ValueError('Either class_id or class_year must be provided')
         return self
 
 

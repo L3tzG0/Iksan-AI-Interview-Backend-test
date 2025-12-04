@@ -3,16 +3,14 @@ from pydantic import BaseModel
 from app.schemas.teacher import TeacherResponse
 
 class ClassBase(BaseModel):
-    class_name: str
-    grade_level: str
+    class_year: int
     homeroom_teacher_id: Optional[int] = None
 
 class ClassCreate(ClassBase):
     pass
 
 class ClassUpdate(BaseModel):
-    class_name: Optional[str] = None
-    grade_level: Optional[str] = None
+    class_year: Optional[int] = None
     homeroom_teacher_id: Optional[int] = None
 
 class ClassResponse(ClassBase):

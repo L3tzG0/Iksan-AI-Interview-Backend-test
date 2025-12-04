@@ -14,7 +14,7 @@ async def read_classes(
     supabase: Annotated[AsyncClient, Depends(get_supabase)],
     skip: int = Query(default=0, ge=0, description="Number of records to skip"),
     limit: int = Query(default=20, ge=1, le=100, description="Maximum records to return"),
-    grade_level: Optional[str] = Query(default=None, description="Filter by grade level"),
+    class_year: Optional[int] = Query(default=None, description="Filter by class year"),
     homeroom_teacher_id: Optional[int] = Query(default=None, description="Filter by homeroom teacher"),
     with_teacher: bool = Query(default=False, description="Include homeroom teacher details")
 ):
@@ -23,7 +23,7 @@ async def read_classes(
     
     - **skip**: Number of records to skip (default: 0)
     - **limit**: Max records to return (default: 20, max: 100)
-    - **grade_level**: Filter by grade level
+    - **class_year**: Filter by class year
     - **homeroom_teacher_id**: Filter by teacher ID
     - **with_teacher**: Include homeroom teacher details
     """
@@ -31,7 +31,7 @@ async def read_classes(
     classes, total = await service.get_all_classes(
         skip=skip,
         limit=limit,
-        grade_level=grade_level,
+        class_year=class_year,
         homeroom_teacher_id=homeroom_teacher_id,
         with_teacher=with_teacher
     )

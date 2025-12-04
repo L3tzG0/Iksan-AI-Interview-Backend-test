@@ -25,13 +25,13 @@ USER_FULL_CONTEXT_QUERY = """
         id, user_id, school_id, major_id, current_class_id, created_at, updated_at,
         schools(id, school_name),
         majors(id, major_name),
-        classes(id, class_name, grade_level)
+        classes(id, class_year)
     ),
     teachers!user_id(
         id, user_id, created_at, updated_at,
         schools(id, school_name)
     )
-"""
+"""""
 
 
 class UserProfileService:
@@ -115,7 +115,7 @@ class UserProfileService:
                 """id, user_id, school_id, major_id, current_class_id, created_at, updated_at,
                    schools(id, school_name),
                    majors(id, major_name),
-                   classes(id, class_name, grade_level)"""
+                   classes(id, class_year)"""
             ).eq('user_id', str(user_id)).execute()
             if response.data:
                 return response.data[0]

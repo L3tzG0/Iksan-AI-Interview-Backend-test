@@ -53,8 +53,7 @@ CREATE TABLE teachers (
 
 CREATE TABLE classes (
   id                    BIGSERIAL PRIMARY KEY,
-  class_name            TEXT NOT NULL,
-  grade_level           TEXT,
+  class_year            INTEGER NOT NULL,
   homeroom_teacher_id   BIGINT REFERENCES teachers(id) ON DELETE SET NULL
 );
 

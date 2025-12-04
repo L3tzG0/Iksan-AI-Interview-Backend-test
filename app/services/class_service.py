@@ -5,9 +5,9 @@ from fastapi import HTTPException, status
 from app.schemas.class_schema import ClassCreate, ClassUpdate
 
 # Explicit columns to select for classes (avoiding SELECT *)
-CLASS_COLUMNS = "id, class_name, grade_level, homeroom_teacher_id"
+CLASS_COLUMNS = "id, class_year, homeroom_teacher_id"
 CLASS_COLUMNS_WITH_TEACHER = """
-    id, class_name, grade_level, homeroom_teacher_id,
+    id, class_year, homeroom_teacher_id,
     teachers(id, user_id, school_id, user_profiles(id, full_name, email), schools(id, school_name))
 """
 
@@ -64,7 +64,7 @@ class ClassService:
         self,
         skip: int = 0,
         limit: int = 20,
-        grade_level: Optional[str] = None,
+        class_year: Optional[int] = None,
         homeroom_teacher_id: Optional[int] = None,
         with_teacher: bool = False
     ) -> Tuple[List[dict], int]:
@@ -74,7 +74,7 @@ class ClassService:
         Args:
             skip: Number of records to skip
             limit: Maximum records to return
-            grade_level: Filter by grade level
+            class_year: Filter by class year
             homeroom_teacher_id: Filter by homeroom teacher
             with_teacher: Include teacher details
         
@@ -86,8 +86,8 @@ class ClassService:
             
             # Build query with filters - count='exact' returns total count with data
             query = self.supabase.table('classes').select(columns, count='exact')
-            if grade_level is not None:
-                query = query.eq('grade_level', grade_level)
+            if class_year is not None:
+                query = query.eq('class_year', class_year)
             if homeroom_teacher_id is not None:
                 query = query.eq('homeroom_teacher_id', homeroom_teacher_id)
             
@@ -100,8 +100,8 @@ class ClassService:
             except APIError as e:
                 if e.code == '416' or e.code == 416:  # Range not satisfiable - offset beyond total
                     count_query = self.supabase.table('classes').select(columns, count='exact')
-                    if grade_level is not None:
-                        count_query = count_query.eq('grade_level', grade_level)
+                    if class_year is not None:
+                        count_query = count_query.eq('class_year', class_year)
                     if homeroom_teacher_id is not None:
                         count_query = count_query.eq('homeroom_teacher_id', homeroom_teacher_id)
                     count_response = await count_query.limit(0).execute()

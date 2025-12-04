@@ -114,12 +114,10 @@ class AuthService:
     async def _resolve_or_create_class(
         self, 
         class_id: Optional[int], 
-        class_name: Optional[str], 
-        grade_level: Optional[str]
+        class_year: Optional[int]
     ) -> Optional[int]:
         """
-        Returns class_id - either the provided one or creates/finds class from name + grade_level.
-        Uses case-insensitive matching on class_name and grade_level to avoid duplicates.
+        Returns class_id - either the provided one or creates/finds class from class_year.
         """
         if class_id is not None:
             # Validate class exists
@@ -131,33 +129,17 @@ class AuthService:
                 )
             return class_id
         
-        if class_name is not None:
-            sanitized_class_name = self._sanitize_name(class_name)
-            sanitized_grade_level = self._sanitize_name(grade_level) if grade_level else None
-            
-            if not sanitized_class_name:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Class name cannot be empty."
-                )
-            if not sanitized_grade_level:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Grade level is required when creating a new class."
-                )
-            
-            # Try to find existing class (case-insensitive on both fields)
-            response = await self.supabase.table("classes").select("id, class_name, grade_level")\
-                .ilike("class_name", sanitized_class_name)\
-                .ilike("grade_level", sanitized_grade_level)\
+        if class_year is not None:
+            # Try to find existing class by class_year
+            response = await self.supabase.table("classes").select("id, class_year")\
+                .eq("class_year", class_year)\
                 .execute()
             if response.data:
                 return response.data[0]["id"]
             
             # Create new class
             response = await self.supabase.table("classes").insert({
-                "class_name": sanitized_class_name,
-                "grade_level": sanitized_grade_level
+                "class_year": class_year
             }).execute()
             if not response.data:
                 raise HTTPException(
@@ -192,8 +174,7 @@ class AuthService:
         # Resolve class
         class_id = await self._resolve_or_create_class(
             student_data.class_id, 
-            student_data.class_name, 
-            student_data.grade_level
+            student_data.class_year
         )
         if class_id is None:
             raise HTTPException(
