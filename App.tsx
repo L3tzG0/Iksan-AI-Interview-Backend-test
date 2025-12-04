@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
+import { Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom';
 import WelcomeScreen from './components/WelcomeScreen';
 import InterviewSession from './components/InterviewSession';
 import ResultsScreen from './components/ResultsScreen';
@@ -8,12 +9,15 @@ import TeacherHome from './components/TeacherHome';
 import SignInScreen from './components/auth/SignInScreen';
 import SignUpScreen from './components/auth/SignUpScreen';
 import Navbar from './components/layout/Navbar';
-import { InterviewReport, Question, Answer, User, AuthView, AppView, InterviewStartPayload } from './types';
+import { InterviewReport, Question, Answer, User, InterviewStartPayload } from './types';
 import { generateQuestions, evaluateAnswers, saveInterviewReportForStudent, getStudentDetails } from './services/geminiService';
 import { GraduationCapIcon } from './components/icons';
+import { clearStoredToken } from './services/authService';
+
 interface AdminHeaderProps {
     user?: User | null;
 }
+
 const AdminHeader: React.FC<AdminHeaderProps> = ({ user }) => (
   <div className="bg-white/90 p-6 rounded-[24px] border border-white/70 shadow-soft mb-6 flex items-center justify-between animate-fadeIn">
     <div className="flex items-center gap-4">
@@ -29,27 +33,29 @@ const AdminHeader: React.FC<AdminHeaderProps> = ({ user }) => (
     </div>
   </div>
 );
+
 const App: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
   // Auth State
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [authView, setAuthView] = useState<AuthView>('signin');
   // App State
-  const [view, setView] = useState<AppView>('welcome');
   const [questions, setQuestions] = useState<Question[]>([]);
   const [report, setReport] = useState<InterviewReport | null>(null);
   const [studentHistory, setStudentHistory] = useState<InterviewReport[]>([]);
-  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [perQuestionSeconds, setPerQuestionSeconds] = useState(60);
+
   const clearDrafts = useCallback(() => {
     try {
       sessionStorage.removeItem('ai-interview-draft');
     } catch {
-      // Storage may be blocked; ignore to keep UI responsive.
+      // ignore
     }
   }, []);
+
   // Load student history if user is a student
   useEffect(() => {
       const fetchHistory = async () => {
@@ -65,46 +71,42 @@ const App: React.FC = () => {
       };
       fetchHistory();
   }, [isAuthenticated, currentUser]);
+
   const handleAuthSuccess = (user: User) => {
     setCurrentUser(user);
     setIsAuthenticated(true);
-    if (user.role === 'teacher') {
-        setView('welcome');
-    } else {
-        setView('welcome');
-    }
+    navigate('/', { replace: true });
   };
+
   const handleLogout = () => {
     setIsAuthenticated(false);
     setCurrentUser(null);
-    setAuthView('signin');
-    setView('welcome');
     setQuestions([]);
     setReport(null);
     setStudentHistory([]);
     clearDrafts();
+    clearStoredToken();
+    navigate('/signin', { replace: true });
   };
+
   const handleRoleToggle = () => {
     if (!currentUser) return;
-    // Demo feature: toggle role but keep user data for simplicity in this mock
     const newRole = currentUser.role === 'student' ? 'teacher' : 'student';
     setCurrentUser({ ...currentUser, role: newRole });
-    if (newRole === 'teacher') {
-        setView('welcome');
-    } else {
-        setView('welcome');
-    }
+    navigate('/');
   };
+
   const handleStartInterview = useCallback(async (input: InterviewStartPayload) => {
     setIsLoading(true);
     setError(null);
     clearDrafts();
     setPerQuestionSeconds(input.perQuestionSeconds || 60);
+
     const goalLabel = input.intent === 'university' ? '대학교 진학' : '취업 준비';
     const targetDetail = input.intent === 'university'
       ? `희망 대학: ${(input.favoriteUniversities && input.favoriteUniversities.length > 0) ? input.favoriteUniversities.join(', ') : '미정'}, 전공: ${input.major || '미정'}`
       : `희망 분야: ${input.workField || '미정'}`;
-    // Prototype: bypass API calls so UI can be previewed instantly
+
     const mockQuestions: Question[] = [
       { id: 1, text: `${goalLabel} 관점에서 자신을 한 문장으로 소개해 주세요. (${targetDetail})`, type: "general" },
       { id: 2, text: input.intent === 'university'
@@ -113,21 +115,13 @@ const App: React.FC = () => {
       { id: 3, text: "앞서 공유한 자료에서 본인이 가장 강점이라고 생각하는 역량을 구체적 사례와 함께 이야기해 주세요.", type: "general" },
     ];
     setQuestions(mockQuestions);
-    setView('session');
     setIsLoading(false);
+    navigate('/interview');
     return;
-    // If you want live generation later, remove the return above and re-enable below.
-    // try {
-    //   const generatedQuestions = await generateQuestions(input);
-    //   setQuestions(generatedQuestions);
-    //   setView('session');
-    // } catch (err) {
-    //   setError('질문 생성에 실패했습니다. 다시 시도해 주세요.');
-    //   console.error(err);
-    // } finally {
-    //   setIsLoading(false);
-    // }
-  }, [clearDrafts]);
+
+    // For live generation, replace with backend AI calls
+  }, [clearDrafts, navigate]);
+
   const handleFinishInterview = useCallback(async (answers: Answer[]) => {
     setIsLoading(true);
     setError(null);
@@ -138,140 +132,86 @@ const App: React.FC = () => {
         setIsLoading(false);
         return;
       }
+
       const interviewReport = await evaluateAnswers(questions, answers);
       if (currentUser) {
         saveInterviewReportForStudent(currentUser.id, interviewReport);
-        // Refresh history
         const details = await getStudentDetails(currentUser.id);
         setStudentHistory(details.history || []);
       }
       setReport(interviewReport);
-      setView('results');
       clearDrafts();
+      navigate('/results');
     } catch (err) {
-      setError('면접 평가에 실패했습니다. 잠시 후 다시 시도해 주세요. 문제가 계속되면 문의해 주세요.');
+      setError('보고서 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.');
       console.error(err);
     } finally {
       setIsLoading(false);
     }
-  }, [questions, currentUser, clearDrafts]);
+  }, [questions, currentUser, navigate, clearDrafts]);
+
   const handleTryAnotherTopic = () => {
     setQuestions([]);
     setReport(null);
-    setView('welcome');
     clearDrafts();
+    navigate('/');
   };
-  const handleNavigate = useCallback((targetView: AppView) => {
-    if (targetView === 'results' && !report) {
-        setView('welcome');
-        return;
-    }
-    if (targetView === 'session' && questions.length === 0) {
-        setView('welcome');
-        return;
-    }
-    if (targetView === 'teacherDashboard' && currentUser?.role !== 'teacher') {
-        setView('welcome');
-        return;
-    }
-    if (targetView === 'studentPreview' && currentUser?.role !== 'teacher') {
-        setView('welcome');
-        return;
-    }
-    setView(targetView);
-  }, [report, questions, currentUser]);
-  const handleViewStudent = (studentId: string) => {
-    setSelectedStudentId(studentId);
-    setView('studentDetail');
-  };
-  const handleBackToDashboard = () => {
-    setSelectedStudentId(null);
-    setView('teacherDashboard');
-  };
-  const handleStudentPreview = () => {
-    setView('studentPreview');
-  };
+
   const handleViewHistoryReport = (historyReport: InterviewReport) => {
-      setReport(historyReport);
-      setView('results');
+    setReport(historyReport);
+    navigate('/results');
   };
-  const renderMainContent = () => {
-    if (isLoading) {
-      return (
-        <div className="flex flex-col items-center justify-center h-[60vh] text-slate-700">
-          <div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-primary"></div>
-          <p className="mt-4 text-lg">AI가 질문을 준비하고 있어요...</p>
-        </div>
-      );
-    }
-    if (error) {
-       return (
-        <div className="flex flex-col items-center justify-center h-[60vh] text-slate-700">
-            <div className="bg-red-100 border border-red-400 p-6 rounded-lg text-center shadow-lg">
-                <h2 className="text-xl font-bold mb-2 text-red-800">오류가 발생했어요</h2>
-                <p className="text-red-700 leading-relaxed">{error}</p>
-                <p className="text-sm text-red-600 mt-2">
-                  입력한 내용은 그대로 보관되어 있으니 새로고침 없이 다시 시도해 주세요. 문제가 반복되면 잠시 후 다시 시도해 주세요. 
-                </p>
-                <button 
-                    onClick={() => {
-                      setError(null);
-                      setView(questions.length > 0 ? 'session' : 'welcome');
-                    }} 
-                    className="mt-4 px-4 py-2 bg-primary text-white hover:bg-primary-dark rounded-md transition-colors"
-                >
-                    다시 시도하기
-                </button>
-            </div>
-        </div>
-       );
-    }
-    switch (view) {
-      case 'session':
-        return <InterviewSession questions={questions} onFinish={handleFinishInterview} perQuestionSeconds={perQuestionSeconds} />;
-      case 'results':
-        return report && <ResultsScreen report={report} onRetry={handleTryAnotherTopic} />;
-      case 'studentPreview':
-        return (
-          <WelcomeScreen
-            onStart={handleStartInterview}
-            history={studentHistory}
-            onViewReport={handleViewHistoryReport}
-          />
-        );
-      case 'teacherDashboard':
-        return currentUser && <TeacherDashboard currentUser={currentUser} onSelectStudent={handleViewStudent} />;
-      case 'studentDetail':
-        return selectedStudentId && <StudentDetailView studentId={selectedStudentId} onBack={handleBackToDashboard} />;
-      case 'welcome':
-      default:
-        if (currentUser?.role === 'teacher') {
-          return (
-            <TeacherHome
-              user={currentUser}
-              onGoDashboard={() => setView('teacherDashboard')}
-              onPreviewStudent={handleStudentPreview}
-            />
-          );
-        }
-        return (
-          <WelcomeScreen 
-              onStart={handleStartInterview} 
-              history={studentHistory} 
-              onViewReport={handleViewHistoryReport}
-          />
-        );
-    }
+
+  const handleViewStudent = (studentId: string) => {
+    navigate(`/teacher/students/${studentId}`);
   };
-  // Authentication Flow
+
+  const renderError = () => (
+    <div className="flex flex-col items-center justify-center h-[60vh] text-slate-700">
+      <div className="bg-red-100 border border-red-400 p-6 rounded-lg text-center shadow-lg">
+        <h2 className="text-xl font-bold mb-2 text-red-800">요청이 실패했어요</h2>
+        <p className="text-red-700 leading-relaxed">{error}</p>
+        <p className="text-sm text-red-600 mt-2">
+          네트워크 상태를 확인하거나 잠시 후 다시 시도해 주세요. 계속 문제되면 관리자를 통해 문의해 주세요. 
+        </p>
+        <button 
+            onClick={() => {
+              setError(null);
+              navigate('/');
+            }} 
+            className="mt-4 px-4 py-2 bg-primary text-white hover:bg-primary-dark rounded-md transition-colors"
+        >
+            다시 시도
+        </button>
+      </div>
+    </div>
+  );
+
   if (!isAuthenticated) {
-    if (authView === 'signin') {
-        return <SignInScreen onSignIn={handleAuthSuccess} onSwitchToSignUp={() => setAuthView('signup')} />;
-    } else {
-        return <SignUpScreen onSignUp={handleAuthSuccess} onSwitchToSignIn={() => setAuthView('signin')} />;
-    }
+    return (
+      <Routes>
+        <Route path="/signin" element={<SignInScreen onSignIn={handleAuthSuccess} onSwitchToSignUp={() => navigate('/signup')} />} />
+        <Route path="/signup" element={<SignUpScreen onSignUp={handleAuthSuccess} onSwitchToSignIn={() => navigate('/signin')} />} />
+        <Route path="*" element={<Navigate to="/signin" replace />} />
+      </Routes>
+    );
   }
-  // Main App Flow
+
+  if (isAuthenticated && (location.pathname === '/signin' || location.pathname === '/signup')) {
+    return <Navigate to="/" replace />;
+  }
+
+  const isTeacher = currentUser?.role === 'teacher';
+
+  const TeacherRoute: React.FC<{ element: React.ReactElement }> = ({ element }) =>
+    isTeacher ? element : <Navigate to="/" replace />;
+
+  const InlineStudentDetail: React.FC = () => {
+    const { id } = useParams();
+    if (!id) return <Navigate to="/teacher/dashboard" replace />;
+    return <StudentDetailView studentId={id} onBack={() => navigate('/teacher/dashboard')} />;
+  };
+
   return (
     <div className="relative min-h-screen bg-gradient-to-b from-[#f8f5ff] via-white to-[#f2eefe] text-slate-700 font-elice overflow-hidden">
       <div className="absolute -top-24 -right-16 w-72 h-72 bg-primary/10 rounded-full blur-3xl animate-pulseSlow pointer-events-none"></div>
@@ -281,16 +221,70 @@ const App: React.FC = () => {
           user={currentUser!} 
           onLogout={handleLogout} 
           onToggleRole={handleRoleToggle}
-          currentView={view}
-          onNavigate={handleNavigate}
+          currentPath={location.pathname}
+          onNavigate={(path) => navigate(path)}
           hasResults={!!report}
         />
         <main className="max-w-6xl mx-auto p-4 sm:p-6 lg:px-8 pt-8 pb-16">
-          {currentUser?.role === 'teacher' && view === 'teacherDashboard' && <AdminHeader user={currentUser} />}
-          {renderMainContent()}
+          {isTeacher && location.pathname.startsWith('/teacher/dashboard') && <AdminHeader user={currentUser} />}
+          {isLoading && (
+            <div className="flex flex-col items-center justify-center h-[60vh] text-slate-700">
+              <div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-primary"></div>
+              <p className="mt-4 text-lg">AI가 준비를 마치고 있어요...</p>
+            </div>
+          )}
+          {!isLoading && (
+            <Routes>
+              <Route
+                path="/"
+                element={
+                  isTeacher ? (
+                    <TeacherHome
+                      user={currentUser!}
+                      onGoDashboard={() => navigate('/teacher/dashboard')}
+                      onPreviewStudent={() => navigate('/teacher/dashboard')}
+                    />
+                  ) : (
+                    <WelcomeScreen 
+                      onStart={handleStartInterview} 
+                      history={studentHistory} 
+                      onViewReport={handleViewHistoryReport}
+                    />
+                  )
+                }
+              />
+              <Route
+                path="/interview"
+                element={
+                  questions.length === 0 ? (
+                    <Navigate to="/" replace />
+                  ) : (
+                    <InterviewSession
+                      questions={questions}
+                      onFinish={handleFinishInterview}
+                      perQuestionSeconds={perQuestionSeconds}
+                      onExit={() => navigate('/', { replace: true })}
+                    />
+                  )
+                }
+              />
+              <Route
+                path="/results"
+                element={report ? <ResultsScreen report={report} onRetry={handleTryAnotherTopic} /> : <Navigate to="/" replace />}
+              />
+              <Route
+                path="/teacher/dashboard"
+                element={<TeacherRoute element={<TeacherDashboard currentUser={currentUser!} onSelectStudent={handleViewStudent} />} />}
+              />
+              <Route path="/teacher/students/:id" element={<TeacherRoute element={<InlineStudentDetail />} />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          )}
+          {error && renderError()}
         </main>
       </div>
     </div>
   );
 };
+
 export default App;

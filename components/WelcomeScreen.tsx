@@ -130,7 +130,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
 
   return (
     <div className="space-y-10 animate-fadeIn">
-      <section className="relative overflow-hidden rounded-[32px] bg-gradient-to-r from-primary-lightest via-white to-primary-lightest shadow-soft border border-white/70 px-6 py-10 md:px-12">
+      <section className="relative overflow-hidden rounded-[32px] bg-gradient-to-r from-primary-lightest via-white to-primary-lightest shadow-soft border border-white/70 px-6 py-10 md:px-12 animate-softFadeUp">
         <div className="hero-blob hero-blob--primary -right-10 -top-10"></div>
         <div className="hero-blob hero-blob--secondary -left-10 bottom-0"></div>
         <div className="relative z-10 flex flex-col md:flex-row md:items-center gap-8">
@@ -161,20 +161,20 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
       </section>
 
       <div className="w-full mx-auto max-w-5xl grid lg:grid-cols-[3fr_2fr] gap-8">
-        <div className="bg-white/95 rounded-[24px] shadow-elice border border-white/70 p-6 sm:p-8">
+        <div className="bg-white/95 rounded-[24px] shadow-elice border border-white/70 p-6 sm:p-8 animate-softFadeUp">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="text-2xl font-bold text-slate-900 mb-1">이력서 붙여넣기 / 업로드</h2>
-              <p className="text-sm text-slate-500">작성 중인 자기소개서나 활동 기록을 입력하면 맞춤 질문을 추천해 드려요.</p>
+              <h2 className="text-2xl font-bold text-slate-900 mb-1">자기소개서·이력서·생활기록부 업로드</h2>
+              <p className="text-sm text-slate-500">경험·역량을 구체적으로 기재하면 더 정교한 질문이 생성됩니다.​</p>
             </div>
             <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary-lightest text-primary text-xs font-semibold">
               <UploadCloudIcon className="w-4 h-4" />
-              PDF / TXT / MD
+              PDF/TXT/MD
             </span>
           </div>
           <textarea
             className="w-full h-40 p-4 bg-slate-50/80 border border-slate-200 rounded-[18px] text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-focus focus:border-primary-focus transition-colors disabled:bg-slate-100 disabled:text-slate-500 resize-none"
-            placeholder="이력서나 자기소개서를 붙여넣어 주세요. 핵심 경험과 강점을 적어둘수록 더 정교한 질문이 생성됩니다."
+            placeholder="내용을 입력해주세요."
             value={resumeText}
             onChange={handleTextChange}
             disabled={!!fileData}
@@ -208,7 +208,8 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
               <>
                 <UploadCloudIcon className="w-12 h-12 text-slate-400 group-hover:text-primary mb-3 transition-colors" />
                 <span className="text-slate-700 font-medium">파일 업로드하기</span>
-                <span className="text-slate-400 text-sm mt-2">PDF, TXT, MD 형식을 지원합니다</span>
+                <span className="text-slate-400 text-sm mt-2">PDF, TXT, MD 파일을 업로드 할 수 있습니다.</span>
+                <span className="text-slate-400 text-sm mt-2">표, 이미지, 특수문자가 많은 자료는 일부 정보가 누락될 수 있습니다.</span>
               </>
             )}
           </label>
@@ -224,7 +225,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
                     : 'border-slate-200 bg-white/70 hover:border-primary/60'
                 }`}
               >
-                <p className="text-sm font-semibold">이 플랫폼을 취업 준비에 사용해요</p>
+                <p className="text-sm font-semibold">취업 면접을 준비해요​</p>
                 <p className="text-xs text-slate-500 mt-1">희망 분야에 맞는 질문을 준비합니다.</p>
               </button>
               <button
@@ -236,7 +237,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
                     : 'border-slate-200 bg-white/70 hover:border-primary/60'
                 }`}
               >
-                <p className="text-sm font-semibold">이 플랫폼을 대학 진학 준비에 사용해요</p>
+                <p className="text-sm font-semibold">입시 면접을 준비해요​</p>
                 <p className="text-xs text-slate-500 mt-1">선호 대학과 전공을 알려주세요.</p>
               </button>
             </div>
@@ -301,7 +302,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
             )}
 
             {intent === 'work' && (
-              <div className="rounded-[16px] border border-primary/30 bg-primary-lightest/60 p-4 space-y-2">
+            <div className="rounded-[16px] border border-primary/30 bg-primary-lightest/60 p-4 space-y-2">
                 <p className="text-sm font-semibold text-slate-800">업무 분야</p>
                 <p className="text-xs text-slate-500">목표로 하는 분야나 직무를 알려주세요.</p>
                 <input
@@ -318,7 +319,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
             )}
 
             <div className="rounded-[16px] border border-slate-200 bg-white/80 p-4 space-y-2">
-              <p className="text-sm font-semibold text-slate-800">질문당 시간 선택</p>
+              <p className="text-sm font-semibold text-slate-800">답변 시간 선택​</p>
               <p className="text-xs text-slate-500">각 질문에 할당할 시간을 선택하세요.</p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {[30, 60, 90, 120].map((seconds) => (
@@ -339,13 +340,13 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
             </div>
 
             <Button onClick={handleStartClick} disabled={isStartDisabled} fullWidth className="py-4 text-base">
-              제출
+              모의면접 시작하기​
             </Button>
           </div>
         </div>
 
         {history && history.length > 0 ? (
-          <div className="bg-white/90 rounded-[24px] border border-white/80 shadow-soft p-6 flex flex-col">
+          <div className="bg-white/90 rounded-[24px] border border-white/80 shadow-soft p-6 flex flex-col animate-softFadeUp-delayed">
             <h2 className="text-lg font-bold text-slate-900 mb-1 flex items-center gap-2">
               <ClockIcon className="w-5 h-5 text-primary" />
               최근 연습 기록

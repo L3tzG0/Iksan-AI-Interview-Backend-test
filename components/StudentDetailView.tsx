@@ -5,6 +5,7 @@ import Spinner from './Spinner';
 import Card from './Card';
 import { ArrowLeftIcon } from './icons';
 import InterviewReportView from './InterviewReportView';
+import Button from './ui/Button';
 
 interface StudentDetailViewProps {
   studentId: string;
@@ -116,12 +117,9 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({ studentId, onBack
         </div>
         {student.report && (
           <div className="flex gap-2">
-            <button
-              onClick={handleDownloadReport}
-              className="px-4 py-2 rounded-[12px] bg-primary text-white text-sm font-semibold shadow-soft hover:bg-primary-dark transition-colors"
-            >
+            <Button onClick={handleDownloadReport} variant="secondary" className="px-4 py-2 rounded-[12px] shadow-soft">
               PDF로 다운로드
-            </button>
+            </Button>
           </div>
         )}
       </div>

@@ -53,7 +53,8 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ onSignUp, onSwitchToSignIn 
             role, 
             schoolName, 
             Number(grade), 
-            major
+            major,
+            password
         );
         onSignUp(user);
     } catch (error) {

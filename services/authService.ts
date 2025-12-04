@@ -1,79 +1,109 @@
-
 import { User, School } from '../types';
 
-// Mock Users Database
-const MOCK_USERS: User[] = [
-    { 
-        id: 'u1', 
-        name: '김교사', 
-        email: 'teacher@elice.io', 
-        role: 'teacher', 
-        schoolName: '이리공업고등학교',
-        grade: 3, // Teacher is in charge of 3rd grade
-        major: '전기전자과'
-    },
-    { 
-        id: 'u2', 
-        name: '이학생', 
-        email: 'student@elice.io', 
-        role: 'student', 
-        schoolName: '이리공업고등학교',
-        grade: 3,
-        major: '전기제어',
-    }
-];
+const API_BASE = import.meta.env.VITE_API_BASE || 'https://iksan-ai-interview-backend-production.up.railway.app';
+const TOKEN_KEY = 'auth_token';
 
-export const getSchools = async (): Promise<School[]> => {
-    // Keep for backward compatibility if needed, but unused in new signup
-    await new Promise(resolve => setTimeout(resolve, 300));
-    return [];
+const saveToken = (token: string) => {
+  try {
+    sessionStorage.setItem(TOKEN_KEY, token);
+  } catch {
+    // ignore storage errors
+  }
 };
 
-export const signIn = async (email: string): Promise<User> => {
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    // Find existing mock user
-    const user = MOCK_USERS.find(u => u.email === email);
-    if (user) return user;
+export const getStoredToken = () => {
+  try {
+    return sessionStorage.getItem(TOKEN_KEY) || undefined;
+  } catch {
+    return undefined;
+  }
+};
 
-    // Fallback for demo purposes if email doesn't match mock data
-    // Create a transient user based on email pattern
-    const role = email.includes('teacher') ? 'teacher' : 'student';
-    const name = email.split('@')[0];
-    
-    return {
-        id: `temp-${Date.now()}`,
-        name: name,
-        email: email,
-        role: role,
-        schoolName: '이리공업고등학교',
-        grade: 3,
-        major: role === 'student' ? '소프트웨어과' : '정보컴퓨터',
-    };
+export const clearStoredToken = () => {
+  try {
+    sessionStorage.removeItem(TOKEN_KEY);
+  } catch {
+    // ignore
+  }
+};
+
+export const getSchools = async (): Promise<School[]> => {
+  // Placeholder until backend exposes schools
+  return [];
+};
+
+const buildUserFromResponse = (data: any, fallbackEmail: string): User => {
+  const token = data?.token || data?.access_token || data?.accessToken;
+  const profile = data?.user || data?.profile || data?.data || data || {};
+  const role = profile.role === 'teacher' ? 'teacher' : 'student';
+  return {
+    id: profile.id || profile.userId || `temp-${Date.now()}`,
+    name: profile.name || fallbackEmail.split('@')[0],
+    email: profile.email || fallbackEmail,
+    role,
+    schoolName: profile.schoolName || profile.school || '',
+    grade: profile.grade,
+    major: profile.major,
+    authToken: token,
+  };
+};
+
+export const signIn = async (email: string, password: string): Promise<User> => {
+  const response = await fetch(`${API_BASE}/api/v1/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || 'Login failed');
+  }
+  const data = await response.json();
+  const user = buildUserFromResponse(data, email);
+  if (user.authToken) {
+    saveToken(user.authToken);
+  }
+  return user;
+};
+
+export const fetchProfile = async (): Promise<User | null> => {
+  const token = getStoredToken();
+  if (!token) return null;
+  const response = await fetch(`${API_BASE}/api/v1/auth/me`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) return null;
+  const data = await response.json();
+  const user = buildUserFromResponse(data, data?.email || '');
+  user.authToken = token;
+  return user;
 };
 
 export const signUp = async (
-    name: string, 
-    email: string, 
-    role: 'student' | 'teacher', 
-    schoolName: string, 
-    grade: number,
-    major: string
+  name: string,
+  email: string,
+  role: 'student' | 'teacher',
+  schoolName: string,
+  grade: number,
+  major: string,
+  password: string
 ): Promise<User> => {
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const newUser: User = {
-        id: `u-${Date.now()}`,
-        name,
-        email,
-        role,
-        schoolName,
-        grade,
-        major
-    };
-    
-    // In a real app, we would add to MOCK_USERS or backend
-    MOCK_USERS.push(newUser);
-    
-    return newUser;
+  try {
+    const response = await fetch(`${API_BASE}/api/v1/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, password, role, schoolName, grade, major }),
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || 'Sign up failed');
+    }
+    const data = await response.json();
+    const user = buildUserFromResponse(data, email);
+    if (user.authToken) saveToken(user.authToken);
+    return user;
+  } catch (e) {
+    // fallback to login attempt
+    return signIn(email, password);
+  }
 };

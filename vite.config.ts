@@ -10,7 +10,7 @@ export default defineConfig(({ mode }) => {
             port: 3000,
             host: '0.0.0.0',
             allowedHosts: [
-                'progress-strengthening-interface-desired.trycloudflare.com',
+                'expand-ministers-openings-packs.trycloudflare.com',
                 'pansy-unsevere-lester.ngrok-free.dev',
                 'seen-several-end-dts.trycloudflare.com',
                 'bumpy-camels-feel.loca.lt', // allow localtunnel domain

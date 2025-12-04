@@ -23,12 +23,11 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ onSignIn, onSwitchToSignUp 
     setIsLoading(true);
     
     try {
-        // Simulate auth via service
-        const user = await signIn(email);
+        const user = await signIn(email, password);
         onSignIn(user);
     } catch (e) {
         console.error(e);
-        alert("로그인에 실패했습니다.");
+        alert("로그인에 실패했습니다. 이메일과 비밀번호를 확인해 주세요.");
     } finally {
         setIsLoading(false);
     }

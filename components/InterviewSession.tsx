@@ -56,9 +56,10 @@ interface InterviewSessionProps {
   questions: Question[];
   onFinish: (answers: Answer[]) => void;
   perQuestionSeconds?: number;
+  onExit?: () => void;
 }
 
-const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish, perQuestionSeconds = 60 }) => {
+const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish, perQuestionSeconds = 60, onExit }) => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [currentAnswer, setCurrentAnswer] = useState('');
   const [answers, setAnswers] = useState<Answer[]>([]);
@@ -69,6 +70,8 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
   const [recordedAudioUrl, setRecordedAudioUrl] = useState<string | null>(null);
   const [isTimerPaused, setIsTimerPaused] = useState(false);
   const [isTimerVisible, setIsTimerVisible] = useState(true);
+  const [isTimerInView, setIsTimerInView] = useState(true);
+  const [micPermission, setMicPermission] = useState<'unknown' | 'granted' | 'denied'>('unknown');
   const [drafts, setDrafts] = useState<Record<number, { text: string; audioUrl?: string }>>(() => {
     if (typeof window === 'undefined') return {};
     try {
@@ -84,11 +87,82 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
   const isRecordingRef = useRef(isRecording);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const inlineTimerRef = useRef<HTMLDivElement | null>(null);
+
+  const requestMicPermission = useCallback(async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setMicPermission('denied');
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      setMicPermission('granted');
+      stream.getTracks().forEach((track) => track.stop());
+    } catch (err) {
+      setMicPermission('denied');
+      throw err;
+    }
+  }, []);
 
   useEffect(() => {
     isRecordingRef.current = isRecording;
   }, [isRecording]);
 
+  useEffect(() => {
+    if (!inlineTimerRef.current) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        setIsTimerInView(entry.isIntersecting);
+      },
+      { threshold: 0.4 }
+    );
+    observer.observe(inlineTimerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!navigator.permissions?.query) return;
+    navigator.permissions
+      .query({ name: 'microphone' as PermissionName })
+      .then((result) => {
+        if (result.state === 'granted') setMicPermission('granted');
+        if (result.state === 'denied') setMicPermission('denied');
+        result.onchange = () => {
+          if (result.state === 'granted') setMicPermission('granted');
+          else if (result.state === 'denied') setMicPermission('denied');
+          else setMicPermission('unknown');
+        };
+      })
+      .catch(() => {
+        setMicPermission('unknown');
+      });
+  }, []);
+
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '연습 세션을 종료하면 진행 중인 답변이 사라집니다. 나가시겠습니까?';
+    };
+    const handlePopState = () => {
+      const leave = window.confirm('연습 세션을 종료하면 진행 중인 답변이 사라집니다. 나가시겠습니까?');
+      if (!leave) {
+        window.history.pushState(null, '', window.location.href);
+      } else if (onExit) {
+        window.history.replaceState(null, '', '/');
+        onExit();
+      } else {
+        window.location.href = '/';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.history.pushState(null, '', window.location.href);
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [onExit]);
   const updateDraft = useCallback((questionId: number, data: Partial<{ text: string; audioUrl?: string }>) => {
     setDrafts((prev) => {
       const next = { ...prev, [questionId]: { ...(prev[questionId] || {}), ...data } };
@@ -142,26 +216,32 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
 
   const startAudioRecording = useCallback(async () => {
     if (!navigator.mediaDevices?.getUserMedia) return;
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const recorder = new MediaRecorder(stream);
-    audioChunksRef.current = [];
-    recorder.ondataavailable = (event) => {
-      if (event.data.size > 0) {
-        audioChunksRef.current.push(event.data);
-      }
-    };
-    recorder.onstop = () => {
-      const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-      const url = URL.createObjectURL(blob);
-      setRecordedAudioUrl(url);
-      const question = questions[currentQuestionIndex];
-      if (question) {
-        updateDraft(question.id, { audioUrl: url, text: currentAnswer });
-      }
-      stream.getTracks().forEach((track) => track.stop());
-    };
-    recorder.start();
-    mediaRecorderRef.current = recorder;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      setMicPermission('granted');
+      const recorder = new MediaRecorder(stream);
+      audioChunksRef.current = [];
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+      recorder.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const url = URL.createObjectURL(blob);
+        setRecordedAudioUrl(url);
+        const question = questions[currentQuestionIndex];
+        if (question) {
+          updateDraft(question.id, { audioUrl: url, text: currentAnswer });
+        }
+        stream.getTracks().forEach((track) => track.stop());
+      };
+      recorder.start();
+      mediaRecorderRef.current = recorder;
+    } catch (err) {
+      setMicPermission('denied');
+      console.error('Microphone access denied or failed', err);
+    }
   }, [currentAnswer, currentQuestionIndex, questions, updateDraft]);
 
   const handleNext = useCallback((options?: { allowEmpty?: boolean; skipReason?: string }) => {
@@ -284,6 +364,14 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
       setIsSpeechSupported(false);
       return;
     }
+    if (micPermission === 'denied') {
+      setInlineError('마이크 권한이 필요합니다. 브라우저 설정에서 허용해 주세요.');
+      return;
+    }
+    if (micPermission === 'unknown') {
+      requestMicPermission().catch(() => setInlineError('마이크 권한 요청에 실패했습니다.'));
+      return;
+    }
 
     const newIsRecording = !isRecording;
     setIsRecording(newIsRecording);
@@ -357,17 +445,17 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
 
   return (
     <div className="flex flex-col items-center justify-start min-h-[calc(100vh-10rem)] animate-fadeIn pt-6">
-      {isTimerVisible && (
-        <div className="fixed top-4 right-2 sm:top-20 sm:right-4 z-50">
+      {isTimerVisible && !isTimerInView && (
+        <div className="fixed bottom-4 right-2 sm:top-20 sm:bottom-auto sm:right-4 z-50 pb-[env(safe-area-inset-bottom)]">
           <div
-            className={`backdrop-blur bg-white/90 border shadow-[0_12px_30px_rgba(103,0,230,0.15)] rounded-2xl px-4 py-3 flex items-center gap-3 ${
+            className={`backdrop-blur bg-white/90 border shadow-[0_12px_30px_rgba(103,0,230,0.15)] rounded-2xl px-3 py-2 sm:px-4 sm:py-3 flex items-center gap-3 sm:gap-4 transition-opacity duration-200 ${
               isLowTime ? 'border-red-300 animate-pulse' : 'border-primary/30'
             }`}
           >
-            <ClockIcon className={`w-6 h-6 ${isLowTime ? 'text-red-600' : 'text-primary'}`} />
+            <ClockIcon className={`w-5 h-5 sm:w-6 sm:h-6 ${isLowTime ? 'text-red-600' : 'text-primary'}`} />
             <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest">남은 시간</p>
-              <p className={`text-xl font-bold ${timeLeft <= 10 ? 'text-red-600' : isLowTime ? 'text-amber-600' : 'text-slate-800'}`}>
+              <p className="text-[11px] sm:text-xs font-semibold text-slate-500 uppercase tracking-widest">남은 시간</p>
+              <p className={`text-lg sm:text-xl font-bold ${timeLeft <= 10 ? 'text-red-600' : isLowTime ? 'text-amber-600' : 'text-slate-800'}`}>
                 {formatTime(timeLeft)}
               </p>
             </div>
@@ -398,7 +486,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
               </div>
               <div className="flex flex-col items-end gap-2 text-primary font-bold text-2xl">
                 {isTimerVisible ? (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2" ref={inlineTimerRef}>
                     <ClockIcon className={`w-6 h-6 ${isLowTime ? 'text-red-600' : ''}`} />
                     <span className={isLowTime ? 'text-red-600' : ''}>{formatTime(timeLeft)}</span>
                   </div>
@@ -461,6 +549,8 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
             recordingUrl={recordedAudioUrl}
             onClearRecording={handleRetryAnswer}
             inlineError={inlineError}
+            micPermission={micPermission}
+            onRequestMicPermission={requestMicPermission}
           />
 
           <div className="mt-8 space-y-4">

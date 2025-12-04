@@ -1,17 +1,17 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { User, AppView } from '../../types';
+import { User } from '../../types';
 import { LogOutIcon, ChevronDownIcon, GraduationCapIcon, EliceLogoIcon, HomeIcon, SparklesIcon, ChartIcon, UsersIcon } from '../icons';
 
 interface NavbarProps {
   user: User;
   onLogout: () => void;
   onToggleRole: () => void;
-  currentView: AppView;
-  onNavigate?: (view: AppView) => void;
+  currentPath: string;
+  onNavigate?: (path: string) => void;
   hasResults?: boolean;
 }
 
-const Navbar: React.FC<NavbarProps> = ({ user, onLogout, onToggleRole, currentView, onNavigate, hasResults }) => {
+const Navbar: React.FC<NavbarProps> = ({ user, onLogout, onToggleRole, currentPath, onNavigate, hasResults }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -26,27 +26,25 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, onToggleRole, currentVi
   }, []);
 
   const navItems = useMemo(() => {
-    const base: { id: AppView; label: string; disabled?: boolean; icon: React.ComponentType<React.SVGProps<SVGSVGElement>> }[] = [
-      { id: 'welcome', label: '홈', icon: HomeIcon },
+    const base: { path: string; label: string; disabled?: boolean; icon: React.ComponentType<React.SVGProps<SVGSVGElement>> }[] = [
+      { path: '/', label: '홈', icon: HomeIcon },
     ];
 
     if (user.role === 'teacher') {
-      base.push({ id: 'teacherDashboard', label: '학생 대시보드', icon: ChartIcon });
+      base.push({ path: '/teacher/dashboard', label: '학생 대시보드', icon: ChartIcon });
     } else {
       base.push(
-        { id: 'session', label: 'AI 면접', icon: SparklesIcon },
-        { id: 'results', label: '결과 & 피드백', icon: ChartIcon, disabled: !hasResults }
+        { path: '/interview', label: 'AI 면접', icon: SparklesIcon },
+        { path: '/results', label: '결과 & 피드백', icon: ChartIcon, disabled: !hasResults }
       );
     }
 
     return base;
   }, [user.role, hasResults]);
 
-  const isNavActive = (itemId: AppView) => {
-    if (itemId === 'teacherDashboard' && currentView === 'studentDetail') {
-      return true;
-    }
-    return currentView === itemId;
+  const isNavActive = (path: string) => {
+    if (path === '/teacher/dashboard' && currentPath.startsWith('/teacher/students')) return true;
+    return currentPath === path;
   };
 
   return (
@@ -69,7 +67,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, onToggleRole, currentVi
                     key={item.id}
                     type="button"
                     disabled={item.disabled}
-                    onClick={() => onNavigate && onNavigate(item.id)}
+                    onClick={() => onNavigate && onNavigate(item.path)}
                     className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all duration-200 ${
                       active
                         ? 'bg-primary text-white shadow-elice shadow-primary/25'

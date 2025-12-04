@@ -90,6 +90,7 @@ export interface User {
     grade?: number;       
     major?: string;       
     avatarUrl?: string;
+    authToken?: string;
 }
 
 export type AuthView = 'signin' | 'signup';

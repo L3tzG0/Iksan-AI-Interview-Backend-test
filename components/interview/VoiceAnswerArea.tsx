@@ -11,6 +11,8 @@ interface VoiceAnswerAreaProps {
   recordingUrl?: string | null;
   onClearRecording?: () => void;
   inlineError?: string | null;
+  micPermission?: 'unknown' | 'granted' | 'denied';
+  onRequestMicPermission?: () => void;
 }
 
 const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
@@ -23,6 +25,8 @@ const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
   recordingUrl,
   onClearRecording,
   inlineError,
+  micPermission = 'unknown',
+  onRequestMicPermission,
 }) => {
   const handleRetry = () => {
     onChangeAnswer('');
@@ -37,12 +41,16 @@ const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
             <span className={`w-2 h-2 rounded-full ${isRecording ? 'bg-red-500 animate-ping' : 'bg-slate-300'}`}></span>
             {isRecording ? 'REC' : 'STANDBY'}
           </span>
+          <div className="absolute top-4 left-4 inline-flex items-center gap-2 text-[11px] font-semibold text-slate-600">
+            <span className={`w-2 h-2 rounded-full ${micPermission === 'granted' ? 'bg-green-500' : micPermission === 'denied' ? 'bg-red-500' : 'bg-amber-400'}`}></span>
+            <span>{micPermission === 'granted' ? '마이크 허용' : micPermission === 'denied' ? '마이크 거부됨' : '권한 확인 필요'}</span>
+          </div>
           <button
             onClick={onToggleRecording}
-            disabled={!isSpeechSupported}
+            disabled={!isSpeechSupported || micPermission === 'denied'}
             className={`relative mx-auto flex items-center justify-center w-24 h-24 rounded-full transition-all duration-300 border-4 ${
               isRecording ? 'bg-red-500/10 border-red-300' : 'bg-white border-primary-light hover:border-primary'
-            } ${!isSpeechSupported ? 'opacity-40 cursor-not-allowed' : ''}`}
+            } ${(!isSpeechSupported || micPermission === 'denied') ? 'opacity-40 cursor-not-allowed' : ''}`}
             aria-label={isRecording ? '녹음 중지' : '녹음 시작'}
             type="button"
           >
@@ -74,6 +82,15 @@ const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
                 : '마이크를 켜거나 직접 입력할 수 있어요.'}
           </p>
           <p className="text-[11px] text-slate-500 mt-2">마이크 아이콘을 눌러 녹음을 시작하거나 텍스트로 작성하세요.</p>
+          {micPermission !== 'granted' && (
+            <button
+              type="button"
+              onClick={onRequestMicPermission}
+              className="mt-3 text-xs font-semibold text-primary hover:text-primary-dark px-3 py-1.5 rounded-full bg-white border border-primary-light"
+            >
+              마이크 권한 요청
+            </button>
+          )}
         </div>
         {!isSpeechSupported && (
           <p className="text-xs text-slate-500 text-center px-4">
@@ -112,7 +129,7 @@ const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
         {inlineError && <p className="mt-2 text-sm text-red-600 font-semibold">{inlineError}</p>}
         <div className="mt-4 bg-slate-50 border border-slate-200 rounded-[14px] p-3">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold text-slate-700">녹음 & 텍스트 저장</p>
+            <p className="text-sm font-semibold text-slate-700">실시간 전사 & 저장</p>
             <button
               type="button"
               onClick={handleRetry}
