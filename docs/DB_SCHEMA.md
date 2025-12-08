@@ -102,6 +102,20 @@ erDiagram
         text description_text
     }
 
+    LANGCHAIN_PG_COLLECTION {
+        uuid uuid PK
+        varchar name
+        json cmetadata
+    }
+    
+    LANGCHAIN_PG_EMBEDDING {
+        varchar id PK
+        uuid collection_id FK
+        vector embedding
+        varchar document
+        jsonb cmetadata
+    }
+
     AUTH_USERS ||--|| USER_PROFILES : "synced via trigger"
     ROLES ||--o{ USER_PROFILES : "assigned to"
     USER_PROFILES ||--o| TEACHERS : "may be"
