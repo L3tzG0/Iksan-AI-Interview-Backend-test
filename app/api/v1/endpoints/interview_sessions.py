@@ -14,6 +14,7 @@ from app.api.dependencies import require_role
 # New service imports (replacing LLMService)
 from app.services.question_generator import generate_interview_questions
 from app.services.evaluation_generator import generate_session_evaluation
+from app.services.university_question_generator import generate_university_prep_questions
 
 from app.services.rag_service import retrieve_questions_from_rag
 
@@ -155,7 +156,7 @@ async def submit_session_answers( # Changed to async
 
         # 3. Update Database with results
         
-        # A. Update main session table with overall score (scaling from 0-10 to 0-100)
+        # A. Update main session table with overall score
         overall_score_10 = round(evaluation_result.overall_scores.overall_score, 1)
 
         session_service.update_session_status(
@@ -383,6 +384,7 @@ def get_session_detail(
     return JSONResponse(content=jsonable_encoder(response.dict()))
 
 
+# Initiate route for job prep
 @router.post("/initiate", response_model=SessionInitiateResponse)
 @limiter.limit(settings.RATE_LIMIT_LLM)
 async def initiate_interview_session( # Changed to async
@@ -555,7 +557,166 @@ async def initiate_interview_session( # Changed to async
             status_code=500,
             detail=f"Failed to initiate interview session: {str(e)}"
         )
+ 
+# Initiate route for university prep
 
+@router.post("/initiate_university_prep", response_model=SessionInitiateResponse)
+@limiter.limit(settings.RATE_LIMIT_LLM)
+async def initiate_university_prep_session(
+    request: Request,
+    file: Optional[UploadFile] = File(None, description="Student Record/Transcript file (PDF, DOCX, TXT, MD)"),
+    raw_text: Optional[str] = Form(None, description="Raw student record text content"),
+    universities: str = Form(..., description="Comma-separated list of preferred universities (e.g., 'Stanford, MIT')"),
+    departments: str = Form(..., description="Comma-separated list of preferred academic departments (e.g., 'Computer Science, Electrical Engineering')"),
+    current_user = Depends(require_role("student")),
+    supabase: Client = Depends(get_supabase)
+):
+    """
+    Initiate new university preparation session by processing student record/transcript.
+    
+    Requires: Authentication (JWT token) - Student role only
+    Rate limited: 10 requests per minute per user.
+    """
+    # Initialize services (same as the job prep route)
+    storage_service = StorageService(supabase)
+    session_service = InterviewSessionService(supabase)
+    document_service = DocumentService(supabase)
+    extraction_service = TextExtractionService()
+    feedback_service = FeedbackService(supabase)
+    user_service = UserProfileService(supabase)
+    
+    session_id: int | None = None
+    
+    try:
+        # Step 0: Validate input presence
+        if not file and not raw_text:
+            raise HTTPException(
+                status_code=400,
+                detail="Either 'file' or 'raw_text' must be provided (containing the student record)"
+            )
+        
+        if not universities or not departments:
+            raise HTTPException(
+                status_code=400,
+                detail="Preferred 'universities' and 'departments' must be provided for academic question generation."
+            )
+
+        # Steps 1-3: User check, Session Creation, and Document Processing
+        student_details = user_service.get_student_details(current_user.id)
+        if not student_details:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Current user is not associated with a student record"
+            )
+        student_id = student_details.get("id")
+        
+        session = session_service.create_session(student_id=student_id, status="in_progress")
+        session_id = session['id']
+        assert session_id is not None, "Session ID must be set after creation"
+        
+        cleaned_text_extracted: str 
+        
+        # --- File/Raw Text Processing (Using simplified logic for demonstration) ---
+        if file:
+            # File provided - process it (ignore raw_text if also provided)
+            # Step 3a: Validate file type and filename
+            storage_service.validate_file(file)
+
+            # Step 3b: Guard against oversized uploads before loading into memory
+            max_size_message = (
+                f"File too large. Maximum size: {settings.MAX_FILE_SIZE / (1024*1024):.1f}MB"
+            )
+            content_length_header = request.headers.get("content-length")
+            if content_length_header:
+                try:
+                    content_length = int(content_length_header)
+                except ValueError:
+                    content_length = None
+                else:
+                    if content_length and content_length > settings.MAX_FILE_SIZE:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=max_size_message
+                        )
+
+            # Stream the file in manageable chunks to cap memory usage while reading
+            chunk_size = 1024 * 1024 # 1MB
+            total_read = 0
+            buffer = bytearray()
+            while True:
+                chunk = await file.read(chunk_size) # Changed to await file.read()
+                if not chunk:
+                    break
+                total_read += len(chunk)
+                if total_read > settings.MAX_FILE_SIZE:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=max_size_message
+                    )
+                buffer.extend(chunk)
+
+            file_bytes = bytes(buffer)
+            
+            # Verify file signature (magic numbers)
+            content_type = file.content_type or "application/octet-stream"
+            storage_service.verify_file_signature(file_bytes, content_type)
+            
+            # Step 3c: Extract and clean text from document
+            cleaned_text_extracted = extraction_service.extract_text_from_file(
+                file_bytes=file_bytes,
+                content_type=content_type
+            )
+        else:
+            # Only raw_text provided - use it directly as cleaned text
+            if raw_text is None:
+                raise HTTPException(status_code=400, detail="raw_text cannot be None")
+            cleaned_text_extracted = raw_text
+        
+        # Step 4: Save cleaned text (Student Record) to documents table
+        document = document_service.create_document(
+            session_id=session_id,
+            cleaned_text=cleaned_text_extracted
+        )
+        
+        # Step 5: RAG Implementation - RETRIEVE CONTEXT
+        academic_context = await retrieve_questions_from_rag(cv_text=cleaned_text_extracted, k=5) # Using k=5 for 5 questions
+
+        # Step 6: Generate interview questions using the *new* LLM service
+        generated_questions_list = await generate_university_prep_questions(
+            student_record_text=cleaned_text_extracted,
+            universities=universities,
+            departments=departments,
+            # Pass the RAG context string to the generator service
+            reference_questions=academic_context.reference_questions
+        )
+        
+        # Step 7: Create detailed_feedbacks records
+        feedback_service.create_detailed_feedbacks_batch(
+            session_id=session_id,
+            questions=generated_questions_list
+        )
+        
+        # Step 8: Build response
+        response = SessionInitiateResponse(
+            success=True,
+            # Inform the user about the RAG context used
+            message=f"University Prep session initiated successfully with 10 questions. RAG query used: {academic_context.source_query[:50]}...",
+            session_id=session['id'],
+            questions=generated_questions_list
+        )
+        
+        return JSONResponse(content=jsonable_encoder(response.dict()))
+        
+    except HTTPException:
+        _rollback_session_creation(session_service, session_id)
+        raise
+        
+    except Exception as e:
+        _rollback_session_creation(session_service, session_id)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to initiate university prep session: {str(e)}"
+        )
 
 def _rollback_session_creation(
     session_service: InterviewSessionService,
