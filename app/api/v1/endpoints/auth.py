@@ -24,6 +24,9 @@ async def register_user(
     Register a new user with Supabase Auth.
     A user profile will be automatically created via database trigger.
     
+    Note: Student registration is not allowed through this endpoint.
+    Only teachers (role_id: 2) and admins (role_id: 1) can register.
+    
     Rate limited: 5 requests per minute per IP address.
     """
     auth_service = AuthService(supabase)

@@ -88,7 +88,7 @@ python scripts/migrate.py mark-applied 002
 
 # Commit the tracking file
 git add migrations/APPLIED_MIGRATIONS.md
-git commit -m "Applied initial migrations"
+git commit -m "feat: apply initial migrations"
 ```
 
 **Option B: Legacy Method (Initial Setup)**

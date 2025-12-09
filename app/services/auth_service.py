@@ -2,7 +2,7 @@ import re
 from typing import Optional
 from supabase import AsyncClient
 from fastapi import HTTPException, status
-from app.schemas.auth import LoginRequest, RegisterRequest, StudentRegistrationData, TeacherRegistrationData
+from app.schemas.auth import LoginRequest, RegisterRequest, TeacherRegistrationData
 
 
 class AuthService:
@@ -150,45 +150,6 @@ class AuthService:
         
         return None
 
-    async def _prepare_student_metadata(self, student_data: StudentRegistrationData) -> dict:
-        """
-        Prepare metadata for student registration.
-        Resolves or creates school, major, and class as needed.
-        """
-        # Resolve school
-        school_id = await self._resolve_or_create_school(student_data.school_id, student_data.school_name)
-        if school_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="School information is required for student registration."
-            )
-        
-        # Resolve major
-        major_id = await self._resolve_or_create_major(student_data.major_id, student_data.major_name)
-        if major_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Major information is required for student registration."
-            )
-        
-        # Resolve class
-        class_id = await self._resolve_or_create_class(
-            student_data.class_id, 
-            student_data.class_year
-        )
-        if class_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Class information is required for student registration."
-            )
-        
-        return {
-            "student_id": student_data.student_id,
-            "school_id": school_id,
-            "major_id": major_id,
-            "class_id": class_id
-        }
-
     async def _prepare_teacher_metadata(self, teacher_data: Optional[TeacherRegistrationData]) -> dict:
         """
         Prepare metadata for teacher registration.
@@ -207,7 +168,7 @@ class AuthService:
         """
         Register a new user with Supabase Auth.
         Handles role-specific registration:
-        - Students: require student_id, school, major, class
+        - Students: registration disabled
         - Teachers: optional school assignment
         - Admins: no additional data
         """
@@ -223,6 +184,13 @@ class AuthService:
             
             role_name = role_response.data[0].get("role_name")
             
+            # Block student registration
+            if role_name == "student":
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Student registration is not allowed through this endpoint."
+                )
+            
             # Build base metadata for Supabase Auth
             user_metadata = {
                 "full_name": register_data.full_name,
@@ -230,16 +198,7 @@ class AuthService:
             }
             
             # Handle role-specific registration
-            if role_name == "student":
-                if register_data.student_data is None:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="student_data is required for student registration."
-                    )
-                student_metadata = await self._prepare_student_metadata(register_data.student_data)
-                user_metadata.update(student_metadata)
-                
-            elif role_name == "teacher":
+            if role_name == "teacher":
                 teacher_metadata = await self._prepare_teacher_metadata(register_data.teacher_data)
                 user_metadata.update(teacher_metadata)
             
