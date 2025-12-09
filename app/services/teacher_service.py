@@ -2,7 +2,7 @@ from typing import Optional, Tuple, List
 from supabase import AsyncClient
 from postgrest.exceptions import APIError
 from fastapi import HTTPException, status
-from app.schemas.teacher import TeacherCreate, TeacherUpdate
+from app.schemas.teacher import TeacherUpdate
 
 # Explicit columns to select for teachers (avoiding SELECT *)
 TEACHER_COLUMNS = "id, user_id, school_id, created_at, updated_at"
@@ -27,14 +27,6 @@ class TeacherService:
     """
     def __init__(self, supabase: AsyncClient):
         self.supabase = supabase
-
-    async def create_teacher(self, teacher: TeacherCreate):
-        """Create a new teacher"""
-        try:
-            response = await self.supabase.table('teachers').insert(teacher.model_dump()).execute()
-            return response.data[0]
-        except Exception as e:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     async def get_teacher(self, teacher_id: int):
         """Get teacher by ID with explicit column selection"""

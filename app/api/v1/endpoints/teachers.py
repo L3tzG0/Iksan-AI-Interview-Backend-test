@@ -2,7 +2,7 @@ from typing import List, Annotated, Optional
 from fastapi import APIRouter, Depends, Query
 from supabase import AsyncClient
 from app.core.database import get_supabase
-from app.schemas.teacher import TeacherResponse, TeacherCreate, TeacherUpdate
+from app.schemas.teacher import TeacherResponse, TeacherUpdate
 from app.schemas.pagination import PaginatedResponse, create_paginated_response
 from app.services.teacher_service import TeacherService
 
@@ -54,21 +54,6 @@ async def read_teacher(
     if with_details:
         return await service.get_teacher_with_details(teacher_id)
     return await service.get_teacher(teacher_id)
-
-
-@router.post("/", response_model=TeacherResponse)
-async def create_teacher(
-    teacher_in: TeacherCreate,
-    supabase: Annotated[AsyncClient, Depends(get_supabase)]
-):
-    """
-    Create a new teacher.
-    
-    - **user_id**: UUID of the user profile
-    - **school_id**: Optional school ID to assign the teacher to
-    """
-    service = TeacherService(supabase)
-    return await service.create_teacher(teacher_in)
 
 
 @router.patch("/{teacher_id}", response_model=TeacherResponse)

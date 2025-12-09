@@ -7,9 +7,6 @@ from app.schemas.school import SchoolResponse
 class TeacherBase(BaseModel):
     user_id: UUID
 
-class TeacherCreate(TeacherBase):
-    school_id: Optional[int] = None
-
 class TeacherUpdate(BaseModel):
     school_id: Optional[int] = None
 

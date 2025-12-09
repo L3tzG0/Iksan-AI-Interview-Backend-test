@@ -14,12 +14,6 @@ class StudentBase(BaseModel):
     student_id: str  # Student ID number (e.g., school-issued ID)
 
 
-class StudentCreate(StudentBase):
-    school_id: int
-    major_id: int
-    current_class_id: int
-
-
 class StudentUpdate(BaseModel):
     student_id: Optional[str] = None
     school_id: Optional[int] = None

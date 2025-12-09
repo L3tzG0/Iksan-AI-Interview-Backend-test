@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Query, HTTPException, status
 from supabase import AsyncClient
 from app.core.database import get_supabase
 from app.core.security import get_current_user
-from app.schemas.student import StudentResponse, StudentCreate, StudentUpdate
+from app.schemas.student import StudentResponse, StudentUpdate
 from app.schemas.interview_session import SessionHistoryItem, SessionHistoryResponse, SessionDetailResponse, FeedbackDetail
 from app.schemas.pagination import PaginatedResponse, create_paginated_response
 from app.services.student_service import StudentService
@@ -60,21 +60,6 @@ async def get_student_by_student_id(
     """
     service = StudentService(supabase)
     return await service.get_student_by_student_id(student_id_number)
-
-
-@router.post("/", response_model=StudentResponse)
-async def create_student(
-    student_in: StudentCreate,
-    supabase: Annotated[AsyncClient, Depends(get_supabase)]
-):
-    """
-    Create a new student record.
-    
-    Note: Students are typically created via the registration endpoint.
-    This endpoint is for administrative purposes.
-    """
-    service = StudentService(supabase)
-    return await service.create_student(student_in)
 
 
 @router.patch("/{id}", response_model=StudentResponse)
