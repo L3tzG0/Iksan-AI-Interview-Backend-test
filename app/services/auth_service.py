@@ -111,45 +111,6 @@ class AuthService:
         
         return None
 
-    async def _resolve_or_create_class(
-        self, 
-        class_id: Optional[int], 
-        class_year: Optional[int]
-    ) -> Optional[int]:
-        """
-        Returns class_id - either the provided one or creates/finds class from class_year.
-        """
-        if class_id is not None:
-            # Validate class exists
-            response = await self.supabase.table("classes").select("id").eq("id", class_id).execute()
-            if not response.data:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Class with id {class_id} does not exist."
-                )
-            return class_id
-        
-        if class_year is not None:
-            # Try to find existing class by class_year
-            response = await self.supabase.table("classes").select("id, class_year")\
-                .eq("class_year", class_year)\
-                .execute()
-            if response.data:
-                return response.data[0]["id"]
-            
-            # Create new class
-            response = await self.supabase.table("classes").insert({
-                "class_year": class_year
-            }).execute()
-            if not response.data:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Failed to create class."
-                )
-            return response.data[0]["id"]
-        
-        return None
-
     async def _prepare_teacher_metadata(self, teacher_data: Optional[TeacherRegistrationData]) -> dict:
         """
         Prepare metadata for teacher registration.

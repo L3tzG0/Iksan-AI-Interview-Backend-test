@@ -11,7 +11,7 @@ STUDENT_COLUMNS_WITH_RELATIONS = """
     user_profiles(id, email, full_name, role_id),
     schools(id, school_name),
     majors(id, major_name),
-    classes(id, class_year)
+    classes(id, class_name, grade_level)
 """
 
 

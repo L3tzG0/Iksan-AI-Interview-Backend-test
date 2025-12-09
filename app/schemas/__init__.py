@@ -4,7 +4,7 @@ from app.schemas.user import UserProfileBase, UserProfileCreate, UserProfileUpda
 from app.schemas.teacher import TeacherBase, TeacherResponse, TeacherWithUser
 from app.schemas.school import SchoolBase, SchoolCreate, SchoolUpdate, SchoolResponse
 from app.schemas.major import MajorBase, MajorCreate, MajorUpdate, MajorResponse
-from app.schemas.class_schema import ClassBase, ClassCreate, ClassUpdate, ClassResponse, ClassWithTeacher
+from app.schemas.class_schema import ClassBase, ClassCreate, ClassUpdate, ClassResponse
 from app.schemas.student import StudentBase, StudentUpdate, StudentResponse, StudentWithDetails
 from app.schemas.interview_session import InterviewSessionBase, InterviewSessionCreate, InterviewSessionUpdate, InterviewSessionResponse, InterviewSessionWithDetails
 from app.schemas.document import DocumentBase, DocumentCreate, DocumentResponse

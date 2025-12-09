@@ -1,23 +1,19 @@
 from typing import Optional
-from pydantic import BaseModel
-from app.schemas.teacher import TeacherResponse
+from pydantic import BaseModel, Field
 
 class ClassBase(BaseModel):
-    class_year: int
-    homeroom_teacher_id: Optional[int] = None
+    class_name: str
+    grade_level: int = Field(..., ge=1, le=3, description="Grade level: 1, 2, or 3")
 
 class ClassCreate(ClassBase):
     pass
 
 class ClassUpdate(BaseModel):
-    class_year: Optional[int] = None
-    homeroom_teacher_id: Optional[int] = None
+    class_name: Optional[str] = None
+    grade_level: Optional[int] = Field(None, ge=1, le=3, description="Grade level: 1, 2, or 3")
 
 class ClassResponse(ClassBase):
     id: int
 
     class Config:
         from_attributes = True
-
-class ClassWithTeacher(ClassResponse):
-    homeroom_teacher: Optional[TeacherResponse] = None

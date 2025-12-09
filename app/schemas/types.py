@@ -7,6 +7,7 @@ data conversion patterns, particularly for Supabase/PostgreSQL responses.
 from datetime import datetime
 from typing import Annotated, Union
 from pydantic import BeforeValidator
+from enum import Enum
 
 
 def parse_flexible_datetime(value: Union[str, datetime, None]) -> datetime | None:
@@ -42,3 +43,25 @@ def parse_flexible_datetime(value: Union[str, datetime, None]) -> datetime | Non
 # Annotated type that accepts both datetime objects and ISO strings
 # Use this instead of `datetime` in Pydantic models that receive data from Supabase
 FlexibleDateTime = Annotated[datetime, BeforeValidator(parse_flexible_datetime)]
+
+
+class GradeLevel(int, Enum):
+    """
+    Enum representing grade levels (1, 2, or 3).
+
+    Values mirror the integer representation stored in the database.
+    """
+    ONE = 1
+    TWO = 2
+    THREE = 3
+
+
+class RoleType(int, Enum):
+    """
+    Enum representing user roles across the application.
+
+    Values match the integer representation used in the database.
+    """
+    ADMIN = 1
+    TEACHER = 2
+    STUDENT = 3

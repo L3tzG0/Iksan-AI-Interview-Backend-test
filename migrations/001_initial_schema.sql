@@ -55,8 +55,8 @@ CREATE TABLE IF NOT EXISTS teachers (
 -- Classes table
 CREATE TABLE IF NOT EXISTS classes (
     id BIGSERIAL PRIMARY KEY,
-    class_year INTEGER NOT NULL,
-    homeroom_teacher_id BIGINT REFERENCES teachers(id) ON DELETE SET NULL
+    class_name TEXT NOT NULL,
+    grade_level INTEGER NOT NULL CHECK (grade_level IN (1, 2, 3))
 );
 
 -- Students table
