@@ -1,10 +1,11 @@
 from typing import List, Annotated, Optional
 from datetime import datetime
 from fastapi import APIRouter, Depends, Query, HTTPException, status
+from fastapi.responses import JSONResponse
 from supabase import AsyncClient
 from app.core.database import get_supabase
 from app.core.security import get_current_user
-from app.schemas.student import StudentResponse, StudentUpdate
+from app.schemas.student import StudentResponse, StudentUpdate, StudentAccountCreate, StudentAccountResponse
 from app.schemas.interview_session import SessionHistoryItem, SessionHistoryResponse, SessionDetailResponse, FeedbackDetail
 from app.schemas.pagination import PaginatedResponse, create_paginated_response
 from app.services.student_service import StudentService
@@ -223,3 +224,78 @@ async def get_session_detail(
         detailed_feedback=feedback_list if feedback_list else None,
         next_steps=next_steps if next_steps else None
     )
+
+
+
+@router.post("/create", response_model=StudentAccountResponse)
+async def create_student_account(
+    student_account_in: StudentAccountCreate
+):
+    """
+    Create a new student account.
+
+    - school_id: Include school ID for Admins, if user is teacher, school ID is taken from teacher's school
+    - school_name: Creates new school if name provided
+    - major_id: Major ID for using existing major
+    - major_name: Creates new major if name provided
+    - class_id: Class ID for using existing class
+    - class_name: Creates new class if name and grade level provided
+    - grade_level: Creates new class if name and grade level provided
+
+    Returns: The created student account record (placeholder implementation)
+    """
+    # Placeholder implementation for now
+    # TODO: Implement actual creation logic via StudentService and return real persisted record
+
+    item = {
+        "id": 1,
+        "user_id": "123e4567-e89b-12d3-a456-426614174000",
+        "full_name": "John Doe",
+        "student_id": "ABCICT0001",
+        "current_class_id": 1,
+        "password": "Password123!"
+    }
+    return item
+
+
+@router.post("/bulk-create", response_model=List[StudentAccountResponse])
+async def bulk_create_student_account(
+       student_account_in: List[StudentAccountCreate]
+):
+    """
+    Create a new student account.
+
+    List of:
+    - school_id: Include school ID for Admins, if user is teacher, school ID is taken from teacher's school
+    - school_name: Creates new school if name provided
+    - major_id: Major ID for using existing major
+    - major_name: Creates new major if name provided
+    - class_id: Class ID for using existing class
+    - class_name: Creates new class if name and grade level provided
+    - grade_level: Creates new class if name and grade level provided
+
+    Returns: The created student account record (placeholder implementation)
+    """
+    # Placeholder implementation for now
+    # TODO: Implement actual creation logic via StudentService and return real persisted record
+
+    items = [
+        {
+        "id": 1,
+        "user_id": "123e4567-e89b-12d3-a456-426614174000",
+        "full_name": "John Doe",
+        "student_id": "ABCICT0001",
+        "current_class_id": 1,
+        "password": "Password123!"
+        },
+        {
+        "id": 2,
+        "user_id": "223e4567-e89b-12d3-a456-426614174000",
+        "full_name": "Jane Smith",
+        "student_id": "ABCICT0002",
+        "current_class_id": 1,
+        "password": "Password123!"
+        }
+    ]
+
+    return items
