@@ -71,19 +71,35 @@ SUPABASE_KEY=your-anon-key-here
 
 ### 5. Set Up Database
 
-#### Step 5a: Initialize Schema (One-Time)
-In Supabase Dashboard → SQL Editor, copy and run `queries/initialize_tables.sql`
+**Option A: Using Migration System (Recommended)**
 
-#### Step 5b: Seed Reference Data
 ```bash
-# Check database status
-python scripts/init_db.py --check
+# Check migration status
+python scripts/migrate.py status
 
-# Seed reference data (roles, schools, majors)
+# Generate SQL for pending migrations
+python scripts/migrate.py upgrade
+
+# Copy the output and execute in Supabase Dashboard → SQL Editor
+
+# After successful execution, mark migrations as applied:
+python scripts/migrate.py mark-applied 001
+python scripts/migrate.py mark-applied 002
+
+# Commit the tracking file
+git add migrations/APPLIED_MIGRATIONS.md
+git commit -m "Applied initial migrations"
+```
+
+**Option B: Legacy Method (Initial Setup)**
+
+In Supabase Dashboard → SQL Editor, copy and run `queries/initialize_tables.sql`, then seed reference data:
+```bash
 python scripts/init_db.py --seed
 ```
 
-> For detailed setup instructions, see [DATABASE_SETUP_GUIDE.md](docs/DATABASE_SETUP_GUIDE.md)
+> For detailed migration guide, see [migrations/README.md](migrations/README.md)  
+
 
 ### 6. Run the Application
 
@@ -178,12 +194,19 @@ Iksan-AI-Interview-Backend/
 │   ├── SUPABASE_AUTH_IMPLEMENTATION_SUMMARY.md
 │   ├── TEXT_EXTRACTION_IMPLEMENTATION.md
 │   └── ...
+├── migrations/                     # 🆕 Database migration system
+│   ├── APPLIED_MIGRATIONS.md      # Tracks applied migrations (commit to git)
+│   ├── README.md                  # Migration system documentation
+│   ├── 001_initial_schema.sql     # Initial database schema
+│   ├── 001_initial_schema.down.sql # Rollback for initial schema
+│   ├── 002_seed_reference_data.sql # Reference data seeding
+│   └── 002_seed_reference_data.down.sql
 ├── queries/
-│   ├── initialize_tables.sql      # Database initialization
-│   ├── seed_reference_data.sql    # Reference data seeding
+│   ├── initialize_tables.sql      # Legacy: Database initialization
 │   └── ...
 ├── scripts/
-│   ├── init_db.py                 # Database setup automation script
+│   ├── migrate.py                 # 🆕 Migration management CLI
+│   ├── init_db.py                 # Legacy: Database setup automation
 │   └── reset_db.py                # Database hard reset script (dev only)
 ├── tests/
 │   ├── test_setup.py              # Setup validation tests
@@ -259,7 +282,6 @@ This project is configured for easy deployment to [Railway](https://railway.app)
 6. Set the required environment variables in the Railway dashboard:
    - `SUPABASE_URL` - Your Supabase project URL
    - `SUPABASE_KEY` - Your Supabase anon/public key
-   - `SUPABASE_STORAGE_BUCKET` - Your storage bucket name
    - `LLM_API_KEY` - Your LLM API key (if using AI features)
 7. Deploy!
 
@@ -285,17 +307,6 @@ If not using `railway.json`, configure in the Railway dashboard:
 
 1. **Start Command:** `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
 2. **Health Check Path:** `/health`
-
-#### Environment Variables for Production
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `SUPABASE_URL` | Yes | Your Supabase project URL |
-| `SUPABASE_KEY` | Yes | Your Supabase anon/public key |
-| `SUPABASE_STORAGE_BUCKET` | No | Storage bucket name |
-| `LLM_API_KEY` | No | LLM provider API key |
-| `LLM_MODEL` | No | LLM model name (default: gemini-2.5-flash) |
-| `BACKEND_CORS_ORIGINS` | No | Allowed origins (default: ["*"]) |
 
 #### Post-Deployment
 
