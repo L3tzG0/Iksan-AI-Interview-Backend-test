@@ -12,3 +12,5 @@ This file tracks which database migrations have been successfully applied.
 
 | Version | Name | Applied At | Applied By | Notes |
 |---------|------|------------|------------|-------|
+| 001 | initial_schema | 2025-12-09 08:27:38 | brillian354@gmail.com |  |
+| 002 | seed_reference_data | 2025-12-09 08:28:05 | brillian354@gmail.com |  |
