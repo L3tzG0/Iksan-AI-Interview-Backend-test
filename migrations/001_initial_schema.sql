@@ -183,7 +183,7 @@ CREATE TRIGGER set_teachers_updated_at
 -- ============================================================================
 
 -- Trigger function to auto-create user profile when auth user is created
--- Also creates role-specific records (students/teachers) based on role_name
+-- Also creates role-specific records for teachers (student registration is blocked)
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -194,9 +194,6 @@ DECLARE
     v_role_id bigint;
     v_role_name text;
     v_school_id bigint;
-    v_student_id text;
-    v_major_id bigint;
-    v_class_id bigint;
 BEGIN
     -- Extract role_id from metadata
     v_role_id := CASE 
@@ -205,7 +202,7 @@ BEGIN
         ELSE NULL
     END;
     
-    -- Extract school_id from metadata (for teachers and students)
+    -- Extract school_id from metadata (for teachers)
     v_school_id := CASE 
         WHEN NEW.raw_user_meta_data->>'school_id' IS NOT NULL 
         THEN (NEW.raw_user_meta_data->>'school_id')::bigint
@@ -243,45 +240,8 @@ BEGIN
     
     -- Create role-specific record based on role_name (source of truth)
     IF v_role_name = 'student' THEN
-        -- Extract student-specific fields from metadata
-        v_student_id := NEW.raw_user_meta_data->>'student_id';
-        v_major_id := CASE 
-            WHEN NEW.raw_user_meta_data->>'major_id' IS NOT NULL 
-            THEN (NEW.raw_user_meta_data->>'major_id')::bigint
-            ELSE NULL
-        END;
-        v_class_id := CASE 
-            WHEN NEW.raw_user_meta_data->>'class_id' IS NOT NULL 
-            THEN (NEW.raw_user_meta_data->>'class_id')::bigint
-            ELSE NULL
-        END;
-        
-        -- Validate required fields for student
-        IF v_student_id IS NULL THEN
-            RAISE EXCEPTION 'student_id is required for student registration.';
-        END IF;
-        IF v_school_id IS NULL THEN
-            RAISE EXCEPTION 'school_id is required for student registration.';
-        END IF;
-        IF v_major_id IS NULL THEN
-            RAISE EXCEPTION 'major_id is required for student registration.';
-        END IF;
-        IF v_class_id IS NULL THEN
-            RAISE EXCEPTION 'class_id is required for student registration.';
-        END IF;
-        
-        -- Validate major exists
-        IF NOT EXISTS (SELECT 1 FROM public.majors WHERE id = v_major_id) THEN
-            RAISE EXCEPTION 'Major with id % does not exist.', v_major_id;
-        END IF;
-        
-        -- Validate class exists
-        IF NOT EXISTS (SELECT 1 FROM public.classes WHERE id = v_class_id) THEN
-            RAISE EXCEPTION 'Class with id % does not exist.', v_class_id;
-        END IF;
-        
-        INSERT INTO public.students (user_id, student_id, school_id, major_id, current_class_id)
-        VALUES (NEW.id, v_student_id, v_school_id, v_major_id, v_class_id);
+        -- Student registration is blocked
+        RAISE EXCEPTION 'Student registration is not allowed. Students cannot register through this system.';
         
     ELSIF v_role_name = 'teacher' THEN
         INSERT INTO public.teachers (user_id, school_id)
