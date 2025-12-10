@@ -3,9 +3,16 @@ from fastapi import APIRouter, Depends, Query, HTTPException, status
 from supabase import AsyncClient
 from app.core.database import get_supabase
 from app.core.security import get_current_user
-from app.schemas.student import StudentAccountCreate, StudentAccountResponse
-from app.schemas.interview_session import SessionHistoryItem, SessionHistoryResponse, SessionDetailResponse, FeedbackDetail
+from app.schemas.student import (
+    StudentAccountCreate, 
+    StudentAccountResponse,
+    StudentBulkCreateRequest,
+    StudentBulkCreateResponse,
+    StudentDetailResponse
+)
+from app.schemas.interview_session import SessionHistoryItem, SessionHistoryResponse, SessionDetailResponse as InterviewSessionDetailResponse, FeedbackDetail
 from app.services.student_service import StudentService
+from app.services.student_registration_service import StudentRegistrationService
 from app.services.interview_session_service import InterviewSessionService
 
 router = APIRouter()
@@ -62,7 +69,7 @@ async def get_student_sessions(
     )
 
 
-@router.get("/{student_id}/sessions/{session_id}", response_model=SessionDetailResponse)
+@router.get("/{student_id}/sessions/{session_id}", response_model=InterviewSessionDetailResponse)
 async def get_session_detail(
     student_id: int,
     session_id: int,
@@ -144,7 +151,7 @@ async def get_session_detail(
         for ns in sorted_next_steps
     ]
     
-    return SessionDetailResponse(
+    return InterviewSessionDetailResponse(
         session_id=session["id"],
         student_id=session["student_id"],
         status=session["status"],
@@ -162,73 +169,74 @@ async def get_session_detail(
 
 @router.post("/create", response_model=StudentAccountResponse)
 async def create_student_account(
-    student_account_in: StudentAccountCreate
+    student_account_in: StudentAccountCreate,
+    supabase: Annotated[AsyncClient, Depends(get_supabase)],
+    current_user = Depends(get_current_user)
 ):
     """
-    Create a new student account.
-
-    - school_id: Include school ID for Admins, if user is teacher, school ID is taken from teacher's school
-    - school_name: Creates new school if name provided
-    - major_id: Major ID for using existing major
-    - major_name: Creates new major if name provided
-    - class_id: Class ID for using existing class
-    - class_name: Creates new class if name and grade level provided
-    - grade_level: Creates new class if name and grade level provided
-
-    Returns: The created student account record (placeholder implementation)
+    Create a new student account with auto-generated student ID and password.
+    
+    Requires: Teacher or Admin role
+    
+    The student ID is auto-generated as a 12-digit number:
+    - 3 digits: school_number
+    - 4 digits: major_number  
+    - 5 digits: sequential student_number
+    
+    Password is auto-generated with 8+ characters including uppercase, 
+    lowercase, digit, and symbol.
+    
+    Parameters:
+    - full_name: Student's full name (required)
+    - school_name: School name (creates if not exists)
+    - major_name: Major name (creates if not exists)
+    - class_name: Class name (required with grade_level to assign class)
+    - grade_level: Grade level for the class
+    - class_id: Alternative - use existing class ID
+    
+    Returns: The created student account with credentials
     """
-    # Placeholder implementation for now
-    # TODO: Implement actual creation logic via StudentService and return real persisted record
-
-    item = {
-        "id": 1,
-        "user_id": "123e4567-e89b-12d3-a456-426614174000",
-        "full_name": "John Doe",
-        "student_id": "ABCICT0001",
-        "current_class_id": 1,
-        "password": "Password123!"
-    }
-    return item
-
-
-@router.post("/bulk-create", response_model=List[StudentAccountResponse])
-async def bulk_create_student_account(
-       student_account_in: List[StudentAccountCreate]
-):
-    """
-    Create a new student account.
-
-    List of:
-    - school_id: Include school ID for Admins, if user is teacher, school ID is taken from teacher's school
-    - school_name: Creates new school if name provided
-    - major_id: Major ID for using existing major
-    - major_name: Creates new major if name provided
-    - class_id: Class ID for using existing class
-    - class_name: Creates new class if name and grade level provided
-    - grade_level: Creates new class if name and grade level provided
-
-    Returns: The created student account record (placeholder implementation)
-    """
-    # Placeholder implementation for now
-    # TODO: Implement actual creation logic via StudentService and return real persisted record
-
-    items = [
-        {
-        "id": 1,
-        "user_id": "123e4567-e89b-12d3-a456-426614174000",
-        "full_name": "John Doe",
-        "student_id": "ABCICT0001",
-        "current_class_id": 1,
-        "password": "Password123!"
-        },
-        {
-        "id": 2,
-        "user_id": "223e4567-e89b-12d3-a456-426614174000",
-        "full_name": "Jane Smith",
-        "student_id": "ABCICT0002",
-        "current_class_id": 1,
-        "password": "Password123!"
-        }
-    ]
-
-    return items
+    # Get user's role from user_profiles table
+    profile_response = await supabase.table("user_profiles").select("role_id").eq("id", str(current_user.id)).single().execute()
+    
+    if not profile_response.data:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User profile not found"
+        )
+    
+    role_id = profile_response.data.get("role_id")
+    # role_id 1 = admin, role_id 2 = teacher
+    if role_id not in [1, 2]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only teachers and admins can create student accounts"
+        )
+    
+    # Get teacher's school_id if they are a teacher
+    creator_school_id = None
+    if role_id == 2:  # Teacher
+        teacher_response = await supabase.table("teachers").select("school_id").eq("user_id", str(current_user.id)).single().execute()
+        if teacher_response.data:
+            creator_school_id = teacher_response.data.get("school_id")
+    
+    registration_service = StudentRegistrationService(supabase)
+    
+    try:
+        result = await registration_service.create_student_account(
+            student_account_in,
+            creator_school_id=creator_school_id
+        )
+        
+        # Service returns StudentAccountResponse directly
+        return result
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create student account: {str(e)}"
+        )

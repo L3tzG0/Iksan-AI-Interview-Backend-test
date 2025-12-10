@@ -9,7 +9,8 @@ from app.core.config import settings
 from app.core.rate_limit import limiter, get_ip_address
 from app.services.auth_service import AuthService
 from app.services.user_service import UserProfileService
-from app.schemas.auth import Token, LoginRequest, RegisterRequest, UserResponse
+from app.services.student_registration_service import StudentRegistrationService
+from app.schemas.auth import Token, LoginRequest, RegisterRequest, UserResponse, StudentLoginRequest, StudentLoginResponse
 
 router = APIRouter()
 
@@ -194,3 +195,73 @@ async def read_users_me(
         )
 
         return JSONResponse(content=jsonable_encoder(user_response.dict(exclude_none=True)))
+
+
+@router.post("/student-login", response_model=StudentLoginResponse)
+@limiter.limit(settings.RATE_LIMIT_AUTH, key_func=get_ip_address)
+async def student_login(
+    request: Request,
+    login_data: StudentLoginRequest,
+    supabase: Annotated[AsyncClient, Depends(get_supabase)]
+):
+    """
+    Login with student ID and password (username-based login for students).
+    
+    Students use their auto-generated student ID (12 digits) and password
+    instead of email-based login.
+    
+    This uses a fake email pattern internally to work with Supabase Auth:
+    {student_id}@students.internal
+    
+    Parameters:
+    - student_id: The 12-digit student ID
+    - password: The student's password
+    
+    Returns: Access token, refresh token, and student user information
+    
+    Rate limited: 5 requests per minute per IP address.
+    """
+    registration_service = StudentRegistrationService(supabase)
+    
+    try:
+        result = await registration_service.authenticate_student(
+            login_data.student_id,
+            login_data.password
+        )
+        
+        # Get student details from the database
+        student_response = await supabase.table("students").select(
+            "id, user_id, full_name, student_id, current_class_id, "
+            "classes(id, class_name, grade_level, "
+            "schools(id, school_name), "
+            "majors(id, major_name))"
+        ).eq("student_id", login_data.student_id).single().execute()
+        
+        student = student_response.data
+        class_info = student.get("classes") if student else None
+        school_info = class_info.get("schools") if class_info else None
+        major_info = class_info.get("majors") if class_info else None
+        
+        return StudentLoginResponse(
+            access_token=result["access_token"],
+            token_type="bearer",
+            refresh_token=result["refresh_token"],
+            user_id=result["user_id"],
+            student_id=login_data.student_id,
+            full_name=student.get("full_name") if student else None,
+            school_name=school_info.get("school_name") if school_info else None,
+            major_name=major_info.get("major_name") if major_info else None,
+            class_name=class_info.get("class_name") if class_info else None,
+            grade_level=class_info.get("grade_level") if class_info else None
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e),
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Login failed: {str(e)}"
+        )

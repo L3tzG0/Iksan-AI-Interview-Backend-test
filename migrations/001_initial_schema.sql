@@ -239,11 +239,7 @@ BEGIN
     );
     
     -- Create role-specific record based on role_name (source of truth)
-    IF v_role_name = 'student' THEN
-        -- Student registration is blocked
-        RAISE EXCEPTION 'Student registration is not allowed. Students cannot register through this system.';
-        
-    ELSIF v_role_name = 'teacher' THEN
+    IF v_role_name = 'teacher' THEN
         INSERT INTO public.teachers (user_id, school_id)
         VALUES (NEW.id, v_school_id);
     END IF;

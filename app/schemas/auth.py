@@ -1,6 +1,6 @@
 from typing import Optional, Any, Dict, TYPE_CHECKING
 from datetime import datetime
-from pydantic import BaseModel, EmailStr, field_validator, model_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 from app.schemas.types import FlexibleDateTime
 
 
@@ -24,12 +24,42 @@ class Token(BaseModel):
     refresh_token: Optional[str] = None
     user: Optional[UserResponse] = None
 
+
 class TokenData(BaseModel):
     email: Optional[str] = None
 
+
 class LoginRequest(BaseModel):
+    """Login request for email-based authentication (teachers/admins)"""
     email: EmailStr
     password: str
+
+
+class StudentLoginRequest(BaseModel):
+    """
+    Login request for student authentication.
+    Students use their generated student_id instead of email.
+    """
+    student_id: str = Field(..., min_length=12, max_length=12, description="12-digit student ID")
+    password: str = Field(..., min_length=1)
+
+    @field_validator('student_id')
+    @classmethod
+    def validate_student_id(cls, v: str) -> str:
+        """Validate student ID is 12 digits"""
+        if not v.isdigit():
+            raise ValueError('Student ID must contain only digits')
+        return v
+
+
+class StudentLoginResponse(BaseModel):
+    """Response for successful student login"""
+    access_token: str
+    token_type: str = "bearer"
+    refresh_token: Optional[str] = None
+    user_id: str
+    student_id: str
+    full_name: Optional[str] = None
 
 
 class TeacherRegistrationData(BaseModel):
