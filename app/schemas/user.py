@@ -18,11 +18,6 @@ class UserProfileCreate(UserProfileBase):
     """
     pass
 
-class UserProfileUpdate(BaseModel):
-    email: Optional[EmailStr] = None
-    full_name: Optional[str] = None
-    role_id: Optional[int] = None
-
 class UserProfileResponse(UserProfileBase):
     id: UUID
     created_at: FlexibleDateTime

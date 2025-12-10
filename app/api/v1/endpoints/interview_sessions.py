@@ -1,5 +1,4 @@
-import asyncio # Import needed for async calls
-from typing import List, Annotated, Any, Optional
+from typing import Annotated, Optional
 from datetime import datetime
 from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException, status, Query, Request
 from fastapi.responses import JSONResponse
@@ -10,6 +9,7 @@ from app.core.config import settings
 from app.core.security import get_current_user
 from app.core.rate_limit import limiter
 from app.api.dependencies import require_role
+from app.services.storage_service import StorageService
 
 # New service imports (replacing LLMService)
 from app.services.question_generator import generate_interview_questions
@@ -17,7 +17,6 @@ from app.services.evaluation_generator import generate_session_evaluation
 
 from app.schemas.interview_session import (
     InterviewSessionResponse, 
-    InterviewSessionCreate,
     SessionInitiateResponse,
     SessionHistoryItem,
     SessionHistoryResponse,
@@ -29,16 +28,11 @@ from app.schemas.interview_session import (
     QuestionAnswerPair # Needed for safely referencing the data structure
 )
 from app.schemas.pagination import PaginatedResponse, create_paginated_response
-from app.services.storage_service import StorageService
 from app.services.document_service import DocumentService
 from app.services.interview_session_service import InterviewSessionService
 from app.services.text_extraction_service import TextExtractionService
 from app.services.feedback_service import FeedbackService
 from app.services.user_service import UserProfileService
-# from app.services.llm_service import LLMService # REMOVED
-from app.schemas.summary import InterviewSummaryCreate # Explicitly import the schema
-from app.schemas.next_step import InterviewNextStepCreate
-
 
 router = APIRouter()
 
@@ -377,7 +371,7 @@ async def get_session_detail(
 @limiter.limit(settings.RATE_LIMIT_LLM)
 async def initiate_interview_session(
     request: Request,
-    file: Optional[UploadFile] = File(None, description="Document file (PDF, DOCX, TXT, MD)"),
+    file: Optional[UploadFile] = File(None, description="Document file (PDF, DOCX, & TXT)"),
     raw_text: Optional[str] = Form(None, description="Raw text content"),
     # ADDED: Required for targeted question generation
     field: str = Form(..., description="Target industry/field for the interview."),

@@ -2,7 +2,6 @@ from typing import Optional, Tuple, List, Any
 from supabase import AsyncClient
 from postgrest.exceptions import APIError
 from fastapi import HTTPException, status
-from app.schemas.user import UserProfileCreate, UserProfileUpdate
 from uuid import UUID
 
 # Explicit columns to select for user profiles (avoiding SELECT *)
@@ -142,20 +141,6 @@ class UserProfileService:
             if not response.data:
                 return None
             return response.data[0]
-        except Exception as e:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-
-    async def update_profile(self, user_id: UUID, profile: UserProfileUpdate):
-        """Update user profile information"""
-        try:
-            response = await self.supabase.table('user_profiles').update(
-                profile.model_dump(exclude_unset=True)
-            ).eq('id', str(user_id)).execute()
-            if not response.data:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User profile not found")
-            return response.data[0]
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 

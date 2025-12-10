@@ -5,7 +5,7 @@ A FastAPI-based backend service for the Iksan AI Interview platform, powered by 
 ##  Features
 
 - **Supabase Authentication** - Secure user authentication with JWT tokens
-- **Role-Based Access Control** - Support for students and teachers
+- **Role-Based Access Control** - Support for students, teachers, and admins
 - **RESTful API** - Well-documented OpenAPI/Swagger endpoints
 - **Row Level Security** - Database-level security policies
 - **Document Processing** - PDF, DOCX, TXT, MD file extraction
@@ -132,7 +132,7 @@ The backend uses **Supabase Auth** with JWT tokens for secure API access:
 1. **User Registration/Login** - Via `/api/v1/auth/` endpoints
 2. **JWT Token Generation** - Automatic token creation by Supabase
 3. **Token Validation** - Every protected endpoint verifies JWT token
-4. **Role-Based Access** - User roles (student/teacher) determine endpoint access
+4. **Role-Based Access** - User roles (student/teacher/admin) determine endpoint access
 5. **Row Level Security** - Database queries filtered by user role and permissions
 
 **Key Security Features:**
@@ -154,7 +154,6 @@ Iksan-AI-Interview-Backend/
 │   │       └── endpoints/           # API route handlers
 │   │           ├── auth.py          # Authentication endpoints
 │   │           ├── students.py      # Student management
-│   │           ├── teachers.py      # Teacher management
 │   │           ├── classes.py       # Class management
 │   │           ├── schools.py       # School management
 │   │           ├── majors.py        # Major/specialization management
@@ -170,7 +169,6 @@ Iksan-AI-Interview-Backend/
 │   ├── services/
 │   │   ├── auth_service.py         # Authentication logic
 │   │   ├── student_service.py      # Student data operations
-│   │   ├── teacher_service.py      # Teacher data operations
 │   │   ├── user_service.py         # User profile management
 │   │   ├── class_service.py        # Class management
 │   │   ├── document_service.py     # Document storage & retrieval

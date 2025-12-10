@@ -1,9 +1,9 @@
-from typing import List, Annotated, Optional
+from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, Query
 from supabase import AsyncClient
 from postgrest.exceptions import APIError
 from app.core.database import get_supabase
-from app.schemas.school import SchoolResponse, SchoolCreate
+from app.schemas.school import SchoolResponse
 from app.schemas.pagination import PaginatedResponse, create_paginated_response
 
 router = APIRouter()
@@ -47,10 +47,3 @@ async def read_schools(
             total = count_response.count if count_response.count is not None else 0
             return create_paginated_response(items=[], total=total, skip=skip, limit=limit)
         raise
-
-@router.post("/", response_model=SchoolResponse)
-async def create_school(
-    school_in: SchoolCreate,
-    supabase: Annotated[AsyncClient, Depends(get_supabase)]
-):
-    pass

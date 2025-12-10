@@ -1,8 +1,8 @@
-from typing import List, Annotated
+from typing import Annotated
 from fastapi import APIRouter, Depends, Query
 from supabase import AsyncClient
 from app.core.database import get_supabase
-from app.schemas.role import RoleResponse, RoleCreate
+from app.schemas.role import RoleResponse
 from app.schemas.pagination import PaginatedResponse, create_paginated_response
 
 router = APIRouter()
@@ -36,12 +36,3 @@ async def read_roles(
     query = supabase.table('roles').select(ROLE_COLUMNS, count='exact')
     response = await query.offset(skip).limit(limit).execute()
     return create_paginated_response(items=response.data, total=total, skip=skip, limit=limit)
-
-@router.post("/", response_model=RoleResponse)
-async def create_role(
-    role_in: RoleCreate,
-    supabase: Annotated[AsyncClient, Depends(get_supabase)]
-):
-    """Create a new role"""
-    response = await supabase.table('roles').insert(role_in.model_dump()).execute()
-    return response.data[0] if response.data else None

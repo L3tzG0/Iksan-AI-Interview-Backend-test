@@ -1,11 +1,11 @@
-from typing import List, Annotated, Optional
+from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, Query
 from supabase import AsyncClient
 from app.core.database import get_supabase
-from app.schemas.user import UserProfileResponse, UserProfileUpdate
+from app.schemas.user import UserProfileResponse
 from app.schemas.pagination import PaginatedResponse, create_paginated_response
 from app.services.user_service import UserProfileService
-from uuid import UUID
+from app.schemas.types import RoleType
 
 router = APIRouter()
 
@@ -15,7 +15,7 @@ async def read_user_profiles(
     supabase: Annotated[AsyncClient, Depends(get_supabase)],
     skip: int = Query(default=0, ge=0, description="Number of records to skip"),
     limit: int = Query(default=20, ge=1, le=100, description="Maximum records to return"),
-    role_id: Optional[int] = Query(default=None, description="Filter by role ID"),
+    role_id: Optional[RoleType] = Query(default=None, description="Filter by role ID"),
     search: Optional[str] = Query(default=None, description="Search by name or email"),
     with_role: bool = Query(default=False, description="Include role information")
 ):
@@ -37,28 +37,3 @@ async def read_user_profiles(
         with_role=with_role
     )
     return create_paginated_response(items=profiles, total=total, skip=skip, limit=limit)
-
-@router.get("/{user_id}", response_model=UserProfileResponse)
-async def read_user_profile_by_id(
-    user_id: UUID,
-    supabase: Annotated[AsyncClient, Depends(get_supabase)]
-):
-    """
-    Get a specific user profile by UUID.
-    """
-    service = UserProfileService(supabase)
-    profile = await service.get_profile(user_id)
-    return profile
-
-@router.put("/{user_id}", response_model=UserProfileResponse)
-async def update_user_profile(
-    user_id: UUID,
-    profile_in: UserProfileUpdate,
-    supabase: Annotated[AsyncClient, Depends(get_supabase)]
-):
-    """
-    Update a user profile.
-    """
-    service = UserProfileService(supabase)
-    profile = await service.update_profile(user_id, profile_in)
-    return profile

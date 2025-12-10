@@ -1,81 +1,14 @@
 from typing import List, Annotated, Optional
-from datetime import datetime
 from fastapi import APIRouter, Depends, Query, HTTPException, status
-from fastapi.responses import JSONResponse
 from supabase import AsyncClient
 from app.core.database import get_supabase
 from app.core.security import get_current_user
-from app.schemas.student import StudentResponse, StudentUpdate, StudentAccountCreate, StudentAccountResponse
+from app.schemas.student import StudentAccountCreate, StudentAccountResponse
 from app.schemas.interview_session import SessionHistoryItem, SessionHistoryResponse, SessionDetailResponse, FeedbackDetail
-from app.schemas.pagination import PaginatedResponse, create_paginated_response
 from app.services.student_service import StudentService
 from app.services.interview_session_service import InterviewSessionService
 
 router = APIRouter()
-
-
-@router.get("/", response_model=PaginatedResponse[StudentResponse])
-async def read_students(
-    supabase: Annotated[AsyncClient, Depends(get_supabase)],
-    skip: int = Query(default=0, ge=0, description="Number of records to skip"),
-    limit: int = Query(default=20, ge=1, le=100, description="Maximum records to return"),
-    student_id: Optional[str] = Query(default=None, description="Filter by student ID number (partial match)"),
-    school_id: Optional[int] = Query(default=None, description="Filter by school ID"),
-    major_id: Optional[int] = Query(default=None, description="Filter by major ID"),
-    class_id: Optional[int] = Query(default=None, description="Filter by class ID"),
-    with_details: bool = Query(default=False, description="Include school/major/class details")
-):
-    """
-    Get all students with pagination and optional filtering.
-    
-    - **skip**: Number of records to skip (default: 0)
-    - **limit**: Max records to return (default: 20, max: 100)
-    - **student_id**: Filter by student ID number (partial match)
-    - **school_id**: Filter by school
-    - **major_id**: Filter by major
-    - **class_id**: Filter by class
-    - **with_details**: Include related school/major/class info
-    """
-    service = StudentService(supabase)
-    students, total = await service.get_all_students(
-        skip=skip,
-        limit=limit,
-        student_id_filter=student_id,
-        school_id=school_id,
-        major_id=major_id,
-        class_id=class_id,
-        with_details=with_details
-    )
-    return create_paginated_response(items=students, total=total, skip=skip, limit=limit)
-
-
-@router.get("/by-student-id/{student_id_number}", response_model=StudentResponse)
-async def get_student_by_student_id(
-    student_id_number: str,
-    supabase: Annotated[AsyncClient, Depends(get_supabase)]
-):
-    """
-    Get a student by their student ID number (not the primary key).
-    
-    - **student_id_number**: The student's ID number (e.g., school-issued ID)
-    """
-    service = StudentService(supabase)
-    return await service.get_student_by_student_id(student_id_number)
-
-
-@router.patch("/{id}", response_model=StudentResponse)
-async def update_student(
-    id: int,
-    student_in: StudentUpdate,
-    supabase: Annotated[AsyncClient, Depends(get_supabase)]
-):
-    """
-    Update a student's information.
-    
-    - **id**: The primary key ID of the student record
-    """
-    service = StudentService(supabase)
-    return await service.update_student(id, student_in)
 
 
 @router.get("/{student_id}/sessions", response_model=SessionHistoryResponse)

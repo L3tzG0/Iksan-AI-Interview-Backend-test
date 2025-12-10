@@ -58,7 +58,7 @@ class TextExtractionService:
                 raw_text = self._extract_from_pdf(file_bytes)
             elif content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
                 raw_text = self._extract_from_docx(file_bytes)
-            elif content_type in ["text/plain", "text/markdown"]:
+            elif content_type in ["text/plain"]:
                 raw_text = self._extract_from_text(file_bytes)
             else:
                 raise ValueError(f"Unsupported content type: {content_type}")
@@ -158,7 +158,7 @@ class TextExtractionService:
     
     def _extract_from_text(self, file_bytes: bytes) -> str:
         """
-        Extract text from plain text or markdown file
+        Extract text from plain text file
         Can use PyMuPDF for consistent handling or simple decode
         
         Args:

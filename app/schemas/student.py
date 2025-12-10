@@ -4,10 +4,6 @@ from pydantic import BaseModel, model_validator
 from uuid import UUID
 
 from app.schemas.types import GradeLevel
-from app.schemas.user import UserProfileResponse
-from app.schemas.school import SchoolResponse
-from app.schemas.major import MajorResponse
-from app.schemas.class_schema import ClassResponse
 
 
 class StudentBase(BaseModel):
@@ -62,13 +58,6 @@ class StudentAccountResponse(BaseModel):
         from_attributes = True
 
 
-class StudentUpdate(BaseModel):
-    student_id: Optional[str] = None
-    school_id: Optional[int] = None
-    major_id: Optional[int] = None
-    current_class_id: Optional[int] = None
-
-
 class StudentResponse(BaseModel):
     id: int
     user_id: UUID
@@ -79,10 +68,3 @@ class StudentResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
-
-class StudentWithDetails(StudentResponse):
-    user_profile: Optional[UserProfileResponse] = None
-    school: Optional[SchoolResponse] = None
-    major: Optional[MajorResponse] = None
-    current_class: Optional[ClassResponse] = None
