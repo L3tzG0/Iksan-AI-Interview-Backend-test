@@ -231,29 +231,33 @@ async def student_login(
         
         # Get student details from the database
         student_response = await supabase.table("students").select(
-            "id, user_id, full_name, student_id, current_class_id, "
-            "classes(id, class_name, grade_level, "
+            "id, user_id, student_id, "
+            "user_profiles!user_id(full_name), "
             "schools(id, school_name), "
-            "majors(id, major_name))"
+            "majors(id, major_name), "
+            "classes(id, class_name, grade_level)"
         ).eq("student_id", login_data.student_id).single().execute()
         
         student = student_response.data
+        user_profile = student.get("user_profiles") if student else None
+        school_info = student.get("schools") if student else None
+        major_info = student.get("majors") if student else None
         class_info = student.get("classes") if student else None
-        school_info = class_info.get("schools") if class_info else None
-        major_info = class_info.get("majors") if class_info else None
         
-        return StudentLoginResponse(
+        student_login_response = StudentLoginResponse(
             access_token=result["access_token"],
             token_type="bearer",
             refresh_token=result["refresh_token"],
-            user_id=result["user_id"],
+            user_id=result["user"].id,
             student_id=login_data.student_id,
-            full_name=student.get("full_name") if student else None,
+            full_name=user_profile.get("full_name") if user_profile else None,
             school_name=school_info.get("school_name") if school_info else None,
             major_name=major_info.get("major_name") if major_info else None,
             class_name=class_info.get("class_name") if class_info else None,
             grade_level=class_info.get("grade_level") if class_info else None
         )
+        
+        return JSONResponse(content=jsonable_encoder(student_login_response.dict(exclude_none=True)))
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
