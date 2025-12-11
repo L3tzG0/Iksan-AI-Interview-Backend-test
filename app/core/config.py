@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     DEEPGRAM_API_KEY: str
     GEMINI_API_KEY: str
     
+    # Student Registration
+    STUDENT_PASSWORD_SALT: str = "iksan_student_pwd_"
+    
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
 
 settings = Settings()

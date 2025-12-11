@@ -19,6 +19,7 @@ from supabase import AsyncClient
 from fastapi import HTTPException, status
 
 from app.schemas.student import StudentAccountCreate, StudentAccountResponse
+from app.core.config import settings
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -106,8 +107,7 @@ class StudentRegistrationService:
         """
         # Simple hash for storage - this is for display recovery, not security
         # The actual auth password is managed by Supabase
-        salt = "iksan_student_pwd_"
-        return hashlib.sha256(f"{salt}{password}".encode()).hexdigest()
+        return hashlib.sha256(f"{settings.STUDENT_PASSWORD_SALT}{password}".encode()).hexdigest()
 
     def _generate_student_email(self, student_id: str) -> str:
         """
