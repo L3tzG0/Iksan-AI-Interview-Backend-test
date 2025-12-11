@@ -1,7 +1,7 @@
 import asyncio # Import needed for async calls
 from typing import List, Annotated, Any, Optional
 from datetime import datetime
-from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException, status, Query, Request
+from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException, status, Query, Request, Path
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
 from supabase import Client
@@ -10,6 +10,11 @@ from app.core.config import settings
 from app.core.security import get_current_user
 from app.core.rate_limit import limiter
 from app.api.dependencies import require_role
+
+#redis import
+import redis 
+from app.core.redis_client import get_redis_connection
+from app.services.queue_service import QueueService 
 
 # New service imports (replacing LLMService)
 from app.services.question_generator import generate_interview_questions
@@ -29,7 +34,8 @@ from app.schemas.interview_session import (
     SessionDetailResponse,
     FeedbackDetail,
     GeneratedQuestion,
-    QuestionAnswerPair # Needed for safely referencing the data structure
+    QuestionAnswerPair,
+    SessionStatusResponse
 )
 from app.schemas.pagination import PaginatedResponse, create_paginated_response
 from app.services.storage_service import StorageService
@@ -282,6 +288,30 @@ async def submit_session_answers( # Changed to async
         )
 
 
+# --- ASYNCHRONOUS FLOW - STEP 2: STATUS CHECK (Polling) ---
+@router.get("/status/{session_id}", response_model=SessionStatusResponse)
+async def get_session_status(
+    session_id: Annotated[int, Path(description="The ID of the interview session")],
+    current_user = Depends(require_role("student")),
+    supabase: Client = Depends(get_supabase)
+):
+    """
+    Allows the client to poll for the current status of a queued session.
+    """
+    session_service = InterviewSessionService(supabase)
+    
+    session_record = session_service.get_session_by_id(session_id, current_user.id)
+    if not session_record:
+        raise HTTPException(status_code=404, detail="Session not found or unauthorized")
+        
+    status_message = session_record.get('status')
+    
+    return SessionStatusResponse(
+        session_id=session_id,
+        status=status_message,
+        is_ready=(status_message == "completed")
+    )
+
 @router.get("/{session_id}", response_model=SessionDetailResponse)
 @limiter.limit(settings.RATE_LIMIT_DEFAULT)
 def get_session_detail(
@@ -293,14 +323,7 @@ def get_session_detail(
     """
     Get detailed view of a student's specific session with feedbacks.
     
-    This endpoint is for students to view their own session details and feedback.
-    Uses relational select to fetch session with all feedbacks in a single query.
-    Requires: Authentication (JWT token) - student accessing their own session
-    
-    Parameters:
-    - session_id: The ID of the session to retrieve
-    
-    Returns: Detailed session information with feedback
+    If the session is not 'completed', this returns a 409 Conflict.
     """
     session_service = InterviewSessionService(supabase)
     user_service = UserProfileService(supabase)
@@ -312,6 +335,15 @@ def get_session_detail(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Session not found"
+        )
+    
+    # >>> NEW CHECK: If session is not completed, block retrieval and advise polling. <<<
+    current_status = session.get("status")
+    if current_status != "in_progress":
+        # Raise 409 Conflict to signal that the request cannot be fulfilled yet.
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Session is still processing. Current status: {current_status}. Please continue polling the /status/{session_id} endpoint."
         )
     
     # Verify current user owns this session (get student details)
@@ -340,7 +372,7 @@ def get_session_detail(
             is_correct=fb.get("is_correct") or False
         )
         for fb in sorted_feedbacks
-        if fb.get("overall_score") is not None and fb.get("overall_score") > 0.0 # Only show evaluated items
+        # if fb.get("overall_score") is not None and fb.get("overall_score") > 0.0 # Only show evaluated items
     ]
     
     # Get summary data
@@ -384,77 +416,73 @@ def get_session_detail(
     return JSONResponse(content=jsonable_encoder(response.dict()))
 
 
+
 # Initiate route for job prep
-@router.post("/initiate", response_model=SessionInitiateResponse)
+# --- ASYNCHRONOUS FLOW - STEP 1: PRODUCER (Initiate & Queue) ---
+@router.post("/initiate", 
+    response_model=SessionInitiateResponse,
+    status_code=status.HTTP_202_ACCEPTED # Returns 202 Accepted immediately
+)
 @limiter.limit(settings.RATE_LIMIT_LLM)
-async def initiate_interview_session( # Changed to async
+async def initiate_interview_session(
     request: Request,
+    redis_conn: Annotated[redis.Redis, Depends(get_redis_connection)],
     file: Optional[UploadFile] = File(None, description="Document file (PDF, DOCX, TXT, MD)"),
     raw_text: Optional[str] = Form(None, description="Raw text content"),
-    # ADDED: Required for targeted question generation
     field: str = Form(..., description="Target industry/field for the interview."),
     role: str = Form(..., description="Target job role for the interview."),
     current_user = Depends(require_role("student")),
-    supabase: Client = Depends(get_supabase)
+    supabase: Client = Depends(get_supabase),
+    # Redis is injected for the Queue Service
 ):
     """
-    Initiate new interview session by processing document text or raw text.
-    
-    Requires: Authentication (JWT token) - Student role only
-    Rate limited: 10 requests per minute per user.
+    Initiate new interview session. Saves input data, creates a session in 'pending' status, 
+    and pushes the job to the Redis queue for asynchronous processing by the worker.
+    Returns 202 Accepted immediately.
     """
     # Initialize services
-    storage_service = StorageService(supabase) # Used for validation only
+    storage_service = StorageService(supabase)
     session_service = InterviewSessionService(supabase)
     document_service = DocumentService(supabase)
     extraction_service = TextExtractionService()
-    feedback_service = FeedbackService(supabase)
     user_service = UserProfileService(supabase)
+    queue_service = QueueService(redis_conn)
     
     session_id: int | None = None
     
     try:
-        # Step 0: Validate that at least one of file or raw_text is provided
+        # Step 0: Validation 
         if not file and not raw_text:
             raise HTTPException(
                 status_code=400,
                 detail="Either 'file' or 'raw_text' must be provided"
             )
-        
-        # Validate field and role are not empty
         if not field or not role:
             raise HTTPException(
                 status_code=400,
                 detail="Target 'field' and 'role' must be provided for question generation."
             )
 
-        # Step 1: Get student_id from token-derived current_user
+        # Step 1: Get student_id 
         student_details = user_service.get_student_details(current_user.id)
-        
         if not student_details:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Current user is not associated with a student record"
             )
-        
         student_id = student_details.get("id")
         
-        # Step 2: Create session
-        session = session_service.create_session(student_id=student_id, status="in_progress")
+        # Step 2: Create session with initial 'pending' status
+        # NOTE: Status is set to "pending" instead of the synchronous "in_progress"
+        session = session_service.create_session(student_id=student_id, status="pending")
         session_id = session['id']
-        
-        # Ensure session_id is set (type narrowing)
         assert session_id is not None, "Session ID must be set after creation"
         
-        # Step 3: Process file or use raw_text
+        # Step 3: Process file or use raw_text (Text Extraction)
         cleaned_text_extracted: str
-        
+        # --- START FILE PROCESSING LOGIC ---
         if file:
-            # File provided - process it (ignore raw_text if also provided)
-            # Step 3a: Validate file type and filename
             storage_service.validate_file(file)
-
-            # Step 3b: Guard against oversized uploads before loading into memory
             max_size_message = (
                 f"File too large. Maximum size: {settings.MAX_FILE_SIZE / (1024*1024):.1f}MB"
             )
@@ -470,13 +498,11 @@ async def initiate_interview_session( # Changed to async
                             status_code=400,
                             detail=max_size_message
                         )
-
-            # Stream the file in manageable chunks to cap memory usage while reading
             chunk_size = 1024 * 1024 # 1MB
             total_read = 0
             buffer = bytearray()
             while True:
-                chunk = await file.read(chunk_size) # Changed to await file.read()
+                chunk = await file.read(chunk_size) 
                 if not chunk:
                     break
                 total_read += len(chunk)
@@ -486,76 +512,57 @@ async def initiate_interview_session( # Changed to async
                         detail=max_size_message
                     )
                 buffer.extend(chunk)
-
             file_bytes = bytes(buffer)
-            
-            # Verify file signature (magic numbers)
             content_type = file.content_type or "application/octet-stream"
             storage_service.verify_file_signature(file_bytes, content_type)
-            
-            # Step 3c: Extract and clean text from document
             cleaned_text_extracted = extraction_service.extract_text_from_file(
                 file_bytes=file_bytes,
                 content_type=content_type
             )
         else:
-            # Only raw_text provided - use it directly as cleaned text
             if raw_text is None:
                 raise HTTPException(status_code=400, detail="raw_text cannot be None")
             cleaned_text_extracted = raw_text
+        # --- END FILE PROCESSING LOGIC ---
         
         # Step 4: Save cleaned text to documents table
-        document = document_service.create_document(
+        document_service.create_document(
             session_id=session_id,
             cleaned_text=cleaned_text_extracted
         )
         
-        # RAG Implementation
-
-        rag_context = await retrieve_questions_from_rag(cv_text=cleaned_text_extracted, k=5) # Using k=5 for 5 questions
-
-        # Step 5: Generate interview questions using LLM (using the new service)
-        # Service returns List[GeneratedQuestion]
-        generated_questions_list = await generate_interview_questions(
-            cv_text=cleaned_text_extracted,
-            field=field,
-            role=role,
-            reference_questions=rag_context.reference_questions
-        )
+        # Step 5: ENQUEUE THE JOB
+        job_payload = {
+            "job_type": "interview_generation", # Added job type for future expansion
+            "session_id": session_id,
+            "student_id": student_id,
+            "cv_text": cleaned_text_extracted,
+            "field": field,
+            "role": role,
+            "timestamp": datetime.now().isoformat()
+        }
         
-        # Step 6: Create detailed_feedbacks records (10 rows with questions)
-        # This step uses the list of Pydantic models (correct).
-        feedback_service.create_detailed_feedbacks_batch(
-            session_id=session_id,
-            questions=generated_questions_list
-        )
+        queue_length = queue_service.enqueue_job(job_payload)
         
-        # Step 7: Build response with all generated questions
-        # The redundant loop from before has been removed. We use the list directly.
+        # Step 6: Build 202 response
         response = SessionInitiateResponse(
             success=True,
-            message=f"Interview session initiated successfully with 10 questions. RAG query used: {rag_context.source_query[:50]}...",
-            session_id=session['id'],
-            # Directly use the list of GeneratedQuestion objects from the service
-            questions=generated_questions_list
+            message=f"Request accepted and queued. Session ID: {session_id}. There are {queue_length - 1} pending jobs ahead of you.",
+            session_id=session_id,
+            questions=[] # Always empty in async mode
         )
         
-        # FastAPI's jsonable_encoder correctly converts the List[GeneratedQuestion] 
-        # objects into List[dict] for the JSON response body.
         return JSONResponse(content=jsonable_encoder(response.dict()))
         
     except HTTPException:
-        # HTTPExceptions already have proper status codes and messages
-        # Perform rollback before re-raising
         _rollback_session_creation(session_service, session_id)
         raise
         
     except Exception as e:
-        # Unexpected errors - rollback and return 500
         _rollback_session_creation(session_service, session_id)
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to initiate interview session: {str(e)}"
+            detail=f"Failed to queue interview session: {str(e)}"
         )
  
 # Initiate route for university prep

@@ -109,6 +109,14 @@ class SessionFeedbackResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class SessionStatusResponse(BaseModel):
+    """Response schema for LLM-generated feedback"""
+    session_id: int
+    status: str
+    is_ready: str
+
+    class Config:
+        from_attributes = True
 
 class SessionDetailResponse(BaseModel):
     """Detailed view of a specific session with all feedback"""

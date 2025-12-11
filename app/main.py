@@ -8,6 +8,7 @@ from supabase import create_client
 from app.core.config import settings
 from app.core.rate_limit import limiter, rate_limit_exceeded_handler
 from app.api.v1.router import api_router
+from app.core.redis_client import initialize_redis_client, close_redis_client 
 
 
 @asynccontextmanager
@@ -31,11 +32,17 @@ async def lifespan(app: FastAPI):
     # Initialize rate limiter state
     app.state.limiter = limiter
     
+    # Initialize Redis client (Opens the connection)
+    redis_client = initialize_redis_client()
+    app.state.redis_client = redis_client
+
     yield
     
     # Shutdown: Cleanup (optional - httpx handles connection cleanup automatically)
     # If explicit cleanup is needed in the future, add it here
     # Example: app.state.supabase.postgrest.aclose()
+    close_redis_client()
+    
 
 
 app = FastAPI(
