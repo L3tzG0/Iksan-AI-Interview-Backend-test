@@ -197,6 +197,9 @@ async def create_student_account(
     Returns: The created student account with credentials
     """
     # Get user's role from user_profiles table
+    # The alternative of extending the dependency would add complexity and 
+    # potentially a second query anyway (dependency would need to fetch the role), 
+    # so this direct approach is cleaner.
     profile_response = await supabase.table("user_profiles").select("role_id").eq("id", str(current_user.id)).single().execute()
     
     if not profile_response.data:
@@ -240,3 +243,85 @@ async def create_student_account(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create student account: {str(e)}"
         )
+
+
+
+@router.post("/bulk-create", response_model=StudentBulkCreateResponse)
+async def bulk_create_student_accounts(
+    request: StudentBulkCreateRequest,
+    supabase: Annotated[AsyncClient, Depends(get_supabase)],
+    current_user = Depends(get_current_user)
+):
+    """
+    Create multiple student accounts in a single transaction.
+    
+    Requires: Teacher or Admin role
+    
+    All-or-nothing: If any student creation fails, the entire batch is rolled back.
+    
+    Each student gets:
+    - Auto-generated 12-digit student ID
+    - Auto-generated secure password
+    - Supabase auth account (using fake email pattern for username login)
+    
+    Parameters:
+    - students: List of student account creation requests
+    
+    Returns: 
+    - students: List of created student accounts with credentials
+    - created_count: Number of successfully created accounts
+    """
+    
+    # Get user's role from user_profiles table
+    # The alternative of extending the dependency would add complexity and 
+    # potentially a second query anyway (dependency would need to fetch the role), 
+    # so this direct approach is cleaner.
+    profile_response = await supabase.table("user_profiles").select("role_id").eq("id", str(current_user.id)).single().execute()
+    
+    if not profile_response.data:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User profile not found"
+        )
+    
+    role_id = profile_response.data.get("role_id")
+    # role_id 1 = admin, role_id 2 = teacher
+    if role_id not in [1, 2]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only teachers and admins can create student accounts"
+        )
+    
+    if not request.students:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one student must be provided"
+        )
+    
+    if len(request.students) > 100:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Maximum 100 students can be created at once"
+        )
+    
+    registration_service = StudentRegistrationService(supabase)
+    
+    try:
+        results = await registration_service.bulk_create_student_accounts(request.students)
+        
+        # results is already a list of StudentAccountResponse objects
+        return StudentBulkCreateResponse(
+            students=results,
+            created_count=len(results)
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create student accounts: {str(e)}"
+        )
+
