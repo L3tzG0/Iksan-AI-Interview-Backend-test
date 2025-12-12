@@ -8,7 +8,7 @@ from app.core.database import get_supabase
 from app.core.config import settings
 from app.core.security import get_current_user
 from app.core.rate_limit import limiter
-from app.api.dependencies import require_role
+from app.api.dependencies import require_role, RoleContext
 from app.services.storage_service import StorageService
 
 # New service imports (replacing LLMService)
@@ -376,7 +376,7 @@ async def initiate_interview_session(
     # ADDED: Required for targeted question generation
     field: str = Form(..., description="Target industry/field for the interview."),
     role: str = Form(..., description="Target job role for the interview."),
-    current_user = Depends(require_role("student")),
+    role_context: RoleContext = Depends(require_role("student")),
     supabase: AsyncClient = Depends(get_supabase)
 ):
     """
@@ -412,7 +412,7 @@ async def initiate_interview_session(
             )
 
         # Step 1: Get student_id from token-derived current_user
-        student_details = await user_service.get_student_details(current_user.id)
+        student_details = await user_service.get_student_details(role_context.user.id)
         
         if not student_details:
             raise HTTPException(

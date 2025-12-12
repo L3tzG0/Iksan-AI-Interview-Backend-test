@@ -1,6 +1,7 @@
 from typing import List, Annotated, Optional
 from fastapi import APIRouter, Depends, Query, HTTPException, status
 from supabase import AsyncClient
+from app.api.dependencies import require_role, RoleContext
 from app.core.database import get_supabase
 from app.core.security import get_current_user
 from app.schemas.student import (
@@ -171,7 +172,7 @@ async def get_session_detail(
 async def create_student_account(
     student_account_in: StudentAccountCreate,
     supabase: Annotated[AsyncClient, Depends(get_supabase)],
-    current_user = Depends(get_current_user)
+    role_context: RoleContext = Depends(require_role(["teacher", "admin"])),
 ):
     """
     Create a new student account with auto-generated student ID and password.
@@ -196,20 +197,7 @@ async def create_student_account(
     
     Returns: The created student account with credentials
     """
-    # Get user's role from user_profiles table
-    # The alternative of extending the dependency would add complexity and 
-    # potentially a second query anyway (dependency would need to fetch the role), 
-    # so this direct approach is cleaner.
-    profile_response = await supabase.table("user_profiles").select("role_id").eq("id", str(current_user.id)).single().execute()
-    
-    if not profile_response.data:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User profile not found"
-        )
-    
-    role_id = profile_response.data.get("role_id")
-    # role_id 1 = admin, role_id 2 = teacher
+    role_id = role_context.role_id
     if role_id not in [1, 2]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -219,7 +207,7 @@ async def create_student_account(
     # Get teacher's school_id if they are a teacher
     creator_school_id = None
     if role_id == 2:  # Teacher
-        teacher_response = await supabase.table("teachers").select("school_id").eq("user_id", str(current_user.id)).single().execute()
+        teacher_response = await supabase.table("teachers").select("school_id").eq("user_id", str(role_context.user.id)).single().execute()
         if teacher_response.data:
             creator_school_id = teacher_response.data.get("school_id")
     
@@ -250,7 +238,7 @@ async def create_student_account(
 async def bulk_create_student_accounts(
     request: StudentBulkCreateRequest,
     supabase: Annotated[AsyncClient, Depends(get_supabase)],
-    current_user = Depends(get_current_user)
+    role_context: RoleContext = Depends(require_role(["teacher", "admin"])),
 ):
     """
     Create multiple student accounts in a single transaction.
@@ -272,20 +260,7 @@ async def bulk_create_student_accounts(
     - created_count: Number of successfully created accounts
     """
     
-    # Get user's role from user_profiles table
-    # The alternative of extending the dependency would add complexity and 
-    # potentially a second query anyway (dependency would need to fetch the role), 
-    # so this direct approach is cleaner.
-    profile_response = await supabase.table("user_profiles").select("role_id").eq("id", str(current_user.id)).single().execute()
-    
-    if not profile_response.data:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User profile not found"
-        )
-    
-    role_id = profile_response.data.get("role_id")
-    # role_id 1 = admin, role_id 2 = teacher
+    role_id = role_context.role_id
     if role_id not in [1, 2]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
