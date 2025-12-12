@@ -93,9 +93,6 @@ def test_imports():
         from app.services.student_service import StudentService
         print("   ✅ StudentService imported")
         
-        from app.services.teacher_service import TeacherService
-        print("   ✅ TeacherService imported")
-        
         from app.core.security import get_current_user
         print("   ✅ Security module imported")
         

@@ -1,8 +1,7 @@
 from typing import Optional, Any, Dict, TYPE_CHECKING
 from datetime import datetime
-from pydantic import BaseModel, EmailStr, field_validator, model_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 from app.schemas.types import FlexibleDateTime
-import re
 
 
 class UserResponse(BaseModel):
@@ -25,60 +24,42 @@ class Token(BaseModel):
     refresh_token: Optional[str] = None
     user: Optional[UserResponse] = None
 
+
 class TokenData(BaseModel):
     email: Optional[str] = None
 
+
 class LoginRequest(BaseModel):
+    """Login request for email-based authentication (teachers/admins)"""
     email: EmailStr
     password: str
 
 
-class StudentRegistrationData(BaseModel):
-    """Registration data specific to students"""
-    student_id: str  # Required - the student's ID number
-    # School: either ID or name (mutually exclusive)
-    school_id: Optional[int] = None
-    school_name: Optional[str] = None
-    # Major: either ID or name
-    major_id: Optional[int] = None
-    major_name: Optional[str] = None
-    # Class: either ID or (name + grade_level)
-    class_id: Optional[int] = None
-    class_name: Optional[str] = None
-    grade_level: Optional[str] = None
+class StudentLoginRequest(BaseModel):
+    """
+    Login request for student authentication.
+    Students use their generated student_id instead of email.
+    """
+    student_id: str = Field(..., min_length=12, max_length=12, description="12-digit student ID")
+    password: str = Field(..., min_length=1)
 
-    @model_validator(mode='after')
-    def validate_school_input(self):
-        """Ensure either school_id or school_name is provided, not both"""
-        if self.school_id is None and self.school_name is None:
-            raise ValueError('Either school_id or school_name must be provided')
-        if self.school_id is not None and self.school_name is not None:
-            raise ValueError('Provide either school_id or school_name, not both')
-        return self
+    @field_validator('student_id')
+    @classmethod
+    def validate_student_id(cls, v: str) -> str:
+        """Validate student ID is 12 digits"""
+        if not v.isdigit():
+            raise ValueError('Student ID must contain only digits')
+        return v
 
-    @model_validator(mode='after')
-    def validate_major_input(self):
-        """Ensure either major_id or major_name is provided, not both"""
-        if self.major_id is None and self.major_name is None:
-            raise ValueError('Either major_id or major_name must be provided')
-        if self.major_id is not None and self.major_name is not None:
-            raise ValueError('Provide either major_id or major_name, not both')
-        return self
 
-    @model_validator(mode='after')
-    def validate_class_input(self):
-        """Ensure either class_id or (class_name + grade_level) is provided"""
-        has_class_id = self.class_id is not None
-        has_class_name = self.class_name is not None
-        has_grade_level = self.grade_level is not None
-        
-        if has_class_id and (has_class_name or has_grade_level):
-            raise ValueError('Provide either class_id or (class_name + grade_level), not both')
-        if not has_class_id and not has_class_name:
-            raise ValueError('Either class_id or class_name must be provided')
-        if has_class_name and not has_grade_level:
-            raise ValueError('grade_level is required when providing class_name')
-        return self
+class StudentLoginResponse(BaseModel):
+    """Response for successful student login"""
+    access_token: str
+    token_type: str = "bearer"
+    refresh_token: Optional[str] = None
+    user_id: str
+    student_id: str
+    full_name: Optional[str] = None
 
 
 class TeacherRegistrationData(BaseModel):
@@ -101,6 +82,5 @@ class RegisterRequest(BaseModel):
     full_name: str
     role_id: int
     # Role-specific nested data
-    student_data: Optional[StudentRegistrationData] = None
     teacher_data: Optional[TeacherRegistrationData] = None
 

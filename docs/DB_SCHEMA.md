@@ -41,9 +41,8 @@ erDiagram
 
     CLASSES {
         int id PK
-        string class_name
-        string grade_level
-        int homeroom_teacher_id FK
+        text class_name
+        int grade_level "1, 2, or 3"
     }
 
     STUDENTS {
@@ -110,7 +109,6 @@ erDiagram
     SCHOOLS ||--o{ STUDENTS : "has"
     MAJORS ||--o{ STUDENTS : "has"
     CLASSES ||--o{ STUDENTS : "contains"
-    TEACHERS ||--o{ CLASSES : "homeroom for"
     STUDENTS ||--o{ SESSIONS : "takes"
     SESSIONS ||--o{ DOCUMENTS : "contains"
     SESSIONS ||--|| SUMMARIES : "has"

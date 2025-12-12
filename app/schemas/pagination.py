@@ -41,16 +41,6 @@ class PaginatedResponse(BaseModel, Generic[T]):
 
 
 # Type aliases for common paginated responses
-class PaginatedStudents(PaginatedResponse):
-    """Paginated list of students"""
-    pass
-
-
-class PaginatedTeachers(PaginatedResponse):
-    """Paginated list of teachers"""
-    pass
-
-
 class PaginatedClasses(PaginatedResponse):
     """Paginated list of classes"""
     pass
@@ -64,12 +54,6 @@ class PaginatedSchools(PaginatedResponse):
 class PaginatedMajors(PaginatedResponse):
     """Paginated list of majors"""
     pass
-
-
-class PaginatedRoles(PaginatedResponse):
-    """Paginated list of roles"""
-    pass
-
 
 class PaginatedUsers(PaginatedResponse):
     """Paginated list of user profiles"""

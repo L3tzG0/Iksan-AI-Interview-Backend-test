@@ -43,7 +43,6 @@ def main():
         ("majors/", "Majors"),
         ("classes/", "Classes"),
         ("students/", "Students"),
-        ("teachers/", "Teachers"),
         ("sessions/", "Interview Sessions"),
     ]
     

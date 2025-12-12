@@ -1,15 +1,25 @@
 """
 FastAPI dependencies for the API using Supabase client and auth.
 
-All dependency functions that call Supabase are synchronous (def) because
-the Supabase Python client uses synchronous HTTP calls internally.
-FastAPI will automatically run sync dependencies in a thread pool.
+All dependency functions that call Supabase are async because
+the Supabase AsyncClient uses async HTTP calls. This ensures proper
+connection handling under concurrent load.
 """
+from dataclasses import dataclass
 from typing import Annotated, Union, List, Any, Optional
 from fastapi import Depends, HTTPException, status
-from supabase import Client
+from supabase import AsyncClient
 from app.core.database import get_supabase
 from app.core.security import get_current_user
+
+
+@dataclass
+class RoleContext:
+    """Auth context enriched with role information."""
+    user: Any
+    profile: Optional[dict]
+    role_id: Optional[int]
+    role_name: Optional[str]
 
 def require_role(role_names: Union[str, List[str]]):
     """
@@ -32,13 +42,13 @@ def require_role(role_names: Union[str, List[str]]):
     # Normalize role_names to always be a list
     allowed_roles = [role_names] if isinstance(role_names, str) else role_names
     
-    def role_checker(
-        supabase: Annotated[Client, Depends(get_supabase)],
+    async def role_checker(
+        supabase: Annotated[AsyncClient, Depends(get_supabase)],
         current_user = Depends(get_current_user)
-    ):
+    ) -> RoleContext:
         try:
             # Get user profile with role information from database
-            response = supabase.table('user_profiles').select(
+            response = await supabase.table('user_profiles').select(
                 '*, roles(id, role_name)'
             ).eq('id', str(current_user.id)).execute()
             
@@ -51,10 +61,13 @@ def require_role(role_names: Union[str, List[str]]):
             user_profile: Optional[Any] = response.data[0]
             role_data: Optional[Any] = user_profile.get('roles') if isinstance(user_profile, dict) else None
             
-            # Extract role_name from nested roles object
+            # Extract role metadata
             user_role_name: Optional[str] = None
+            user_role_id: Optional[int] = None
             if isinstance(role_data, dict):
                 user_role_name = role_data.get('role_name')
+            if isinstance(user_profile, dict):
+                user_role_id = user_profile.get('role_id')
             
             # Check if user's role is in the list of allowed roles
             if not user_role_name or user_role_name not in allowed_roles:
@@ -63,7 +76,12 @@ def require_role(role_names: Union[str, List[str]]):
                     detail=f"Operation not permitted. Required role(s): {', '.join(allowed_roles)}"
                 )
             
-            return current_user
+            return RoleContext(
+                user=current_user,
+                profile=user_profile if isinstance(user_profile, dict) else None,
+                role_id=user_role_id,
+                role_name=user_role_name
+            )
         
         except HTTPException:
             raise

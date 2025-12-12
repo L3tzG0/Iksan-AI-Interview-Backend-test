@@ -1,5 +1,5 @@
 from typing import List, Dict, Any, Optional
-from supabase import Client
+from supabase import AsyncClient
 from fastapi import HTTPException, status
 # Assuming the following schemas are defined and imported correctly
 # NOTE: We use .model_dump() on the incoming Pydantic objects to convert them to dicts
@@ -11,23 +11,23 @@ class FeedbackService:
     """
     Service for feedback database operations.
     
-    All methods are synchronous (def) because the Supabase Python client
-    uses synchronous HTTP calls internally. FastAPI will automatically
-    run these in a thread pool when called from async endpoints.
+    All methods are async because the Supabase AsyncClient
+    uses async HTTP calls. This ensures proper connection handling
+    under concurrent load.
     """
-    def __init__(self, supabase: Client):
+    def __init__(self, supabase: AsyncClient):
         self.supabase = supabase
 
     # --- Session Summary Functions ---
     
-    def create_session_summary(self, summary: InterviewSummaryCreate) -> dict:
+    async def create_session_summary(self, summary: InterviewSummaryCreate) -> dict:
         """
         Creates the overall summary record (strengths, growth areas) for a session.
         """
         try:
             # FIX: Convert Pydantic object to dictionary for Supabase
             summary_data = summary.model_dump()
-            response = self.supabase.table('summaries').insert(summary_data).execute()
+            response = await self.supabase.table('summaries').insert(summary_data).execute()
             
             if not response.data:
                 raise HTTPException(
@@ -45,7 +45,7 @@ class FeedbackService:
 
     # --- Detailed Feedback Functions (Q&A) ---
     
-    def create_detailed_feedback(self, session_id: int):
+    async def create_detailed_feedback(self, session_id: int):
         """
         [DEPRECATED, replaced by batch version]
         Create initial detailed_feedback record for session
@@ -53,7 +53,7 @@ class FeedbackService:
         # ... (unchanged)
         pass
 
-    def create_detailed_feedbacks_batch(
+    async def create_detailed_feedbacks_batch(
         self, 
         session_id: int, 
         # Type hint changed to List[Any] as it receives Pydantic objects
@@ -80,7 +80,7 @@ class FeedbackService:
                 for question_model in questions
             ]
             
-            response = self.supabase.table('detailed_feedbacks').insert(feedback_records).execute()
+            response = await self.supabase.table('detailed_feedbacks').insert(feedback_records).execute()
             
             if not response.data:
                 raise HTTPException(
@@ -97,7 +97,7 @@ class FeedbackService:
                 detail=f"Database error while creating detailed_feedbacks batch: {str(e)}"
             )
 
-    def update_detailed_feedbacks_batch(
+    async def update_detailed_feedbacks_batch(
         self, 
         session_id: int,
         # Now expects a list of Pydantic models OR dictionaries (which will include answer_text)
@@ -135,7 +135,7 @@ class FeedbackService:
                 
             try:
                 # Update the record matching session_id AND question_order
-                response = self.supabase.table('detailed_feedbacks').update(update_data)\
+                response = await self.supabase.table('detailed_feedbacks').update(update_data)\
                     .eq('session_id', session_id)\
                     .eq('question_order', question_order)\
                     .execute()
@@ -156,7 +156,7 @@ class FeedbackService:
 
     # --- Next Steps Functions ---
     
-    def create_next_steps_batch(self, next_steps: List[InterviewNextStepCreate]) -> List[dict]:
+    async def create_next_steps_batch(self, next_steps: List[InterviewNextStepCreate]) -> List[dict]:
         """
         [Used by /submit]
         Creates multiple next_step records for a session in a batch, assigning the order.
@@ -173,7 +173,7 @@ class FeedbackService:
                 steps_data.append(data)
                 
             # Batch insert the next steps
-            response = self.supabase.table('next_steps').insert(steps_data).execute()
+            response = await self.supabase.table('next_steps').insert(steps_data).execute()
             
             if not response.data:
                 raise HTTPException(
@@ -188,6 +188,6 @@ class FeedbackService:
                 detail=f"Database error while creating next steps batch: {str(e)}"
             )
 
-    def create_next_step(self, next_step: InterviewNextStepCreate):
+    async def create_next_step(self, next_step: InterviewNextStepCreate):
         """[DEPRECATED, replaced by batch version]"""
         pass

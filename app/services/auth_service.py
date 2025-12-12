@@ -1,8 +1,8 @@
-import re
 from typing import Optional
-from supabase import Client
+from supabase import AsyncClient
 from fastapi import HTTPException, status
-from app.schemas.auth import LoginRequest, RegisterRequest, StudentRegistrationData, TeacherRegistrationData
+from app.schemas.auth import LoginRequest, RegisterRequest, TeacherRegistrationData
+from app.utils.string_utils import sanitize_name
 
 
 class AuthService:
@@ -10,37 +10,22 @@ class AuthService:
     Authentication service using Supabase Auth.
     Handles user registration, login, and session management.
     
-    All methods are synchronous (def) because the Supabase Python client
-    uses synchronous HTTP calls internally. FastAPI will automatically
-    run these in a thread pool when called from async endpoints.
+    All methods are async because the Supabase AsyncClient
+    uses async HTTP calls. This ensures proper connection handling
+    under concurrent load.
     """
     
-    def __init__(self, supabase: Client):
+    def __init__(self, supabase: AsyncClient):
         self.supabase = supabase
 
-    def _sanitize_name(self, name: str) -> str:
-        """
-        Sanitize user-typed names:
-        - Strip leading/trailing whitespace
-        - Normalize multiple spaces to single space
-        - Remove null bytes and control characters
-        """
-        if not name:
-            return name
-        # Remove null bytes and control characters
-        name = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', name)
-        # Normalize whitespace
-        name = ' '.join(name.split())
-        return name.strip()
-
-    def _resolve_or_create_school(self, school_id: Optional[int], school_name: Optional[str]) -> Optional[int]:
+    async def _resolve_or_create_school(self, school_id: Optional[int], school_name: Optional[str]) -> Optional[int]:
         """
         Returns school_id - either the provided one or creates/finds school from name.
         Uses case-insensitive matching to avoid duplicates.
         """
         if school_id is not None:
             # Validate school exists
-            response = self.supabase.table("schools").select("id").eq("id", school_id).execute()
+            response = await self.supabase.table("schools").select("id").eq("id", school_id).execute()
             if not response.data:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -49,7 +34,7 @@ class AuthService:
             return school_id
         
         if school_name is not None:
-            sanitized_name = self._sanitize_name(school_name)
+            sanitized_name = sanitize_name(school_name)
             if not sanitized_name:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -57,12 +42,12 @@ class AuthService:
                 )
             
             # Try to find existing school (case-insensitive)
-            response = self.supabase.table("schools").select("id, school_name").ilike("school_name", sanitized_name).execute()
+            response = await self.supabase.table("schools").select("id, school_name").ilike("school_name", sanitized_name).execute()
             if response.data:
                 return response.data[0]["id"]
             
             # Create new school
-            response = self.supabase.table("schools").insert({"school_name": sanitized_name}).execute()
+            response = await self.supabase.table("schools").insert({"school_name": sanitized_name}).execute()
             if not response.data:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -72,14 +57,14 @@ class AuthService:
         
         return None
 
-    def _resolve_or_create_major(self, major_id: Optional[int], major_name: Optional[str]) -> Optional[int]:
+    async def _resolve_or_create_major(self, major_id: Optional[int], major_name: Optional[str]) -> Optional[int]:
         """
         Returns major_id - either the provided one or creates/finds major from name.
         Uses case-insensitive matching to avoid duplicates.
         """
         if major_id is not None:
             # Validate major exists
-            response = self.supabase.table("majors").select("id").eq("id", major_id).execute()
+            response = await self.supabase.table("majors").select("id").eq("id", major_id).execute()
             if not response.data:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -88,7 +73,7 @@ class AuthService:
             return major_id
         
         if major_name is not None:
-            sanitized_name = self._sanitize_name(major_name)
+            sanitized_name = sanitize_name(major_name)
             if not sanitized_name:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -96,12 +81,12 @@ class AuthService:
                 )
             
             # Try to find existing major (case-insensitive)
-            response = self.supabase.table("majors").select("id, major_name").ilike("major_name", sanitized_name).execute()
+            response = await self.supabase.table("majors").select("id, major_name").ilike("major_name", sanitized_name).execute()
             if response.data:
                 return response.data[0]["id"]
             
             # Create new major
-            response = self.supabase.table("majors").insert({"major_name": sanitized_name}).execute()
+            response = await self.supabase.table("majors").insert({"major_name": sanitized_name}).execute()
             if not response.data:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -111,104 +96,7 @@ class AuthService:
         
         return None
 
-    def _resolve_or_create_class(
-        self, 
-        class_id: Optional[int], 
-        class_name: Optional[str], 
-        grade_level: Optional[str]
-    ) -> Optional[int]:
-        """
-        Returns class_id - either the provided one or creates/finds class from name + grade_level.
-        Uses case-insensitive matching on class_name and grade_level to avoid duplicates.
-        """
-        if class_id is not None:
-            # Validate class exists
-            response = self.supabase.table("classes").select("id").eq("id", class_id).execute()
-            if not response.data:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Class with id {class_id} does not exist."
-                )
-            return class_id
-        
-        if class_name is not None:
-            sanitized_class_name = self._sanitize_name(class_name)
-            sanitized_grade_level = self._sanitize_name(grade_level) if grade_level else None
-            
-            if not sanitized_class_name:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Class name cannot be empty."
-                )
-            if not sanitized_grade_level:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Grade level is required when creating a new class."
-                )
-            
-            # Try to find existing class (case-insensitive on both fields)
-            response = self.supabase.table("classes").select("id, class_name, grade_level")\
-                .ilike("class_name", sanitized_class_name)\
-                .ilike("grade_level", sanitized_grade_level)\
-                .execute()
-            if response.data:
-                return response.data[0]["id"]
-            
-            # Create new class
-            response = self.supabase.table("classes").insert({
-                "class_name": sanitized_class_name,
-                "grade_level": sanitized_grade_level
-            }).execute()
-            if not response.data:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Failed to create class."
-                )
-            return response.data[0]["id"]
-        
-        return None
-
-    def _prepare_student_metadata(self, student_data: StudentRegistrationData) -> dict:
-        """
-        Prepare metadata for student registration.
-        Resolves or creates school, major, and class as needed.
-        """
-        # Resolve school
-        school_id = self._resolve_or_create_school(student_data.school_id, student_data.school_name)
-        if school_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="School information is required for student registration."
-            )
-        
-        # Resolve major
-        major_id = self._resolve_or_create_major(student_data.major_id, student_data.major_name)
-        if major_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Major information is required for student registration."
-            )
-        
-        # Resolve class
-        class_id = self._resolve_or_create_class(
-            student_data.class_id, 
-            student_data.class_name, 
-            student_data.grade_level
-        )
-        if class_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Class information is required for student registration."
-            )
-        
-        return {
-            "student_id": student_data.student_id,
-            "school_id": school_id,
-            "major_id": major_id,
-            "class_id": class_id
-        }
-
-    def _prepare_teacher_metadata(self, teacher_data: Optional[TeacherRegistrationData]) -> dict:
+    async def _prepare_teacher_metadata(self, teacher_data: Optional[TeacherRegistrationData]) -> dict:
         """
         Prepare metadata for teacher registration.
         Resolves or creates school if provided.
@@ -216,23 +104,23 @@ class AuthService:
         if teacher_data is None:
             return {}
         
-        school_id = self._resolve_or_create_school(teacher_data.school_id, teacher_data.school_name)
+        school_id = await self._resolve_or_create_school(teacher_data.school_id, teacher_data.school_name)
         
         if school_id is not None:
             return {"school_id": school_id}
         return {}
 
-    def register_user(self, register_data: RegisterRequest):
+    async def register_user(self, register_data: RegisterRequest):
         """
         Register a new user with Supabase Auth.
         Handles role-specific registration:
-        - Students: require student_id, school, major, class
+        - Students: registration disabled
         - Teachers: optional school assignment
         - Admins: no additional data
         """
         try:
             # Validate that role exists and get role_name
-            role_response = self.supabase.table("roles").select("id, role_name").eq("id", register_data.role_id).execute()
+            role_response = await self.supabase.table("roles").select("id, role_name").eq("id", register_data.role_id).execute()
             
             if not role_response.data or len(role_response.data) == 0:
                 raise HTTPException(
@@ -242,6 +130,13 @@ class AuthService:
             
             role_name = role_response.data[0].get("role_name")
             
+            # Block student registration
+            if role_name == "student":
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Student registration is not allowed through this endpoint."
+                )
+            
             # Build base metadata for Supabase Auth
             user_metadata = {
                 "full_name": register_data.full_name,
@@ -249,23 +144,14 @@ class AuthService:
             }
             
             # Handle role-specific registration
-            if role_name == "student":
-                if register_data.student_data is None:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="student_data is required for student registration."
-                    )
-                student_metadata = self._prepare_student_metadata(register_data.student_data)
-                user_metadata.update(student_metadata)
-                
-            elif role_name == "teacher":
-                teacher_metadata = self._prepare_teacher_metadata(register_data.teacher_data)
+            if role_name == "teacher":
+                teacher_metadata = await self._prepare_teacher_metadata(register_data.teacher_data)
                 user_metadata.update(teacher_metadata)
             
             # Admin role doesn't need additional metadata
             
             # Sign up user with Supabase Auth
-            response = self.supabase.auth.sign_up({
+            response = await self.supabase.auth.sign_up({
                 "email": register_data.email,
                 "password": register_data.password,
                 "options": {
@@ -303,12 +189,12 @@ class AuthService:
                 detail=f"Registration error: {error_message}"
             )
 
-    def authenticate_user(self, login_data: LoginRequest):
+    async def authenticate_user(self, login_data: LoginRequest):
         """
         Authenticate user with email and password using Supabase Auth.
         """
         try:
-            response = self.supabase.auth.sign_in_with_password({
+            response = await self.supabase.auth.sign_in_with_password({
                 "email": login_data.email,
                 "password": login_data.password
             })
@@ -331,12 +217,12 @@ class AuthService:
                 detail=f"Authentication failed: {str(e)}"
             )
     
-    def sign_out(self):
+    async def sign_out(self):
         """
         Sign out the current user.
         """
         try:
-            self.supabase.auth.sign_out()
+            await self.supabase.auth.sign_out()
             return {"message": "Successfully signed out"}
         except Exception as e:
             raise HTTPException(
