@@ -46,6 +46,11 @@ class StudentRegistrationService:
     
     def __init__(self, supabase: AsyncClient):
         self.supabase = supabase
+        # Optional caches to reduce repeated lookups during bulk creation.
+        # Keys are normalized (lowercased) sanitized names.
+        self._school_cache: Optional[dict] = None  # key -> (school_id, school_number)
+        self._major_cache: Optional[dict] = None   # key -> (major_id, major_number)
+        self._class_cache: Optional[dict] = None   # (key, grade_level) -> class_id
 
     # =========================================================================
     # UTILITY METHODS
@@ -120,6 +125,30 @@ class StudentRegistrationService:
             )
         
         logger.debug(f"[_resolve_or_create_school] Sanitized name: {sanitized_name}")
+
+        cache_key = sanitized_name.lower()
+        if self._school_cache is not None and cache_key in self._school_cache:
+            return self._school_cache[cache_key]
+
+        # Fast path: single RPC call (preferred in production)
+        try:
+            rpc_resp = await self.supabase.rpc(
+                "resolve_or_create_school",
+                {"p_school_name": sanitized_name}
+            ).execute()
+
+            if rpc_resp.data and isinstance(rpc_resp.data, list):
+                row = rpc_resp.data[0]
+                school_id = row["school_id"]
+                school_number = row["school_number"]
+                result = (school_id, school_number)
+                if self._school_cache is not None:
+                    self._school_cache[cache_key] = result
+                return result
+        except Exception as e:
+            # Backward-compatible fallback for environments where RPC isn't deployed yet.
+            logger.debug(f"[_resolve_or_create_school] RPC resolve_or_create_school failed, falling back: {str(e)}")
+
         # Try to find existing school (case-insensitive)
         response = await self.supabase.table("schools").select(
             "id, school_name, school_number"
@@ -136,8 +165,11 @@ class StudentRegistrationService:
                 logger.debug(f"[_resolve_or_create_school] Assigning number to existing school: {school_id}")
                 school_number = await self._assign_school_number(school_id)
                 logger.info(f"[_resolve_or_create_school] School number assigned: {school_number}")
-            
-            return school_id, school_number
+
+            result = (school_id, school_number)
+            if self._school_cache is not None:
+                self._school_cache[cache_key] = result
+            return result
         
         # Create new school
         logger.debug(f"[_resolve_or_create_school] Creating new school: {sanitized_name}")
@@ -156,8 +188,11 @@ class StudentRegistrationService:
         logger.debug(f"[_resolve_or_create_school] New school created: id={school_id}")
         school_number = await self._assign_school_number(school_id)
         logger.info(f"[_resolve_or_create_school] New school with number created: id={school_id}, number={school_number}")
-        
-        return school_id, school_number
+
+        result = (school_id, school_number)
+        if self._school_cache is not None:
+            self._school_cache[cache_key] = result
+        return result
 
     async def _assign_school_number(self, school_id: int) -> str:
         """
@@ -196,6 +231,29 @@ class StudentRegistrationService:
             )
         
         logger.debug(f"[_resolve_or_create_major] Sanitized name: {sanitized_name}")
+
+        cache_key = sanitized_name.lower()
+        if self._major_cache is not None and cache_key in self._major_cache:
+            return self._major_cache[cache_key]
+
+        # Fast path: single RPC call (preferred in production)
+        try:
+            rpc_resp = await self.supabase.rpc(
+                "resolve_or_create_major",
+                {"p_major_name": sanitized_name}
+            ).execute()
+
+            if rpc_resp.data and isinstance(rpc_resp.data, list):
+                row = rpc_resp.data[0]
+                major_id = row["major_id"]
+                major_number = row["major_number"]
+                result = (major_id, major_number)
+                if self._major_cache is not None:
+                    self._major_cache[cache_key] = result
+                return result
+        except Exception as e:
+            logger.debug(f"[_resolve_or_create_major] RPC resolve_or_create_major failed, falling back: {str(e)}")
+
         # Try to find existing major (case-insensitive)
         response = await self.supabase.table("majors").select(
             "id, major_name, major_number"
@@ -212,8 +270,11 @@ class StudentRegistrationService:
                 logger.debug(f"[_resolve_or_create_major] Assigning number to existing major: {major_id}")
                 major_number = await self._assign_major_number(major_id)
                 logger.info(f"[_resolve_or_create_major] Major number assigned: {major_number}")
-            
-            return major_id, major_number
+
+            result = (major_id, major_number)
+            if self._major_cache is not None:
+                self._major_cache[cache_key] = result
+            return result
         
         # Create new major
         logger.debug(f"[_resolve_or_create_major] Creating new major: {sanitized_name}")
@@ -232,8 +293,11 @@ class StudentRegistrationService:
         logger.debug(f"[_resolve_or_create_major] New major created: id={major_id}")
         major_number = await self._assign_major_number(major_id)
         logger.info(f"[_resolve_or_create_major] New major with number created: id={major_id}, number={major_number}")
-        
-        return major_id, major_number
+
+        result = (major_id, major_number)
+        if self._major_cache is not None:
+            self._major_cache[cache_key] = result
+        return result
 
     async def _assign_major_number(self, major_id: int) -> str:
         """
@@ -302,6 +366,38 @@ class StudentRegistrationService:
             )
         
         logger.debug(f"[_resolve_or_create_class] Searching for existing class: name={sanitized_name}, grade={grade_level}")
+
+        cache_key = (sanitized_name.lower(), grade_level)
+        if self._class_cache is not None and cache_key in self._class_cache:
+            return self._class_cache[cache_key]
+
+        # Fast path: single RPC call (preferred in production)
+        try:
+            rpc_resp = await self.supabase.rpc(
+                "resolve_or_create_class",
+                {"p_class_name": sanitized_name, "p_grade_level": grade_level}
+            ).execute()
+
+            if rpc_resp.data is not None:
+                # Supabase RPC may return a scalar or a 1-row list depending on PostgREST.
+                resolved_id = None
+                if isinstance(rpc_resp.data, int):
+                    resolved_id = rpc_resp.data
+                elif isinstance(rpc_resp.data, list) and len(rpc_resp.data) > 0:
+                    # Some configurations wrap scalar returns
+                    first = rpc_resp.data[0]
+                    if isinstance(first, dict):
+                        resolved_id = first.get("resolve_or_create_class") or first.get("id")
+                    elif isinstance(first, int):
+                        resolved_id = first
+
+                if resolved_id is not None:
+                    if self._class_cache is not None:
+                        self._class_cache[cache_key] = resolved_id
+                    return resolved_id
+        except Exception as e:
+            logger.debug(f"[_resolve_or_create_class] RPC resolve_or_create_class failed, falling back: {str(e)}")
+
         # Try to find existing class with same name and grade (case-insensitive)
         response = await self.supabase.table("classes").select("id").ilike(
             "class_name", sanitized_name
@@ -310,6 +406,8 @@ class StudentRegistrationService:
         if response.data:
             class_id = response.data[0]["id"]
             logger.info(f"[_resolve_or_create_class] Existing class found: id={class_id}, name={sanitized_name}, grade={grade_level}")
+            if self._class_cache is not None:
+                self._class_cache[cache_key] = class_id
             return class_id
         
         # Create new class
@@ -328,6 +426,8 @@ class StudentRegistrationService:
         
         class_id = response.data[0]["id"]
         logger.info(f"[_resolve_or_create_class] New class created: id={class_id}, name={sanitized_name}, grade={grade_level}")
+        if self._class_cache is not None:
+            self._class_cache[cache_key] = class_id
         return class_id
 
     # =========================================================================
@@ -623,7 +723,13 @@ class StudentRegistrationService:
         """
         if not data_list:
             return []
-        
+
+        # Enable per-call caches to reduce repeated resolve/create work.
+        # These caches only live for the duration of this bulk request.
+        self._school_cache = {}
+        self._major_cache = {}
+        self._class_cache = {}
+
         results: List[StudentAccountResponse] = []
         created_user_ids: List[UUID] = []
         
@@ -649,6 +755,10 @@ class StudentRegistrationService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Bulk creation failed: {str(e)}. All changes have been rolled back."
             )
+        finally:
+            self._school_cache = None
+            self._major_cache = None
+            self._class_cache = None
 
     # =========================================================================
     # STUDENT LOGIN SUPPORT
