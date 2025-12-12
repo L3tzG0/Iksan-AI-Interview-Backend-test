@@ -708,3 +708,31 @@ class StudentRegistrationService:
             return response.data[0].get("school_id")
         
         return None
+
+    async def get_student_context_by_student_id(self, student_id: str) -> dict:
+        """
+        Fetch student details along with related profile, school, major, and class data.
+        """
+        try:
+            response = await self.supabase.table("students").select(
+                "id, user_id, student_id, "
+                "user_profiles!user_id(full_name), "
+                "schools(id, school_name), "
+                "majors(id, major_name), "
+                "classes(id, class_name, grade_level)"
+            ).eq("student_id", student_id).single().execute()
+
+            student = response.data
+            if not student:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Student record not found for ID {student_id}."
+                )
+            return student
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e)
+            )

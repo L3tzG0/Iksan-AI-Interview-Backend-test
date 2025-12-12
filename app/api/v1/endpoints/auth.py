@@ -173,16 +173,8 @@ async def student_login(
             login_data.password
         )
         
-        # Get student details from the database
-        student_response = await supabase.table("students").select(
-            "id, user_id, student_id, "
-            "user_profiles!user_id(full_name), "
-            "schools(id, school_name), "
-            "majors(id, major_name), "
-            "classes(id, class_name, grade_level)"
-        ).eq("student_id", login_data.student_id).single().execute()
-        
-        student = student_response.data
+        # Get student details from the database via service helper
+        student = await registration_service.get_student_context_by_student_id(login_data.student_id)
         user_profile = student.get("user_profiles") if student else None
         school_info = student.get("schools") if student else None
         major_info = student.get("majors") if student else None
@@ -208,6 +200,8 @@ async def student_login(
             detail=str(e),
             headers={"WWW-Authenticate": "Bearer"}
         )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
