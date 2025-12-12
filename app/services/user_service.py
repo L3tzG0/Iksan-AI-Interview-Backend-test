@@ -2,6 +2,7 @@ from typing import Optional, Tuple, List, Any
 from supabase import AsyncClient
 from fastapi import HTTPException, status
 from uuid import UUID
+from app.schemas.auth import UserResponse
 from app.utils.pagination import paginate_query
 
 # Explicit columns to select for user profiles (avoiding SELECT *)
@@ -133,6 +134,53 @@ class UserProfileService:
             return None
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    def build_user_response(
+        self,
+        user: Any,
+        profile: Optional[dict] = None,
+        student_details: Optional[dict] = None,
+        teacher_details: Optional[dict] = None,
+    ) -> UserResponse:
+        """Normalize user + profile context into a UserResponse model."""
+        role_name = None
+        role_id: Optional[int] = None
+
+        if profile:
+            roles_data = profile.get("roles") if isinstance(profile, dict) else None
+            if isinstance(roles_data, dict):
+                role_name = roles_data.get("role_name")
+            profile_role_id = profile.get("role_id") if isinstance(profile, dict) else None
+            if profile_role_id is not None:
+                try:
+                    role_id = int(profile_role_id)
+                except (ValueError, TypeError):
+                    role_id = None
+
+        if role_id is None:
+            meta_role_id = getattr(user, "user_metadata", {}).get("role_id") if hasattr(user, "user_metadata") else None
+            if meta_role_id is not None:
+                try:
+                    role_id = int(meta_role_id)
+                except (ValueError, TypeError):
+                    role_id = None
+
+        full_name = None
+        if profile and isinstance(profile, dict):
+            full_name = profile.get("full_name")
+        if full_name is None and hasattr(user, "user_metadata"):
+            full_name = user.user_metadata.get("full_name") if user.user_metadata else None
+
+        return UserResponse(
+            id=str(getattr(user, "id")),
+            email=getattr(user, "email"),
+            full_name=str(full_name) if full_name is not None else None,
+            role_id=role_id,
+            role_name=str(role_name) if role_name is not None else None,
+            student_details=dict(student_details) if student_details and isinstance(student_details, dict) else None,
+            teacher_details=dict(teacher_details) if teacher_details and isinstance(teacher_details, dict) else None,
+            created_at=getattr(user, "created_at"),
+        )
 
     async def get_profile_by_email(self, email: str):
         """Get user profile by email from user_profiles table with explicit columns"""
