@@ -218,3 +218,8 @@ $$;
 -- Ensure execute permissions remain.
 GRANT EXECUTE ON FUNCTION public.assign_school_number(BIGINT) TO authenticated, anon, service_role;
 GRANT EXECUTE ON FUNCTION public.assign_major_number(BIGINT) TO authenticated, anon, service_role;
+
+-- Sequences require explicit privileges for nextval()/currval() usage.
+-- nextval() needs USAGE + UPDATE, and some tooling may also call currval() (SELECT).
+GRANT USAGE, SELECT, UPDATE ON SEQUENCE public.schools_school_number_seq TO authenticated, anon, service_role, supabase_auth_admin;
+GRANT USAGE, SELECT, UPDATE ON SEQUENCE public.majors_major_number_seq TO authenticated, anon, service_role, supabase_auth_admin;
