@@ -4,6 +4,7 @@ from supabase import AsyncClient
 from app.core.database import get_supabase
 from app.schemas.role import RoleResponse
 from app.schemas.pagination import PaginatedResponse, create_paginated_response
+from app.utils.pagination import paginate_query
 
 router = APIRouter()
 
@@ -23,16 +24,8 @@ async def read_roles(
     - **skip**: Number of records to skip (default: 0)
     - **limit**: Max records to return (default: 20, max: 100)
     """
-    # First get count with limit(0) to avoid 416 error when skip > total
-    count_query = supabase.table('roles').select(ROLE_COLUMNS, count='exact').limit(0)
-    count_response = await count_query.execute()
-    total = count_response.count if count_response.count is not None else 0
-    
-    # If skip is beyond total, return empty result
-    if skip >= total:
-        return create_paginated_response(items=[], total=total, skip=skip, limit=limit)
-    
-    # Fetch actual data
-    query = supabase.table('roles').select(ROLE_COLUMNS, count='exact')
-    response = await query.offset(skip).limit(limit).execute()
-    return create_paginated_response(items=response.data, total=total, skip=skip, limit=limit)
+    def build_query():
+        return supabase.table('roles').select(ROLE_COLUMNS, count='exact')
+
+    items, total = await paginate_query(build_query, skip, limit)
+    return create_paginated_response(items=items, total=total, skip=skip, limit=limit)

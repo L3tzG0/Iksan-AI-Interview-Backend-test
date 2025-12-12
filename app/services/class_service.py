@@ -1,8 +1,8 @@
 from typing import Optional, Tuple, List
 from supabase import AsyncClient
-from postgrest.exceptions import APIError
 from fastapi import HTTPException, status
 from app.schemas.class_schema import ClassCreate, ClassUpdate
+from app.utils.pagination import paginate_query
 
 # Explicit columns to select for classes (avoiding SELECT *)
 CLASS_COLUMNS = "id, class_name, grade_level"
@@ -57,26 +57,13 @@ class ClassService:
             Tuple of (list of classes, total count)
         """
         try:
-            # Build query with filters - count='exact' returns total count with data
-            query = self.supabase.table('classes').select(CLASS_COLUMNS, count='exact')
-            if grade_level is not None:
-                query = query.eq('grade_level', grade_level)
-            
-            # Single query with pagination - PostgreSQL returns total count with data
-            # Handle 416 error when offset exceeds total records
-            try:
-                response = await query.offset(skip).limit(limit).execute()
-                total = response.count if response.count is not None else 0
-                return response.data, total
-            except APIError as e:
-                if e.code == '416' or e.code == 416:  # Range not satisfiable - offset beyond total
-                    count_query = self.supabase.table('classes').select(CLASS_COLUMNS, count='exact')
-                    if grade_level is not None:
-                        count_query = count_query.eq('grade_level', grade_level)
-                    count_response = await count_query.limit(0).execute()
-                    total = count_response.count if count_response.count is not None else 0
-                    return [], total
-                raise
+            def build_query():
+                base_query = self.supabase.table('classes').select(CLASS_COLUMNS, count='exact')
+                if grade_level is not None:
+                    base_query = base_query.eq('grade_level', grade_level)
+                return base_query
+
+            return await paginate_query(build_query, skip, limit)
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 

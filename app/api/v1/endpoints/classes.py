@@ -4,8 +4,8 @@ from supabase import AsyncClient
 from app.core.database import get_supabase
 from app.schemas.class_schema import ClassResponse, ClassCreate
 from app.schemas.pagination import PaginatedResponse, create_paginated_response
-from app.services.class_service import ClassService
 from app.schemas.types import GradeLevel
+from app.utils.pagination import paginate_query
 
 router = APIRouter()
 
@@ -23,13 +23,14 @@ async def read_classes(
     - **limit**: Max records to return (default: 20, max: 100)
     - **grade_level**: Filter by grade level (1, 2, or 3)
     """
-    service = ClassService(supabase)
-    classes, total = await service.get_all_classes(
-        skip=skip,
-        limit=limit,
-        grade_level=grade_level
-    )
-    return create_paginated_response(items=classes, total=total, skip=skip, limit=limit)
+    def build_query():
+        base_query = supabase.table('classes').select("id, class_name, grade_level", count='exact')
+        if grade_level is not None:
+            base_query = base_query.eq('grade_level', grade_level)
+        return base_query
+
+    items, total = await paginate_query(build_query, skip, limit)
+    return create_paginated_response(items=items, total=total, skip=skip, limit=limit)
 
 @router.post("/", response_model=ClassResponse)
 async def create_class(

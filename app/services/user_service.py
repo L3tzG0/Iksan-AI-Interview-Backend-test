@@ -1,8 +1,8 @@
 from typing import Optional, Tuple, List, Any
 from supabase import AsyncClient
-from postgrest.exceptions import APIError
 from fastapi import HTTPException, status
 from uuid import UUID
+from app.utils.pagination import paginate_query
 
 # Explicit columns to select for user profiles (avoiding SELECT *)
 USER_PROFILE_COLUMNS = "id, email, full_name, role_id, created_at, updated_at"
@@ -177,29 +177,14 @@ class UserProfileService:
         try:
             columns = USER_PROFILE_COLUMNS_WITH_ROLE if with_role else USER_PROFILE_COLUMNS
             
-            # Build query with filters - count='exact' returns total count with data
-            query = self.supabase.table('user_profiles').select(columns, count='exact')
-            if role_id is not None:
-                query = query.eq('role_id', role_id)
-            if search:
-                query = query.or_(f"full_name.ilike.%{search}%,email.ilike.%{search}%")
-            
-            # Single query with pagination - PostgreSQL returns total count with data
-            # Handle 416 error when offset exceeds total records
-            try:
-                response = await query.offset(skip).limit(limit).execute()
-                total = response.count if response.count is not None else 0
-                return response.data, total
-            except APIError as e:
-                if e.code == '416' or e.code == 416:  # Range not satisfiable - offset beyond total
-                    count_query = self.supabase.table('user_profiles').select(columns, count='exact')
-                    if role_id is not None:
-                        count_query = count_query.eq('role_id', role_id)
-                    if search:
-                        count_query = count_query.or_(f"full_name.ilike.%{search}%,email.ilike.%{search}%")
-                    count_response = await count_query.limit(0).execute()
-                    total = count_response.count if count_response.count is not None else 0
-                    return [], total
-                raise
+            def build_query():
+                base_query = self.supabase.table('user_profiles').select(columns, count='exact')
+                if role_id is not None:
+                    base_query = base_query.eq('role_id', role_id)
+                if search:
+                    base_query = base_query.or_(f"full_name.ilike.%{search}%,email.ilike.%{search}%")
+                return base_query
+
+            return await paginate_query(build_query, skip, limit)
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

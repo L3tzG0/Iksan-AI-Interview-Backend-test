@@ -1,10 +1,10 @@
 from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, Query
 from supabase import AsyncClient
-from postgrest.exceptions import APIError
 from app.core.database import get_supabase
 from app.schemas.school import SchoolResponse
 from app.schemas.pagination import PaginatedResponse, create_paginated_response
+from app.utils.pagination import paginate_query
 
 router = APIRouter()
 
@@ -26,24 +26,11 @@ async def read_schools(
     - **limit**: Max records to return (default: 20, max: 100)
     - **search**: Search by school name (partial match)
     """
-    # Build query with filters - count='exact' returns total count with data
-    query = supabase.table('schools').select(SCHOOL_COLUMNS, count='exact')
-    
-    if search:
-        query = query.ilike('school_name', f'%{search}%')
-    
-    # Single query with pagination - PostgreSQL returns total count with data
-    # Handle 416 error when offset exceeds total records
-    try:
-        response = await query.offset(skip).limit(limit).execute()
-        total = response.count if response.count is not None else 0
-        return create_paginated_response(items=response.data, total=total, skip=skip, limit=limit)
-    except APIError as e:
-        if e.code == '416' or e.code == 416:  # Range not satisfiable - offset beyond total
-            count_query = supabase.table('schools').select(SCHOOL_COLUMNS, count='exact')
-            if search:
-                count_query = count_query.ilike('school_name', f'%{search}%')
-            count_response = await count_query.limit(0).execute()
-            total = count_response.count if count_response.count is not None else 0
-            return create_paginated_response(items=[], total=total, skip=skip, limit=limit)
-        raise
+    def build_query():
+        base_query = supabase.table('schools').select(SCHOOL_COLUMNS, count='exact')
+        if search:
+            base_query = base_query.ilike('school_name', f'%{search}%')
+        return base_query
+
+    items, total = await paginate_query(build_query, skip, limit)
+    return create_paginated_response(items=items, total=total, skip=skip, limit=limit)
