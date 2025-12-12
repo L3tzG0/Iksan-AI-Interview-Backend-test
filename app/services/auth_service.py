@@ -1,8 +1,8 @@
-import re
 from typing import Optional
 from supabase import AsyncClient
 from fastapi import HTTPException, status
 from app.schemas.auth import LoginRequest, RegisterRequest, TeacherRegistrationData
+from app.utils.string_utils import sanitize_name
 
 
 class AuthService:
@@ -17,21 +17,6 @@ class AuthService:
     
     def __init__(self, supabase: AsyncClient):
         self.supabase = supabase
-
-    def _sanitize_name(self, name: str) -> str:
-        """
-        Sanitize user-typed names:
-        - Strip leading/trailing whitespace
-        - Normalize multiple spaces to single space
-        - Remove null bytes and control characters
-        """
-        if not name:
-            return name
-        # Remove null bytes and control characters
-        name = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', name)
-        # Normalize whitespace
-        name = ' '.join(name.split())
-        return name.strip()
 
     async def _resolve_or_create_school(self, school_id: Optional[int], school_name: Optional[str]) -> Optional[int]:
         """
@@ -49,7 +34,7 @@ class AuthService:
             return school_id
         
         if school_name is not None:
-            sanitized_name = self._sanitize_name(school_name)
+            sanitized_name = sanitize_name(school_name)
             if not sanitized_name:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -88,7 +73,7 @@ class AuthService:
             return major_id
         
         if major_name is not None:
-            sanitized_name = self._sanitize_name(major_name)
+            sanitized_name = sanitize_name(major_name)
             if not sanitized_name:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,

@@ -11,7 +11,6 @@ Handles student account creation with:
 import secrets
 import string
 import hashlib
-import re
 import logging
 from typing import Optional, List, Tuple
 from uuid import UUID
@@ -20,6 +19,7 @@ from fastapi import HTTPException, status
 
 from app.schemas.student import StudentAccountCreate, StudentAccountResponse
 from app.core.config import settings
+from app.utils.string_utils import sanitize_name
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -50,21 +50,6 @@ class StudentRegistrationService:
     # =========================================================================
     # UTILITY METHODS
     # =========================================================================
-
-    def _sanitize_name(self, name: str) -> str:
-        """
-        Sanitize user-typed names:
-        - Strip leading/trailing whitespace
-        - Normalize multiple spaces to single space
-        - Remove null bytes and control characters
-        """
-        if not name:
-            return name
-        # Remove null bytes and control characters
-        name = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', name)
-        # Normalize whitespace
-        name = ' '.join(name.split())
-        return name.strip()
 
     def _generate_secure_password(self, length: int = 12) -> str:
         """
@@ -126,7 +111,7 @@ class StudentRegistrationService:
         Returns tuple of (school_id, school_number).
         """
         logger.debug(f"[_resolve_or_create_school] Resolving school: {school_name}")
-        sanitized_name = self._sanitize_name(school_name)
+        sanitized_name = sanitize_name(school_name)
         if not sanitized_name:
             logger.error(f"[_resolve_or_create_school] School name is empty after sanitization")
             raise HTTPException(
@@ -202,7 +187,7 @@ class StudentRegistrationService:
         Returns tuple of (major_id, major_number).
         """
         logger.debug(f"[_resolve_or_create_major] Resolving major: {major_name}")
-        sanitized_name = self._sanitize_name(major_name)
+        sanitized_name = sanitize_name(major_name)
         if not sanitized_name:
             logger.error(f"[_resolve_or_create_major] Major name is empty after sanitization")
             raise HTTPException(
@@ -308,7 +293,7 @@ class StudentRegistrationService:
                 detail="Either class_id or both class_name and grade_level must be provided."
             )
         
-        sanitized_name = self._sanitize_name(class_name)
+        sanitized_name = sanitize_name(class_name)
         if not sanitized_name:
             logger.error(f"[_resolve_or_create_class] Class name is empty after sanitization")
             raise HTTPException(
