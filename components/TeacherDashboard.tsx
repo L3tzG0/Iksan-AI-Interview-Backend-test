@@ -1,9 +1,12 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { getTeacherDashboardData } from '../services/geminiService';
-import type { StudentSummary, User } from '../types';
+import type { StudentSummary, User, GeneratedStudentAccount } from '../types';
 import Spinner from './Spinner';
 import Card from './Card';
 import { FilterIcon, SortIcon, SearchIcon, ChartIcon } from './icons';
+import { bulkCreateStudents, type BulkRowError } from '../services/studentService';
+import { useToast } from './ui/Toast';
+import ProgressBar from './ui/ProgressBar';
 
 interface TeacherDashboardProps {
   currentUser: User;
@@ -18,19 +21,206 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser, onSele
   const [gradeFilter, setGradeFilter] = useState<number | 'all'>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [activeStudentId, setActiveStudentId] = useState<string | null>(null);
+  const [newStudent, setNewStudent] = useState<{ name: string; school: string; gradeYear: 1 | 2 | 3; major: string; classLabel: string }>({
+    name: '',
+    school: currentUser.schoolName || '',
+    gradeYear: 1,
+    major: '',
+    classLabel: '',
+  });
+  const [generatedAccount, setGeneratedAccount] = useState<GeneratedStudentAccount | null>(null);
+  const [bulkFileName, setBulkFileName] = useState('');
+  const [bulkPreview, setBulkPreview] = useState<GeneratedStudentAccount[]>([]);
+  const [bulkErrors, setBulkErrors] = useState<string[]>([]);
+  const [backendErrors, setBackendErrors] = useState<BulkRowError[]>([]);
+  const [bulkUploadSummary, setBulkUploadSummary] = useState<{ total: number; created: number; failed: number } | null>(null);
+  const [isUploadingCsv, setIsUploadingCsv] = useState(false);
+  const [bulkSelectedFile, setBulkSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const { addToast } = useToast();
+
+  const normalizeCode = (value: string, fallback: string) => {
+    const letters = value
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '')
+      .slice(0, 3);
+    return letters || fallback;
+  };
+
+  const triggerCsvPicker = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
+  const generateStudentId = (school: string, major: string) => {
+    const schoolCode = normalizeCode(school, 'SCH');
+    const majorCode = normalizeCode(major, 'GEN');
+    const existingCount = students.filter(
+      (s) =>
+        normalizeCode(s.schoolName, 'SCH') === schoolCode &&
+        normalizeCode(s.major, 'GEN') === majorCode
+    ).length;
+    const nextNumber = (existingCount + 1).toString().padStart(4, '0');
+    return `${schoolCode}${majorCode}${nextNumber}`;
+  };
+
+  const handleCreateStudent = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newStudent.name.trim() || !newStudent.major.trim()) {
+      alert('학생 이름과 전공을 입력해주세요.');
+      return;
+    }
+    const studentId = generateStudentId(newStudent.school || currentUser.schoolName, newStudent.major);
+    const tempPassword = `PW${Math.floor(Math.random() * 9999).toString().padStart(4, '0')}`;
+    const account: GeneratedStudentAccount = {
+      name: newStudent.name.trim(),
+      school: newStudent.school || currentUser.schoolName,
+      gradeYear: newStudent.gradeYear,
+      major: newStudent.major.trim(),
+      classLabel: newStudent.classLabel.trim(),
+      studentId,
+      tempPassword,
+    };
+    setGeneratedAccount(account);
+    const summary: StudentSummary = {
+      id: studentId,
+      name: account.name,
+      major: account.major,
+      schoolName: account.school,
+      grade: account.gradeYear,
+      latestScore: 0,
+      improvement: 0,
+      completed: false,
+    };
+    setStudents((prev) => [summary, ...prev]);
+    setNewStudent((prev) => ({ ...prev, name: '', major: '', classLabel: '' }));
+  };
+
+  const handleBulkUpload = (file?: File) => {
+    if (!file) return;
+    setBulkFileName(file.name);
+    setBulkErrors([]);
+    setBulkPreview([]);
+    setBackendErrors([]);
+    setBulkUploadSummary(null);
+    setBulkSelectedFile(file);
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = String(reader.result || '');
+      const lines = text
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter(Boolean);
+
+      const errors: string[] = [];
+      const preview: GeneratedStudentAccount[] = [];
+      const counters: Record<string, number> = {};
+
+      const ensureCounter = (school: string, major: string) => {
+        const key = `${normalizeCode(school, 'SCH')}-${normalizeCode(major, 'GEN')}`;
+        if (!(key in counters)) {
+          const existing = students.filter(
+            (s) =>
+              normalizeCode(s.schoolName, 'SCH') === normalizeCode(school, 'SCH') &&
+              normalizeCode(s.major, 'GEN') === normalizeCode(major, 'GEN')
+          ).length;
+          counters[key] = existing;
+        }
+        counters[key] += 1;
+        return counters[key];
+      };
+
+      lines.forEach((line, idx) => {
+        const cols = line.split(',').map((c) => c.trim());
+        if (cols.length < 4) {
+          errors.push(`${idx + 1}행: 필수 컬럼 부족 (이름, 학교, 학년, 전공 필요)`);
+          return;
+        }
+        const [name, school, gradeStr, major, classLabel = ''] = cols;
+        const gradeYear = Number(gradeStr) as 1 | 2 | 3;
+        if (!name || !school || !major || ![1, 2, 3].includes(gradeYear)) {
+          errors.push(`${idx + 1}행: 값이 올바르지 않습니다.`);
+          return;
+        }
+        const number = ensureCounter(school, major);
+        const studentId = `${normalizeCode(school, 'SCH')}${normalizeCode(major, 'GEN')}${number.toString().padStart(4, '0')}`;
+        const tempPassword = `PW${Math.floor(Math.random() * 9999).toString().padStart(4, '0')}`;
+        preview.push({
+          name,
+          school,
+          gradeYear,
+          major,
+          classLabel,
+          studentId,
+          tempPassword,
+        });
+      });
+
+      setBulkErrors(errors);
+      setBulkPreview(preview);
+    };
+    reader.onerror = () => {
+      setBulkErrors(['CSV 파일을 읽는 중 오류가 발생했습니다.']);
+    };
+    reader.readAsText(file);
+  };
+
+  const submitBulkUpload = async () => {
+    if (!bulkSelectedFile) return;
+    setIsUploadingCsv(true);
+    setBackendErrors([]);
+    setBulkUploadSummary(null);
+    try {
+      const res = await bulkCreateStudents(bulkSelectedFile);
+      setBulkUploadSummary({ total: res.total, created: res.created, failed: res.failed });
+      if (res.errors?.length) {
+        setBackendErrors(res.errors);
+      }
+      addToast(`CSV 업로드 완료: ${res.created}/${res.total}`, res.failed ? 'info' : 'success');
+    } catch (err: any) {
+      const message = err?.message || 'CSV 업로드에 실패했습니다.';
+      addToast(message, 'error');
+    } finally {
+      setIsUploadingCsv(false);
+    }
+  };
+
+  const downloadBackendErrors = () => {
+    if (!backendErrors.length) return;
+    const header = 'row,message,raw';
+    const lines = backendErrors.map((err) => {
+      const raw = Array.isArray(err.raw) ? err.raw.join(' ') : err.raw || '';
+      const safeRaw = `${raw}`.replace(/"/g, '""');
+      const safeMsg = err.message.replace(/"/g, '""');
+      return `${err.row},"${safeMsg}","${safeRaw}"`;
+    });
+    const csv = [header, ...lines].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'csv-errors.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
       const allStudents = await getTeacherDashboardData();
 
-      const myStudents = allStudents.filter((s) => {
-        if (s.schoolName !== currentUser.schoolName) return false;
-        if (currentUser.grade && s.grade !== currentUser.grade) return false;
-        return true;
-      });
+      const scopedStudents = currentUser.role === 'admin'
+        ? allStudents
+        : allStudents.filter((s) => {
+            if (s.schoolName !== currentUser.schoolName) return false;
+            if (currentUser.grade && s.grade !== currentUser.grade) return false;
+            return true;
+          });
 
-      setStudents(myStudents);
+      setStudents(scopedStudents);
       setIsLoading(false);
     };
     if (currentUser.schoolName) {
@@ -132,6 +322,188 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser, onSele
           </div>
         </div>
       </section>
+
+      <Card className="space-y-6">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold text-primary-text uppercase tracking-[0.25em]">Student Accounts</p>
+            <h2 className="text-xl font-bold text-slate-900">학생 계정 발급</h2>
+            <p className="text-sm text-slate-500">학생 ID는 학교 코드 + 전공 코드 + 4자리 번호로 생성됩니다. (예: ABCEGR0001)</p>
+          </div>
+          {generatedAccount && (
+            <div className="bg-primary-lightest/70 border border-primary/30 rounded-2xl px-4 py-3 text-sm text-slate-800">
+              <p className="font-semibold text-primary">최근 발급</p>
+              <p className="font-mono text-slate-900">ID: {generatedAccount.studentId}</p>
+              <p className="font-mono text-slate-900">PW: {generatedAccount.tempPassword}</p>
+              <p className="text-xs text-slate-500 mt-1">첫 로그인 시 비밀번호 변경 안내를 표시해주세요.</p>
+            </div>
+          )}
+        </div>
+
+        <div className="grid lg:grid-cols-3 gap-4">
+          <form className="lg:col-span-2 grid sm:grid-cols-2 gap-3" onSubmit={handleCreateStudent}>
+            <label className="space-y-1 text-sm font-semibold text-slate-700">
+              이름
+              <input
+                value={newStudent.name}
+                onChange={(e) => setNewStudent((prev) => ({ ...prev, name: e.target.value }))}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                placeholder="홍길동"
+                required
+              />
+            </label>
+            <label className="space-y-1 text-sm font-semibold text-slate-700">
+              학교
+              <input
+                value={newStudent.school}
+                onChange={(e) => setNewStudent((prev) => ({ ...prev, school: e.target.value }))}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                placeholder="예: 익산고등학교"
+              />
+            </label>
+            <label className="space-y-1 text-sm font-semibold text-slate-700">
+              학년
+              <select
+                value={newStudent.gradeYear}
+                onChange={(e) => setNewStudent((prev) => ({ ...prev, gradeYear: Number(e.target.value) as 1 | 2 | 3 }))}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/30"
+              >
+                {[1, 2, 3].map((year) => (
+                  <option key={year} value={year}>{year}학년</option>
+                ))}
+              </select>
+            </label>
+            <label className="space-y-1 text-sm font-semibold text-slate-700">
+              전공 / 계열
+              <input
+                value={newStudent.major}
+                onChange={(e) => setNewStudent((prev) => ({ ...prev, major: e.target.value }))}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                placeholder="예: 공학, 정보통신"
+                required
+              />
+            </label>
+            <label className="space-y-1 text-sm font-semibold text-slate-700">
+              반/학급 (선택)
+              <input
+                value={newStudent.classLabel}
+                onChange={(e) => setNewStudent((prev) => ({ ...prev, classLabel: e.target.value }))}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                placeholder="예: 3반"
+              />
+            </label>
+            <div className="flex items-end">
+              <button
+                type="submit"
+                className="w-full sm:w-auto px-4 py-3 rounded-lg bg-primary text-white font-semibold shadow-soft hover:bg-primary-dark transition-colors"
+              >
+                학생 계정 생성
+              </button>
+            </div>
+          </form>
+
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-white/90 p-4 space-y-3">
+            <p className="text-sm font-semibold text-slate-800">CSV 일괄 업로드</p>
+            <p className="text-xs text-slate-500">열 순서: 이름, 학교, 학년(1/2/3), 전공, 반(선택)</p>
+            <label className="block">
+              <input
+                type="file"
+                accept=".csv"
+                ref={fileInputRef}
+                onChange={(e) => handleBulkUpload(e.target.files?.[0] || undefined)}
+                className="block w-full text-sm text-slate-600 file:mr-3 file:py-2 file:px-3 file:rounded file:border-0 file:bg-primary-lightest file:text-primary file:font-semibold"
+              />
+            </label>
+            {bulkFileName && <p className="text-xs text-slate-500">선택한 파일: {bulkFileName}</p>}
+            <p className="text-xs text-slate-500">업로드 후 생성된 ID/PW를 CSV로 내려받게 안내하세요.</p>
+            {bulkErrors.length > 0 && (
+              <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg p-3 space-y-1">
+                {bulkErrors.map((err) => (
+                  <p key={err}>{err}</p>
+                ))}
+              </div>
+            )}
+            {bulkPreview.length > 0 && (
+              <div className="max-h-48 overflow-auto rounded-lg border border-slate-200">
+                <table className="min-w-full text-xs text-slate-700">
+                  <thead className="bg-slate-50 text-slate-500 uppercase">
+                    <tr>
+                      <th className="px-3 py-2 text-left">이름</th>
+                      <th className="px-3 py-2 text-left">학교</th>
+                      <th className="px-3 py-2 text-left">학년</th>
+                      <th className="px-3 py-2 text-left">전공</th>
+                      <th className="px-3 py-2 text-left">ID</th>
+                      <th className="px-3 py-2 text-left">PW</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {bulkPreview.map((row, idx) => (
+                      <tr key={`${row.studentId}-${idx}`}>
+                        <td className="px-3 py-2">{row.name}</td>
+                        <td className="px-3 py-2">{row.school}</td>
+                        <td className="px-3 py-2">{row.gradeYear}학년</td>
+                        <td className="px-3 py-2">{row.major}</td>
+                        <td className="px-3 py-2 font-mono text-xs">{row.studentId}</td>
+                        <td className="px-3 py-2 font-mono text-xs">{row.tempPassword}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {bulkUploadSummary && (
+              <div className="text-xs text-slate-700 flex flex-wrap items-center gap-2">
+                <span className="font-semibold">업로드 결과</span>
+                <span className="px-2 py-1 rounded bg-green-50 text-green-700 font-semibold">{bulkUploadSummary.created}/{bulkUploadSummary.total} 추가</span>
+                <span className={`px-2 py-1 rounded ${bulkUploadSummary.failed ? 'bg-rose-50 text-rose-700' : 'bg-slate-100 text-slate-600'}`}>
+                  실패 {bulkUploadSummary.failed}
+                </span>
+              </div>
+            )}
+            {backendErrors.length > 0 && (
+              <div className="max-h-40 overflow-auto rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700 space-y-1">
+                {backendErrors.map((err) => (
+                  <div key={`${err.row}-${err.message}`} className="flex gap-2 items-start">
+                    <span className="font-bold">#{err.row}</span>
+                    <span className="flex-1">{err.message}</span>
+                  </div>
+                ))}
+                <div className="flex gap-2 pt-2">
+                  <button type="button" onClick={downloadBackendErrors} className="text-[11px] underline text-rose-700">
+                    오류 CSV 다운로드
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setBulkPreview([]);
+                  setBulkErrors([]);
+                  setBackendErrors([]);
+                  setBulkFileName('');
+                  setBulkUploadSummary(null);
+                  setBulkSelectedFile(null);
+                  if (fileInputRef.current) fileInputRef.current.value = '';
+                }}
+                className="text-xs px-3 py-2 rounded-lg border border-slate-200 text-slate-600 hover:border-primary"
+              >
+                초기화
+              </button>
+              <button
+                type="button"
+                className="text-xs px-3 py-2 rounded-lg bg-primary text-white font-semibold shadow-soft disabled:opacity-50 flex items-center gap-2"
+                disabled={bulkPreview.length === 0 || isUploadingCsv}
+                onClick={submitBulkUpload}
+              >
+                {isUploadingCsv ? "업로드 중..." : "CSV 업로드"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </Card>
 
       <Card className="space-y-4">
         <div className="flex flex-col lg:flex-row lg:items-center gap-4">
@@ -253,3 +625,8 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser, onSele
 };
 
 export default TeacherDashboard;
+
+
+
+
+

@@ -13,6 +13,10 @@ interface VoiceAnswerAreaProps {
   inlineError?: string | null;
   micPermission?: 'unknown' | 'granted' | 'denied';
   onRequestMicPermission?: () => void;
+  isRequestingMic?: boolean;
+  devices?: { deviceId: string; label: string }[];
+  selectedDeviceId?: string;
+  onSelectDevice?: (deviceId: string) => void;
 }
 
 const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
@@ -27,6 +31,10 @@ const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
   inlineError,
   micPermission = 'unknown',
   onRequestMicPermission,
+  isRequestingMic = false,
+  devices = [],
+  selectedDeviceId,
+  onSelectDevice,
 }) => {
   const handleRetry = () => {
     onChangeAnswer('');
@@ -43,14 +51,14 @@ const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
           </span>
           <div className="absolute top-4 left-4 inline-flex items-center gap-2 text-[11px] font-semibold text-slate-600">
             <span className={`w-2 h-2 rounded-full ${micPermission === 'granted' ? 'bg-green-500' : micPermission === 'denied' ? 'bg-red-500' : 'bg-amber-400'}`}></span>
-            <span>{micPermission === 'granted' ? '마이크 허용' : micPermission === 'denied' ? '마이크 거부됨' : '권한 확인 필요'}</span>
+            <span>{micPermission === 'granted' ? '마이크 허용' : micPermission === 'denied' ? '권한 차단됨' : '허용 대기'}</span>
           </div>
           <button
             onClick={onToggleRecording}
-            disabled={!isSpeechSupported || micPermission === 'denied'}
+            disabled={!isSpeechSupported || micPermission === 'denied' || isRequestingMic}
             className={`relative mx-auto flex items-center justify-center w-24 h-24 rounded-full transition-all duration-300 border-4 ${
               isRecording ? 'bg-red-500/10 border-red-300' : 'bg-white border-primary-light hover:border-primary'
-            } ${(!isSpeechSupported || micPermission === 'denied') ? 'opacity-40 cursor-not-allowed' : ''}`}
+            } ${(!isSpeechSupported || micPermission === 'denied' || isRequestingMic) ? 'opacity-40 cursor-not-allowed' : ''}`}
             aria-label={isRecording ? '녹음 중지' : '녹음 시작'}
             type="button"
           >
@@ -72,29 +80,46 @@ const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
             ))}
           </div>
           <p className={`font-bold text-lg ${isRecording ? 'text-red-500' : 'text-slate-700'}`}>
-            {isRecording ? '녹음 중...' : '대기 중'}
+            {isRecording ? '녹음 중...' : '음성 입력'}
           </p>
           <p className="text-sm text-slate-500 mt-1">
             {!isSpeechSupported
-              ? '음성 인식이 지원되지 않는 브라우저입니다.'
+              ? '이 브라우저에서는 음성 입력이 지원되지 않습니다.'
               : isRecording
-                ? '말씀을 멈추면 잠시 후 자동으로 저장돼요.'
-                : '마이크를 켜거나 직접 입력할 수 있어요.'}
+                ? '답변을 또렷하게 말해 주세요.'
+                : '시작을 누르고 답변을 말씀해주세요.'}
           </p>
-          <p className="text-[11px] text-slate-500 mt-2">마이크 아이콘을 눌러 녹음을 시작하거나 텍스트로 작성하세요.</p>
+          <p className="text-[11px] text-slate-500 mt-2">음성 녹음이 어려우면 텍스트로 작성해도 괜찮습니다.</p>
+          {devices.length > 0 && (
+            <div className="mt-3 text-left">
+              <label className="text-[11px] font-semibold text-slate-600 mb-1 block">마이크 선택</label>
+              <select
+                value={selectedDeviceId || ''}
+                onChange={(e) => onSelectDevice && onSelectDevice(e.target.value)}
+                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+              >
+                {devices.map((d, idx) => (
+                  <option key={d.deviceId || idx} value={d.deviceId}>
+                    {d.label || `마이크 ${idx + 1}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           {micPermission !== 'granted' && (
             <button
               type="button"
               onClick={onRequestMicPermission}
-              className="mt-3 text-xs font-semibold text-primary hover:text-primary-dark px-3 py-1.5 rounded-full bg-white border border-primary-light"
+              disabled={isRequestingMic}
+              className="mt-3 text-xs font-semibold text-primary hover:text-primary-dark px-3 py-1.5 rounded-full bg-white border border-primary-light disabled:opacity-50"
             >
-              마이크 권한 요청
+              {isRequestingMic ? '요청 중...' : '마이크 허용 요청'}
             </button>
           )}
         </div>
         {!isSpeechSupported && (
           <p className="text-xs text-slate-500 text-center px-4">
-            음성 인식이 지원되지 않으면 다른 브라우저나 기기에서 다시 시도해 주세요.
+            음성 인식이 지원되지 않는 환경입니다. 텍스트로 입력을 마무리해주세요.
           </p>
         )}
       </div>
@@ -107,8 +132,8 @@ const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
             readOnly={isReadOnly}
             placeholder={
               isReadOnly
-                ? 'AI가 불러온 내용을 확인만 할 수 있습니다.'
-                : '중요 포인트, 수치, 결과를 포함해 구체적으로 작성해 주세요.'
+                ? 'AI가 자동으로 생성한 답변을 보고만 할 수 있습니다.'
+                : '여기에 메모하거나 답변을 직접 작성해도 괜찮습니다.'
             }
             maxLength={800}
             className={`w-full min-h-[260px] max-h-[400px] p-5 pr-24 border rounded-[20px] resize-none text-slate-800 leading-relaxed focus:outline-none focus:ring-2 transition-colors overflow-auto ${
@@ -129,21 +154,21 @@ const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
         {inlineError && <p className="mt-2 text-sm text-red-600 font-semibold">{inlineError}</p>}
         <div className="mt-4 bg-slate-50 border border-slate-200 rounded-[14px] p-3">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold text-slate-700">실시간 전사 & 저장</p>
+            <p className="text-sm font-semibold text-slate-700">작성/녹음 내용</p>
             <button
               type="button"
               onClick={handleRetry}
               className="text-xs font-semibold text-primary hover:text-primary-dark px-3 py-1 rounded-full bg-white border border-primary-light"
             >
-              다시 작성
+              다시 쓰기
             </button>
           </div>
-          <p className="text-xs text-slate-500 mt-1">입력한 내용은 자동으로 저장돼요. 필요하면 다시 녹음하거나 수정할 수 있습니다.</p>
+          <p className="text-xs text-slate-500 mt-1">작성한 텍스트와 녹음 내용을 함께 저장할 수 있습니다. 필요하면 다시 시도하세요.</p>
           <div className="mt-2 p-3 bg-white rounded-[10px] border border-slate-200 min-h-[64px] text-sm text-slate-700 whitespace-pre-wrap space-y-3">
-            <p className="m-0">{currentAnswer || '아직 작성된 답변이 없습니다.'}</p>
+            <p className="m-0">{currentAnswer || '작성한 답변이 여기에 표시됩니다.'}</p>
             {recordingUrl && (
               <div className="flex flex-col gap-1 bg-slate-50 border border-slate-200 rounded-[10px] p-2">
-                <span className="text-xs text-slate-500 font-semibold">녹음된 오디오</span>
+                <span className="text-xs text-slate-500 font-semibold">녹음 파일</span>
                 <audio src={recordingUrl} controls className="w-full" />
               </div>
             )}

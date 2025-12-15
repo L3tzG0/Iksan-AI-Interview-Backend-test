@@ -1,18 +1,21 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom';
 import WelcomeScreen from './components/WelcomeScreen';
+import Landing from './components/Landing';
 import InterviewSession from './components/InterviewSession';
 import ResultsScreen from './components/ResultsScreen';
 import TeacherDashboard from './components/TeacherDashboard';
 import StudentDetailView from './components/StudentDetailView';
-import TeacherHome from './components/TeacherHome';
 import SignInScreen from './components/auth/SignInScreen';
 import SignUpScreen from './components/auth/SignUpScreen';
 import Navbar from './components/layout/Navbar';
+import AddStudentModal from './components/AddStudentModal';
 import { InterviewReport, Question, Answer, User, InterviewStartPayload } from './types';
-import { generateQuestions, evaluateAnswers, saveInterviewReportForStudent, getStudentDetails } from './services/geminiService';
+import { evaluateAnswers, saveInterviewReportForStudent, getStudentDetails } from './services/geminiService';
+import { initiateSession } from './services/sessionService';
 import { GraduationCapIcon } from './components/icons';
-import { clearStoredToken } from './services/authService';
+import { clearStoredToken, fetchProfile } from './services/authService';
+import Button from './components/ui/Button';
 
 interface AdminHeaderProps {
     user?: User | null;
@@ -34,12 +37,34 @@ const AdminHeader: React.FC<AdminHeaderProps> = ({ user }) => (
   </div>
 );
 
+const AccessDenied: React.FC<{ onHome: () => void; message?: string }> = ({ onHome, message }) => (
+  <div className="flex flex-col items-center justify-center min-h-[60vh] text-slate-700">
+    <div className="max-w-md w-full bg-white border border-slate-200 shadow-2xl rounded-2xl p-8 space-y-4 text-center">
+      <div className="w-12 h-12 rounded-full bg-rose-50 border border-rose-200 flex items-center justify-center mx-auto">
+        <span className="text-rose-500 text-xl font-bold">!</span>
+      </div>
+      <h2 className="text-xl font-bold text-slate-900">접근 권한이 없습니다</h2>
+      <p className="text-sm text-slate-600">
+        {message || '요청한 페이지를 볼 수 있는 권한이 없어요. 올바른 계정으로 로그인했는지 확인해주세요.'}
+      </p>
+      <Button onClick={onHome} fullWidth className="justify-center">
+        홈으로 이동
+      </Button>
+    </div>
+  </div>
+);
+
 const App: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const getHomePathForRole = useCallback(
+    (role: User['role']) => (role === 'student' ? '/student/home' : '/teacher/home'),
+    []
+  );
   // Auth State
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [loginRedirectPath, setLoginRedirectPath] = useState<string | null>(null);
   // App State
   const [questions, setQuestions] = useState<Question[]>([]);
   const [report, setReport] = useState<InterviewReport | null>(null);
@@ -47,6 +72,8 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [perQuestionSeconds, setPerQuestionSeconds] = useState(60);
+  const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(true);
 
   const clearDrafts = useCallback(() => {
     try {
@@ -72,10 +99,43 @@ const App: React.FC = () => {
       fetchHistory();
   }, [isAuthenticated, currentUser]);
 
+  // Restore session from stored token on reload
+  useEffect(() => {
+    const restore = async () => {
+      try {
+        const user = await fetchProfile();
+        if (user) {
+          setCurrentUser(user);
+          setIsAuthenticated(true);
+          setLoginRedirectPath(getHomePathForRole(user.role));
+        }
+      } catch (err) {
+        console.error('Failed to restore session', err);
+        clearStoredToken();
+      }
+      setIsRestoring(false);
+    };
+    restore();
+  }, [getHomePathForRole]);
+
+  useEffect(() => {
+    if (isAuthenticated || isRestoring) return;
+    const hintedRole = location.pathname.startsWith('/teacher') ? 'teacher' : 'student';
+    setLoginRedirectPath(getHomePathForRole(hintedRole as User['role']));
+  }, [getHomePathForRole, isAuthenticated, isRestoring, location.pathname]);
+
   const handleAuthSuccess = (user: User) => {
     setCurrentUser(user);
     setIsAuthenticated(true);
-    navigate('/', { replace: true });
+    const roleHome = getHomePathForRole(user.role);
+    const hintedHome =
+      loginRedirectPath && loginRedirectPath.startsWith('/teacher') && user.role !== 'student'
+        ? loginRedirectPath
+        : loginRedirectPath && loginRedirectPath.startsWith('/student') && user.role === 'student'
+        ? loginRedirectPath
+        : roleHome;
+    navigate(hintedHome, { replace: true });
+    setLoginRedirectPath(null);
   };
 
   const handleLogout = () => {
@@ -86,11 +146,12 @@ const App: React.FC = () => {
     setStudentHistory([]);
     clearDrafts();
     clearStoredToken();
-    navigate('/signin', { replace: true });
+    navigate('/', { replace: true });
   };
 
   const handleRoleToggle = () => {
     if (!currentUser) return;
+    if (currentUser.role === 'admin') return;
     const newRole = currentUser.role === 'student' ? 'teacher' : 'student';
     setCurrentUser({ ...currentUser, role: newRole });
     navigate('/');
@@ -102,24 +163,21 @@ const App: React.FC = () => {
     clearDrafts();
     setPerQuestionSeconds(input.perQuestionSeconds || 60);
 
-    const goalLabel = input.intent === 'university' ? '대학교 진학' : '취업 준비';
-    const targetDetail = input.intent === 'university'
-      ? `희망 대학: ${(input.favoriteUniversities && input.favoriteUniversities.length > 0) ? input.favoriteUniversities.join(', ') : '미정'}, 전공: ${input.major || '미정'}`
-      : `희망 분야: ${input.workField || '미정'}`;
-
-    const mockQuestions: Question[] = [
-      { id: 1, text: `${goalLabel} 관점에서 자신을 한 문장으로 소개해 주세요. (${targetDetail})`, type: "general" },
-      { id: 2, text: input.intent === 'university'
-          ? "선호하는 대학·전공에 지원하려는 동기와 준비한 활동을 STAR 구조로 설명해 주세요."
-          : `${input.workField || '희망 분야'} 역할과 연관된 프로젝트 경험을 STAR 구조로 설명해 주세요.`, type: "resume-based" },
-      { id: 3, text: "앞서 공유한 자료에서 본인이 가장 강점이라고 생각하는 역량을 구체적 사례와 함께 이야기해 주세요.", type: "general" },
-    ];
-    setQuestions(mockQuestions);
-    setIsLoading(false);
-    navigate('/interview');
-    return;
-
-    // For live generation, replace with backend AI calls
+    try {
+      const session = await initiateSession(input);
+      const fetchedQuestions = session.questions || [];
+      if (fetchedQuestions.length === 0) {
+        throw new Error('질문을 불러오지 못했습니다.');
+      }
+      setQuestions(fetchedQuestions);
+      setPerQuestionSeconds(session.timeLimitSeconds || input.perQuestionSeconds || 60);
+      navigate('/student/interview');
+    } catch (err) {
+      console.error('Failed to initiate interview session', err);
+      setError('면접 질문을 불러오는 데 실패했습니다. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setIsLoading(false);
+    }
   }, [clearDrafts, navigate]);
 
   const handleFinishInterview = useCallback(async (answers: Answer[]) => {
@@ -141,7 +199,7 @@ const App: React.FC = () => {
       }
       setReport(interviewReport);
       clearDrafts();
-      navigate('/results');
+      navigate(currentUser?.role === 'student' ? '/student/results' : '/teacher/dashboard');
     } catch (err) {
       setError('보고서 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.');
       console.error(err);
@@ -159,12 +217,26 @@ const App: React.FC = () => {
 
   const handleViewHistoryReport = (historyReport: InterviewReport) => {
     setReport(historyReport);
-    navigate('/results');
+    navigate(currentUser?.role === 'student' ? '/student/results' : '/teacher/dashboard');
   };
 
   const handleViewStudent = (studentId: string) => {
     navigate(`/teacher/students/${studentId}`);
   };
+
+  const homePath = getHomePathForRole(currentUser?.role || 'teacher');
+
+  const GuardedRoute: React.FC<{ allowed: Array<User['role']>; element: React.ReactElement; message?: string }> = ({ allowed, element, message }) => {
+    if (currentUser && allowed.includes(currentUser.role)) return element;
+    return <AccessDenied onHome={() => navigate(homePath, { replace: true })} message={message} />;
+  };
+
+  const NotFound: React.FC = () => (
+    <AccessDenied
+      onHome={() => navigate(homePath, { replace: true })}
+      message="요청한 페이지를 찾을 수 없습니다. 홈으로 돌아가 주세요."
+    />
+  );
 
   const renderError = () => (
     <div className="flex flex-col items-center justify-center h-[60vh] text-slate-700">
@@ -187,30 +259,84 @@ const App: React.FC = () => {
     </div>
   );
 
-  if (!isAuthenticated) {
-    return (
-      <Routes>
-        <Route path="/signin" element={<SignInScreen onSignIn={handleAuthSuccess} onSwitchToSignUp={() => navigate('/signup')} />} />
-        <Route path="/signup" element={<SignUpScreen onSignUp={handleAuthSuccess} onSwitchToSignIn={() => navigate('/signin')} />} />
-        <Route path="*" element={<Navigate to="/signin" replace />} />
-      </Routes>
-    );
-  }
+  const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin';
+  const latestReport = report ?? (studentHistory.length > 0 ? studentHistory[0] : null);
 
-  if (isAuthenticated && (location.pathname === '/signin' || location.pathname === '/signup')) {
-    return <Navigate to="/" replace />;
-  }
-
-  const isTeacher = currentUser?.role === 'teacher';
-
-  const TeacherRoute: React.FC<{ element: React.ReactElement }> = ({ element }) =>
-    isTeacher ? element : <Navigate to="/" replace />;
+  const handleOpenLatestReport = () => {
+    const resultsPath = currentUser?.role === 'student' ? '/student/results' : '/teacher/dashboard';
+    if (report) {
+      navigate(resultsPath);
+      return;
+    }
+    if (studentHistory.length > 0) {
+      setReport(studentHistory[0]);
+      navigate(resultsPath);
+    }
+  };
 
   const InlineStudentDetail: React.FC = () => {
     const { id } = useParams();
     if (!id) return <Navigate to="/teacher/dashboard" replace />;
     return <StudentDetailView studentId={id} onBack={() => navigate('/teacher/dashboard')} />;
   };
+
+  if (!isAuthenticated) {
+    const defaultSigninPath = location.pathname.startsWith('/teacher') ? '/signin/teacher' : '/signin/student';
+    if (isRestoring) {
+      return (
+        <div className="flex items-center justify-center min-h-screen text-slate-700">
+          <div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-primary"></div>
+        </div>
+      );
+    }
+    return (
+      <Routes>
+        <Route path="/" element={<Navigate to={defaultSigninPath} replace />} />
+        <Route
+          path="/signin"
+          element={
+            <SignInScreen
+              mode="student"
+              onSignIn={handleAuthSuccess}
+              onSwitchToSignUp={() => navigate('/signup/teacher')}
+              onSwitchMode={() => navigate('/signin/teacher')}
+            />
+          }
+        />
+        <Route
+          path="/signin/student"
+          element={
+            <SignInScreen
+              mode="student"
+              onSignIn={handleAuthSuccess}
+              onSwitchToSignUp={() => navigate('/signup/teacher')}
+              onSwitchMode={() => navigate('/signin/teacher')}
+            />
+          }
+        />
+        <Route
+          path="/signin/teacher"
+          element={
+            <SignInScreen
+              mode="staff"
+              onSignIn={handleAuthSuccess}
+              onSwitchToSignUp={() => navigate('/signup/teacher')}
+              onSwitchMode={() => navigate('/signin/student')}
+            />
+          }
+        />
+        <Route
+          path="/signup/teacher"
+          element={<SignUpScreen defaultRole="teacher" onSignUp={handleAuthSuccess} onSwitchToSignIn={() => navigate('/signin/teacher')} />}
+        />
+        <Route
+          path="/signup/admin"
+          element={<SignUpScreen defaultRole="admin" onSignUp={handleAuthSuccess} onSwitchToSignIn={() => navigate('/signin/teacher')} />}
+        />
+        <Route path="*" element={<Navigate to={defaultSigninPath} replace />} />
+      </Routes>
+    );
+  }
 
   return (
     <div className="relative min-h-screen bg-gradient-to-b from-[#f8f5ff] via-white to-[#f2eefe] text-slate-700 font-elice overflow-hidden">
@@ -224,9 +350,17 @@ const App: React.FC = () => {
           currentPath={location.pathname}
           onNavigate={(path) => navigate(path)}
           hasResults={!!report}
+          onOpenAddStudent={isStaff ? () => setIsAddStudentOpen(true) : undefined}
         />
+        {isStaff && (
+          <AddStudentModal
+            isOpen={isAddStudentOpen}
+            onClose={() => setIsAddStudentOpen(false)}
+            defaultSchool={currentUser?.schoolName}
+          />
+        )}
         <main className="max-w-6xl mx-auto p-4 sm:p-6 lg:px-8 pt-8 pb-16">
-          {isTeacher && location.pathname.startsWith('/teacher/dashboard') && <AdminHeader user={currentUser} />}
+          {isStaff && location.pathname.startsWith('/teacher') && <AdminHeader user={currentUser} />}
           {isLoading && (
             <div className="flex flex-col items-center justify-center h-[60vh] text-slate-700">
               <div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-primary"></div>
@@ -235,49 +369,126 @@ const App: React.FC = () => {
           )}
           {!isLoading && (
             <Routes>
+        <Route
+          path="/"
+          element={
+          <Navigate
+            to={currentUser?.role === 'student' ? '/student/home' : '/teacher/home'}
+            replace
+          />
+          }
+        />
               <Route
-                path="/"
+                path="/student/home"
                 element={
-                  isTeacher ? (
-                    <TeacherHome
-                      user={currentUser!}
-                      onGoDashboard={() => navigate('/teacher/dashboard')}
-                      onPreviewStudent={() => navigate('/teacher/dashboard')}
-                    />
-                  ) : (
-                    <WelcomeScreen 
-                      onStart={handleStartInterview} 
-                      history={studentHistory} 
-                      onViewReport={handleViewHistoryReport}
-                    />
-                  )
+                  <GuardedRoute
+                    allowed={['student']}
+                    element={
+                      <Landing
+                        user={currentUser!}
+                        hasResults={!!latestReport}
+                        latestReport={latestReport}
+                        onStartInterview={() => navigate('/student/interview/start')}
+                        onGoDashboard={() => navigate('/student/results')}
+                        onViewResults={handleOpenLatestReport}
+                      />
+                    }
+                  />
                 }
               />
               <Route
-                path="/interview"
+                path="/student/interview/start"
                 element={
-                  questions.length === 0 ? (
-                    <Navigate to="/" replace />
-                  ) : (
-                    <InterviewSession
-                      questions={questions}
-                      onFinish={handleFinishInterview}
-                      perQuestionSeconds={perQuestionSeconds}
-                      onExit={() => navigate('/', { replace: true })}
-                    />
-                  )
+                  <GuardedRoute
+                    allowed={['student']}
+                    element={
+                      <WelcomeScreen
+                        onStart={handleStartInterview}
+                        history={studentHistory}
+                        onViewReport={handleViewHistoryReport}
+                      />
+                    }
+                  />
                 }
               />
               <Route
-                path="/results"
-                element={report ? <ResultsScreen report={report} onRetry={handleTryAnotherTopic} /> : <Navigate to="/" replace />}
+                path="/student/interview"
+                element={
+                  <GuardedRoute
+                    allowed={['student']}
+                    element={
+                      questions.length === 0 ? (
+                        <Navigate to="/student/home" replace />
+                      ) : (
+                        <InterviewSession
+                          questions={questions}
+                          onFinish={handleFinishInterview}
+                          perQuestionSeconds={perQuestionSeconds}
+                          onExit={() => navigate('/student/home', { replace: true })}
+                        />
+                      )
+                    }
+                  />
+                }
+              />
+              <Route
+                path="/student/results"
+                element={
+                  <GuardedRoute
+                    allowed={['student']}
+                    element={
+                      report ? (
+                        <ResultsScreen
+                          report={report}
+                          onRetry={handleTryAnotherTopic}
+                          studentMeta={{
+                            name: currentUser!.name,
+                            schoolName: currentUser!.schoolName,
+                            grade: currentUser!.grade,
+                            major: currentUser!.major,
+                          }}
+                        />
+                      ) : (
+                        <Navigate to="/student/home" replace />
+                      )
+                    }
+                  />
+                }
+              />
+              <Route
+                path="/teacher/home"
+                element={
+                  <GuardedRoute
+                    allowed={['teacher', 'admin']}
+                    element={
+                      <Landing
+                        user={currentUser!}
+                        hasResults={!!latestReport}
+                        latestReport={latestReport}
+                        onStartInterview={() => navigate('/teacher/dashboard')}
+                        onGoDashboard={() => navigate('/teacher/dashboard')}
+                        onViewResults={handleOpenLatestReport}
+                      />
+                    }
+                  />
+                }
               />
               <Route
                 path="/teacher/dashboard"
-                element={<TeacherRoute element={<TeacherDashboard currentUser={currentUser!} onSelectStudent={handleViewStudent} />} />}
+                element={
+                  <GuardedRoute
+                    allowed={['teacher', 'admin']}
+                    element={<TeacherDashboard currentUser={currentUser!} onSelectStudent={handleViewStudent} />}
+                  />
+                }
               />
-              <Route path="/teacher/students/:id" element={<TeacherRoute element={<InlineStudentDetail />} />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
+              <Route
+                path="/teacher/students/:id"
+                element={
+                  <GuardedRoute allowed={['teacher', 'admin']} element={<InlineStudentDetail />} />
+                }
+              />
+              <Route path="*" element={<NotFound />} />
             </Routes>
           )}
           {error && renderError()}

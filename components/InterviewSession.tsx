@@ -51,6 +51,7 @@ import Card from './Card';
 import Button from './ui/Button';
 import { LightbulbIcon, ClockIcon } from './icons';
 import VoiceAnswerArea from './interview/VoiceAnswerArea';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 interface InterviewSessionProps {
   questions: Question[];
@@ -71,7 +72,14 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
   const [isTimerPaused, setIsTimerPaused] = useState(false);
   const [isTimerVisible, setIsTimerVisible] = useState(true);
   const [isTimerInView, setIsTimerInView] = useState(true);
+  const [timeExceeded, setTimeExceeded] = useState(false);
   const [micPermission, setMicPermission] = useState<'unknown' | 'granted' | 'denied'>('unknown');
+  const [isRequestingMic, setIsRequestingMic] = useState(false);
+  const [showExitModal, setShowExitModal] = useState(false);
+  const [micDevices, setMicDevices] = useState<{ deviceId: string; label: string }[]>([]);
+  const [selectedMicId, setSelectedMicId] = useState<string | undefined>(undefined);
+  const navigate = useNavigate();
+  const location = useLocation();
   const [drafts, setDrafts] = useState<Record<number, { text: string; audioUrl?: string }>>(() => {
     if (typeof window === 'undefined') return {};
     try {
@@ -88,19 +96,49 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const inlineTimerRef = useRef<HTMLDivElement | null>(null);
+  const devicesLoadedRef = useRef(false);
+
+  const loadMicDevices = useCallback(async () => {
+    if (!navigator.mediaDevices?.enumerateDevices) return;
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const micList = devices
+        .filter((d) => d.kind === 'audioinput')
+        .map((d, idx) => ({
+          deviceId: d.deviceId || `mic-${idx}`,
+          label: d.label || `마이크 ${idx + 1}`,
+        }));
+      setMicDevices(micList);
+      if (micList.length && !selectedMicId) {
+        setSelectedMicId(micList[0].deviceId);
+      } else if (selectedMicId && !micList.find((m) => m.deviceId === selectedMicId) && micList[0]) {
+        setSelectedMicId(micList[0].deviceId);
+      }
+      devicesLoadedRef.current = true;
+    } catch {
+      // ignore enumeration errors
+    }
+  }, [selectedMicId]);
 
   const requestMicPermission = useCallback(async () => {
     if (!navigator.mediaDevices?.getUserMedia) {
       setMicPermission('denied');
-      return;
+      setInlineError('이 기기에서는 마이크를 사용할 수 없어요.');
+      return false;
     }
+    setIsRequestingMic(true);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       setMicPermission('granted');
+      setInlineError(null);
       stream.getTracks().forEach((track) => track.stop());
+      return true;
     } catch (err) {
       setMicPermission('denied');
-      throw err;
+      setInlineError('마이크 권한이 거부되었어요. 브라우저 주소창의 마이크 아이콘을 눌러 허용 후 다시 시도해주세요.');
+      return false;
+    } finally {
+      setIsRequestingMic(false);
     }
   }, []);
 
@@ -138,6 +176,13 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
         setMicPermission('unknown');
       });
   }, []);
+
+  // Proactively request mic permission on first render if unknown
+  useEffect(() => {
+    if (micPermission === 'unknown') {
+      requestMicPermission();
+    }
+  }, [micPermission, requestMicPermission]);
 
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -177,7 +222,9 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
 
   const stopAudioRecording = useCallback(() => {
     if (mediaRecorderRef.current) {
-      mediaRecorderRef.current.stop();
+      if (mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop();
+      }
       mediaRecorderRef.current = null;
     }
   }, []);
@@ -195,6 +242,27 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
       stopAudioRecording();
     }
   }, [stopAudioRecording]);
+
+  // Stop any active recording when unmounting or leaving the page
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        stopCurrentRecording();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      stopCurrentRecording();
+    };
+  }, [stopCurrentRecording]);
+
+  // Stop any active recording when unmounting or navigating away
+  useEffect(() => {
+    return () => {
+      stopCurrentRecording();
+    };
+  }, [stopCurrentRecording]);
 
   const isLowTime = timeLeft <= 15;
   useEffect(() => {
@@ -240,6 +308,8 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
       mediaRecorderRef.current = recorder;
     } catch (err) {
       setMicPermission('denied');
+      setInlineError('마이크 권한이 필요합니다. 브라우저 설정을 확인해주세요.');
+      setIsRecording(false);
       console.error('Microphone access denied or failed', err);
     }
   }, [currentAnswer, currentQuestionIndex, questions, updateDraft]);
@@ -257,6 +327,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
 
     const answerText = trimmed || options?.skipReason || '이 질문을 건너뛰겠습니다.';
     setInlineError(null);
+    setTimeExceeded(false);
 
     const newAnswer: Answer = {
       questionId: question.id,
@@ -278,6 +349,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
   useEffect(() => {
     setTimeLeft(perQuestionSeconds);
     setInlineError(null);
+    setTimeExceeded(false);
   }, [currentQuestionIndex, perQuestionSeconds]);
 
   useEffect(() => {
@@ -551,6 +623,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
             inlineError={inlineError}
             micPermission={micPermission}
             onRequestMicPermission={requestMicPermission}
+            isRequestingMic={isRequestingMic}
           />
 
           <div className="mt-8 space-y-4">
@@ -583,6 +656,36 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
           </div>
         </Card>
       </div>
+
+      {showExitModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm px-4">
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl border border-slate-200 p-6 space-y-4 animate-softFadeUp">
+            <h3 className="text-lg font-bold text-slate-900">면접을 종료하시겠습니까?</h3>
+            <p className="text-sm text-slate-600">진행 중인 답변이 사라질 수 있습니다. 저장 후 나가거나 계속 진행을 선택하세요.</p>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  setShowExitModal(false);
+                }}
+                className="bg-white text-slate-700 border border-slate-200"
+              >
+                계속 진행
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  setShowExitModal(false);
+                  if (onExit) onExit();
+                }}
+              >
+                종료하기
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

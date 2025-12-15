@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { User } from '../../types';
-import { LogOutIcon, ChevronDownIcon, GraduationCapIcon, EliceLogoIcon, HomeIcon, SparklesIcon, ChartIcon, UsersIcon } from '../icons';
+import { LogOutIcon, ChevronDownIcon, GraduationCapIcon, HomeIcon, SparklesIcon, ChartIcon, UsersIcon } from '../icons';
 
 interface NavbarProps {
   user: User;
@@ -9,9 +9,10 @@ interface NavbarProps {
   currentPath: string;
   onNavigate?: (path: string) => void;
   hasResults?: boolean;
+  onOpenAddStudent?: () => void;
 }
 
-const Navbar: React.FC<NavbarProps> = ({ user, onLogout, onToggleRole, currentPath, onNavigate, hasResults }) => {
+const Navbar: React.FC<NavbarProps> = ({ user, onLogout, onToggleRole, currentPath, onNavigate, hasResults, onOpenAddStudent }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -30,13 +31,10 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, onToggleRole, currentPa
       { path: '/', label: '홈', icon: HomeIcon },
     ];
 
-    if (user.role === 'teacher') {
-      base.push({ path: '/teacher/dashboard', label: '학생 대시보드', icon: ChartIcon });
+    if (user.role === 'teacher' || user.role === 'admin') {
+      base.push({ path: '/teacher/dashboard', label: '대시보드', icon: ChartIcon });
     } else {
-      base.push(
-        { path: '/interview', label: 'AI 면접', icon: SparklesIcon },
-        { path: '/results', label: '결과 & 피드백', icon: ChartIcon, disabled: !hasResults }
-      );
+      base.push({ path: '/student/interview/start', label: '인터뷰 생성', icon: SparklesIcon });
     }
 
     return base;
@@ -53,18 +51,16 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, onToggleRole, currentPa
         <div className="flex justify-between h-16 items-center gap-4">
           <div className="flex items-center gap-8">
             <div className="flex-shrink-0 flex items-center gap-3">
-              <div className="text-primary w-24">
-                <EliceLogoIcon />
-              </div>
-              <span className="text-xl font-bold text-slate-800 tracking-tight">AI 면접 코치</span>
+              <img src="/logo.png" alt="익산 AI 인터뷰" className="h-14 w-auto object-contain" />
+              <span className="text-xl font-bold text-slate-800 tracking-tight">AI 모의 면접</span>
             </div>
             <div className="hidden md:flex items-center gap-2">
               {navItems.map((item) => {
                 const Icon = item.icon;
-                const active = isNavActive(item.id);
+                const active = isNavActive(item.path);
                 return (
                   <button
-                    key={item.id}
+                    key={item.path}
                     type="button"
                     disabled={item.disabled}
                     onClick={() => onNavigate && onNavigate(item.path)}
@@ -83,7 +79,16 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, onToggleRole, currentPa
           </div>
 
           <div className="flex items-center gap-4">
-            {user.role === 'teacher' && (
+            {(user.role === 'teacher' || user.role === 'admin') && onOpenAddStudent && (
+              <button
+                type="button"
+                onClick={onOpenAddStudent}
+                className="hidden sm:inline-flex items-center gap-2 px-3 py-2 rounded-full text-sm font-semibold bg-primary text-white shadow-soft hover:bg-primary-dark transition-colors"
+              >
+                학생 계정 발급
+              </button>
+            )}
+            {(user.role === 'teacher' || user.role === 'admin') && user.schoolName && (
               <span className="hidden lg:flex items-center gap-2 text-sm text-slate-500 font-semibold bg-white px-3 py-1.5 rounded-full border border-slate-100 shadow-inner shadow-white/40">
                 <UsersIcon className="w-4 h-4 text-primary" />
                 {user.schoolName}
@@ -100,7 +105,9 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, onToggleRole, currentPa
                 </div>
                 <div className="hidden md:flex flex-col items-start">
                   <span className="text-sm font-semibold text-slate-700">{user.name}</span>
-                  <span className="text-xs text-slate-500">{user.role === 'teacher' ? '교사' : '학생'}</span>
+                  <span className="text-xs text-slate-500">
+                    {user.role === 'teacher' ? '교사' : user.role === 'admin' ? '관리자' : '학생'}
+                  </span>
                 </div>
                 <ChevronDownIcon className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isMenuOpen ? 'rotate-180' : ''}`} />
               </button>
@@ -111,22 +118,24 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, onToggleRole, currentPa
                     <div className="px-5 py-4 bg-primary-lightest/60">
                       <p className="text-sm text-slate-900 font-bold">{user.schoolName}</p>
                       <p className="text-xs text-slate-600 mt-0.5">
-                        {user.grade ? `${user.grade}학년` : ''} {user.major ? `· ${user.major}` : ''}
+                        {user.grade ? `${user.grade}학년` : ''} {user.major ? `전공 ${user.major}` : ''}
                       </p>
                       <p className="text-xs text-slate-400 mt-1 truncate">{user.email}</p>
                     </div>
-                    <div className="py-1">
-                      <button
-                        onClick={() => {
-                          onToggleRole();
-                          setIsMenuOpen(false);
-                        }}
-                        className="w-full text-left px-4 py-3 text-sm text-slate-700 hover:bg-primary-lightest/60 flex items-center gap-2 font-semibold"
-                      >
-                        <GraduationCapIcon className="w-4 h-4 text-slate-500" />
-                        {user.role === 'student' ? '교사 화면 보기 (체험)' : '학생 화면 보기 (체험)'}
-                      </button>
-                    </div>
+                    {user.role !== 'admin' && (
+                      <div className="py-1">
+                        <button
+                          onClick={() => {
+                            onToggleRole();
+                            setIsMenuOpen(false);
+                          }}
+                          className="w-full text-left px-4 py-3 text-sm text-slate-700 hover:bg-primary-lightest/60 flex items-center gap-2 font-semibold"
+                        >
+                          <GraduationCapIcon className="w-4 h-4 text-slate-500" />
+                          {user.role === 'student' ? '교사 모드로 보기' : '학생 모드로 보기'}
+                        </button>
+                      </div>
+                    )}
                     <div className="py-1">
                       <button
                         onClick={onLogout}

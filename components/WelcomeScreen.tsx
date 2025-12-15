@@ -12,7 +12,7 @@ interface WelcomeScreenProps {
 const MAX_SIZE_MB = 5;
 
 const stats = [
-  { label: '주간 모의면접', value: '15회', sub: 'AI 맞춤 질문 제공' },
+  { label: '주간 모의면접', value: '+5%', sub: '지난 인터뷰 대비 전체 점수 5% 향상' },
   { label: '평균 준비 시간', value: '10분', sub: '세션당 권장 연습' },
 ];
 
@@ -169,7 +169,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
             </div>
             <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary-lightest text-primary text-xs font-semibold">
               <UploadCloudIcon className="w-4 h-4" />
-              PDF/TXT/MD
+              PDF/TXT
             </span>
           </div>
           <textarea
@@ -180,7 +180,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
             disabled={!!fileData}
           />
           <p className="text-xs text-slate-500 mt-2">
-            PDF / TXT / MD ({MAX_SIZE_MB}MB 이하) 파일을 업로드할 수 있습니다. 표/특수문자, 이미지가 많은 경우 텍스트로 변환해 붙여넣으면 정확도가 높습니다.
+            PDF / TXT ({MAX_SIZE_MB}MB 이하) 파일을 업로드할 수 있습니다. 표/특수문자, 이미지가 많은 경우 텍스트로 변환해 붙여넣으면 정확도가 높습니다.
           </p>
 
           <div className="flex items-center justify-center w-full my-6">
@@ -208,12 +208,12 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
               <>
                 <UploadCloudIcon className="w-12 h-12 text-slate-400 group-hover:text-primary mb-3 transition-colors" />
                 <span className="text-slate-700 font-medium">파일 업로드하기</span>
-                <span className="text-slate-400 text-sm mt-2">PDF, TXT, MD 파일을 업로드 할 수 있습니다.</span>
+                <span className="text-slate-400 text-sm mt-2">PDF, TXT 파일을 업로드 할 수 있습니다.</span>
                 <span className="text-slate-400 text-sm mt-2">표, 이미지, 특수문자가 많은 자료는 일부 정보가 누락될 수 있습니다.</span>
               </>
             )}
           </label>
-          <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleFileChange} accept=".txt,.md,.pdf" />
+          <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleFileChange} accept=".txt,.pdf" />
           <div className="mt-8 space-y-4">
             <div className="grid sm:grid-cols-2 gap-3">
               <button

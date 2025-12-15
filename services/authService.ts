@@ -35,7 +35,16 @@ export const getSchools = async (): Promise<School[]> => {
 const buildUserFromResponse = (data: any, fallbackEmail: string): User => {
   const token = data?.token || data?.access_token || data?.accessToken;
   const profile = data?.user || data?.profile || data?.data || data || {};
-  const role = profile.role === 'teacher' ? 'teacher' : 'student';
+  const rawRole = profile.role || profile?.data?.role || profile?.user_metadata?.role;
+  const normalizedRole = typeof rawRole === 'string' ? rawRole.toLowerCase() : '';
+  const role: User['role'] =
+    normalizedRole.includes('admin')
+      ? 'admin'
+      : normalizedRole.includes('teacher')
+      ? 'teacher'
+      : normalizedRole
+      ? 'student'
+      : 'student';
   return {
     id: profile.id || profile.userId || `temp-${Date.now()}`,
     name: profile.name || fallbackEmail.split('@')[0],
@@ -48,18 +57,31 @@ const buildUserFromResponse = (data: any, fallbackEmail: string): User => {
   };
 };
 
-export const signIn = async (email: string, password: string): Promise<User> => {
-  const response = await fetch(`${API_BASE}/api/v1/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-  });
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || 'Login failed');
+export const signIn = async (loginId: string, password: string): Promise<User> => {
+  const attemptLogin = async (body: Record<string, string>) => {
+    const response = await fetch(`${API_BASE}/api/v1/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const message = await response.text();
+      throw new Error(message || 'Login failed');
+    }
+    return response.json();
+  };
+
+  let data: any;
+  try {
+    // Default: treat as email login
+    data = await attemptLogin({ email: loginId, password });
+  } catch (err) {
+    // Fallback: student ID login (if backend supports student_id)
+    if (loginId.includes('@')) throw err;
+    data = await attemptLogin({ student_id: loginId, password });
   }
-  const data = await response.json();
-  const user = buildUserFromResponse(data, email);
+
+  const user = buildUserFromResponse(data, loginId);
   if (user.authToken) {
     saveToken(user.authToken);
   }
@@ -82,17 +104,24 @@ export const fetchProfile = async (): Promise<User | null> => {
 export const signUp = async (
   name: string,
   email: string,
-  role: 'student' | 'teacher',
-  schoolName: string,
-  grade: number,
-  major: string,
+  role: 'teacher' | 'admin',
+  options: { schoolName?: string; organization?: string; grade?: number; major?: string },
   password: string
 ): Promise<User> => {
   try {
     const response = await fetch(`${API_BASE}/api/v1/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, password, role, schoolName, grade, major }),
+      body: JSON.stringify({
+        name,
+        email,
+        password,
+        role,
+        schoolName: options.schoolName,
+        organization: options.organization,
+        grade: options.grade,
+        major: options.major,
+      }),
     });
     if (!response.ok) {
       const text = await response.text();

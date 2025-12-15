@@ -85,12 +85,25 @@ export interface User {
     id: string;
     name: string;
     email: string;
-    role: 'student' | 'teacher';
+    role: 'student' | 'teacher' | 'admin';
     schoolName: string; 
     grade?: number;       
     major?: string;       
     avatarUrl?: string;
     authToken?: string;
+}
+
+export interface StudentAccountInput {
+    name: string;
+    school: string;
+    gradeYear: 1 | 2 | 3;
+    major: string;
+    classLabel?: string;
+}
+
+export interface GeneratedStudentAccount extends StudentAccountInput {
+    studentId: string;
+    tempPassword: string;
 }
 
 export type AuthView = 'signin' | 'signup';

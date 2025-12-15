@@ -13,9 +13,10 @@ const scoreLabels: Record<keyof InterviewReport['scores'], string> = {
 interface ResultsScreenProps {
   report: InterviewReport;
   onRetry: () => void;
+  studentMeta?: { name?: string; schoolName?: string; grade?: number; major?: string };
 }
 
-const ResultsScreen: React.FC<ResultsScreenProps> = ({ report, onRetry }) => {
+const ResultsScreen: React.FC<ResultsScreenProps> = ({ report, onRetry, studentMeta }) => {
   const [rangeFilter, setRangeFilter] = useState('최근 2회');
   const [categoryFilter, setCategoryFilter] = useState<'all' | keyof InterviewReport['scores']>('all');
 
@@ -32,6 +33,10 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({ report, onRetry }) => {
 
   const nextStep = report.nextSteps?.[0];
 
+  const handleDownloadPdf = () => {
+    window.print();
+  };
+
   return (
     <div className="animate-fadeIn space-y-8">
       <section className="relative overflow-hidden rounded-[28px] bg-gradient-to-r from-white via-primary-lightest to-white border border-white/70 shadow-soft px-6 py-10 text-center">
@@ -39,19 +44,31 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({ report, onRetry }) => {
         <div className="hero-blob hero-blob--secondary left-0 bottom-0"></div>
         <div className="relative z-10 space-y-3">
           <p className="text-xs font-semibold text-primary-text uppercase tracking-[0.3em]">AI FEEDBACK</p>
-          <h1 className="text-3xl font-bold text-slate-900">AI 결과 리포트</h1>
+          <h1 className="text-3xl font-bold text-slate-900">AI 면접 결과</h1>
           <p className="text-slate-600 text-sm max-w-2xl mx-auto">
-            콘텐츠 적합도, 구조, 유창성, 자신감 네 가지 축으로 학생의 답변을 분석했어요. 강점과 성장 기회를 한눈에 확인해 보세요.
+            답변 내용, 구조, 유창성, 자신감을 종합 평가했습니다. 약점과 강점을 확인하고 바로 개선해 보세요.
           </p>
         </div>
       </section>
 
+      {studentMeta && (
+        <section className="bg-white/95 border border-white/70 shadow-soft rounded-[20px] p-5 flex flex-wrap items-center justify-between gap-4">
+          <div className="space-y-1 text-sm text-slate-700">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-[0.2em]">학생 정보</p>
+            <p className="text-lg font-bold text-slate-900">{studentMeta.name || '학생'}</p>
+            <p className="text-sm text-slate-600">{studentMeta.schoolName || '학교 미입력'} {studentMeta.grade ? `${studentMeta.grade}학년` : ''}</p>
+            <p className="text-sm text-slate-600">전공/계열: {studentMeta.major || '미입력'}</p>
+          </div>
+          <Button onClick={handleDownloadPdf} variant="secondary" className="px-6 py-3">PDF 다운로드</Button>
+        </section>
+      )}
+
       <section className="bg-white/95 border border-white/70 shadow-soft rounded-[24px] p-6 space-y-4">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-[0.25em]">기간 & 지표</p>
-            <h3 className="text-xl font-bold text-slate-800">약한 부분을 빠르게 확인해요</h3>
-            <p className="text-sm text-slate-500">최근/전체 결과와 지표를 바꿔 보며 집중할 영역을 살펴보세요.</p>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-[0.25em]">점수 & 비교</p>
+            <h3 className="text-xl font-bold text-slate-800">내 답변 실력 요약</h3>
+            <p className="text-sm text-slate-500">최근/과거 점수를 비교해 약점을 빠르게 파악하세요.</p>
           </div>
           <div className="flex flex-wrap gap-3">
             <label className="flex items-center gap-2 rounded-full border border-slate-200 px-3 py-1.5 bg-slate-50 text-xs font-semibold">
@@ -67,38 +84,39 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({ report, onRetry }) => {
               </select>
             </label>
             <label className="flex items-center gap-2 rounded-full border border-slate-200 px-3 py-1.5 bg-slate-50 text-xs font-semibold">
-              <span className="text-slate-500">지표</span>
+              <span className="text-slate-500">영역</span>
               <select
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value as typeof categoryFilter)}
                 className="bg-transparent focus:outline-none"
               >
-                <option value="all">전체 지표</option>
+                <option value="all">전체</option>
                 <option value="contentRelevance">내용 적합도</option>
                 <option value="structure">구조/STAR</option>
                 <option value="fluency">유창성</option>
                 <option value="confidence">자신감</option>
               </select>
             </label>
+            <Button variant="secondary" onClick={handleDownloadPdf}>PDF 다운로드</Button>
           </div>
         </div>
         <div className="grid sm:grid-cols-3 gap-4">
           <div className="rounded-[16px] border border-slate-100 bg-primary-lightest/50 p-4 text-left shadow-inner shadow-white/60">
             <p className="text-xs text-slate-500 uppercase font-semibold">핵심 점수</p>
             <p className="text-3xl font-bold text-primary mt-1">{focusScore.toFixed(1)}<span className="text-base text-slate-500 font-normal">/10</span></p>
-            <p className="text-xs text-slate-500">{rangeFilter} 기준 평균 점수입니다.</p>
+            <p className="text-xs text-slate-500">{rangeFilter} 기준으로 계산했습니다.</p>
           </div>
           <div className="rounded-[16px] border border-slate-100 bg-white p-4 shadow-soft">
-            <p className="text-xs text-slate-500 uppercase font-semibold">취약 지표</p>
+            <p className="text-xs text-slate-500 uppercase font-semibold">가장 약한 영역</p>
             <p className="text-lg font-bold text-slate-800">{scoreLabels[weakestArea.key]}</p>
             <div className="mt-2 w-full h-2 bg-slate-100 rounded-full overflow-hidden">
               <div className="h-full bg-primary rounded-full" style={{ width: `${(weakestArea.value / 10) * 100}%` }}></div>
             </div>
-            <p className="text-xs text-slate-500 mt-1">집중적으로 개선하면 좋아요.</p>
+            <p className="text-xs text-slate-500 mt-1">이 영역을 먼저 보완하세요.</p>
           </div>
           <div className="rounded-[16px] border border-slate-100 bg-white p-4 shadow-soft">
-            <p className="text-xs text-slate-500 uppercase font-semibold">다음 단계</p>
-            <p className="text-lg font-bold text-slate-800 truncate">{nextStep?.title || '추천 단계 없음'}</p>
+            <p className="text-xs text-slate-500 uppercase font-semibold">우선 개선 항목</p>
+            <p className="text-lg font-bold text-slate-800 truncate">{nextStep?.title || '추천 항목 없음'}</p>
             <p className="text-xs text-slate-500 mt-1 leading-relaxed line-clamp-3">{nextStep?.description || report.summary.areasForGrowth}</p>
           </div>
         </div>
@@ -111,7 +129,7 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({ report, onRetry }) => {
           onClick={onRetry}
           className="px-10 py-4 text-lg"
         >
-          새로운 질문으로 다시 연습
+          새로운 인터뷰 시작하기
         </Button>
       </div>
     </div>
