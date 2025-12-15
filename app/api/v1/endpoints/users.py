@@ -1,39 +1,36 @@
 from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, Query
 from supabase import AsyncClient
+from app.api.dependencies import require_role, RoleContext
 from app.core.database import get_supabase
-from app.schemas.user import UserProfileResponse
 from app.schemas.pagination import PaginatedResponse, create_paginated_response
+from app.schemas.types import RoleName
+from app.schemas.user import UserListItemResponse
 from app.services.user_service import UserProfileService
-from app.schemas.types import RoleType
 
 router = APIRouter()
 
 
-@router.get("/", response_model=PaginatedResponse[UserProfileResponse])
+@router.get("/", response_model=PaginatedResponse[UserListItemResponse])
 async def read_user_profiles(
     supabase: Annotated[AsyncClient, Depends(get_supabase)],
     skip: int = Query(default=0, ge=0, description="Number of records to skip"),
     limit: int = Query(default=20, ge=1, le=100, description="Maximum records to return"),
-    role_id: Optional[RoleType] = Query(default=None, description="Filter by role ID"),
+    role: Optional[RoleName] = Query(default=None, description="Filter by role name"),
     search: Optional[str] = Query(default=None, description="Search by name or email"),
-    with_role: bool = Query(default=False, description="Include role information")
+    role_context: RoleContext = Depends(require_role(["admin", "teacher"]))
 ):
     """
-    Retrieve user profiles with pagination and optional filtering.
-    
-    - **skip**: Number of records to skip (default: 0)
-    - **limit**: Max records to return (default: 20, max: 100)
-    - **role_id**: Filter by role ID
-    - **search**: Search by name or email (partial match)
-    - **with_role**: Include role information
+    Retrieve user profiles with pagination and role-aware filtering.
+    Requires admin or teacher role; teachers are scoped to students in their school.
     """
     service = UserProfileService(supabase)
-    profiles, total = await service.get_all_profiles(
+    profiles, total = await service.list_users(
         skip=skip,
         limit=limit,
-        role_id=role_id,
+        role=role.value if role else None,
         search=search,
-        with_role=with_role
+        viewer_role=role_context.role_name,
+        viewer_user_id=role_context.user.id,
     )
     return create_paginated_response(items=profiles, total=total, skip=skip, limit=limit)
