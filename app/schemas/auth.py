@@ -60,6 +60,12 @@ class StudentLoginResponse(BaseModel):
     user_id: str
     student_id: str
     full_name: Optional[str] = None
+    role_id: Optional[int] = None
+    role_name: Optional[str] = None
+    school_name: Optional[str] = None
+    major_name: Optional[str] = None
+    class_name: Optional[str] = None
+    grade_level: Optional[int] = None
 
 
 class TeacherRegistrationData(BaseModel):

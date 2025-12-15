@@ -8,8 +8,6 @@ Handles student account creation with:
 - Class resolution/creation
 """
 
-import secrets
-import string
 import hashlib
 import logging
 from typing import Optional, List, Tuple
@@ -20,6 +18,7 @@ from fastapi import HTTPException, status
 from app.schemas.student import StudentAccountCreate, StudentAccountResponse
 from app.core.config import settings
 from app.utils.string_utils import sanitize_name
+from app.utils.password_generator import PasswordGenerator
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -46,6 +45,7 @@ class StudentRegistrationService:
     
     def __init__(self, supabase: AsyncClient):
         self.supabase = supabase
+        self.password_generator = PasswordGenerator()
         # Optional caches to reduce repeated lookups during bulk creation.
         # Keys are normalized (lowercased) sanitized names.
         self._school_cache: Optional[dict] = None  # key -> (school_id, school_number)
@@ -56,38 +56,10 @@ class StudentRegistrationService:
     # UTILITY METHODS
     # =========================================================================
 
-    def _generate_secure_password(self, length: int = 12) -> str:
-        """
-        Generate a secure random password meeting requirements:
-        - Minimum 8 characters (default 12)
-        - At least one uppercase letter
-        - At least one lowercase letter
-        - At least one digit
-        - At least one special character
-        """
-        # Define character sets
-        lowercase = string.ascii_lowercase
-        uppercase = string.ascii_uppercase
-        digits = string.digits
-        special = "!@#$%^&*"
-        
-        # Ensure at least one of each required type
-        password_chars = [
-            secrets.choice(lowercase),
-            secrets.choice(uppercase),
-            secrets.choice(digits),
-            secrets.choice(special),
-        ]
-        
-        # Fill remaining characters from all sets
-        all_chars = lowercase + uppercase + digits + special
-        remaining_length = max(length - 4, 4)  # At least 4 more chars
-        password_chars.extend(secrets.choice(all_chars) for _ in range(remaining_length))
-        
-        # Shuffle to avoid predictable positions
-        secrets.SystemRandom().shuffle(password_chars)
-        
-        return ''.join(password_chars)
+    def _generate_secure_password(self, pattern: str) -> str:
+        """Generate a secure random password using a position-based pattern."""
+        return self.password_generator.generate(pattern)
+
 
     def _hash_password(self, password: str) -> str:
         """
@@ -665,8 +637,11 @@ class StudentRegistrationService:
         
         # Generate password
         logger.debug("[create_student_account] Generating secure password")
-        password = self._generate_secure_password()
-        hashed_password = self._hash_password(password)
+        password = self._generate_secure_password(pattern="UUUUUNNN")
+
+        # Hashed password is disabled for MVP display purposes
+        # hashed_password = self._hash_password(password)
+        hashed_password = password
         logger.debug("[create_student_account] Password generated and hashed")
         
         # Create auth user (trigger automatically creates user_profile)
@@ -826,7 +801,7 @@ class StudentRegistrationService:
         try:
             response = await self.supabase.table("students").select(
                 "id, user_id, student_id, "
-                "user_profiles!user_id(full_name), "
+                "user_profiles!user_id(full_name, role_id, roles!role_id(role_name)), "
                 "schools(id, school_name), "
                 "majors(id, major_name), "
                 "classes(id, class_name, grade_level)"

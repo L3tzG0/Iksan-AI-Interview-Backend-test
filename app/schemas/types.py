@@ -65,3 +65,12 @@ class RoleType(int, Enum):
     ADMIN = 1
     TEACHER = 2
     STUDENT = 3
+
+
+class RoleName(str, Enum):
+    """
+    Enum representing user roles as string identifiers.
+    """
+    ADMIN = "admin"
+    TEACHER = "teacher"
+    STUDENT = "student"
