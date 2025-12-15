@@ -1,14 +1,19 @@
 import os
 import json
-import time
-import httpx
-import asyncio
 from typing import Dict, Any, List, Optional
+import logging
 from pydantic import BaseModel
+# Note: httpx and asyncio are no longer needed for API calls/retries
+from google import genai
+from google.genai import types
+from google.genai.errors import APIError
 
 # NOTE: Importing core models from the existing schema file
 from app.schemas.interview_session import GeneratedQuestion
 from app.core.config import settings
+
+# --- Setup Logging ---
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - U_Q_GEN - %(message)s')
 
 # --- Internal LLM Output Wrapper (Required for schema validation) ---
 class UniversityQuestionGenerationResponse(BaseModel):
@@ -17,8 +22,10 @@ class UniversityQuestionGenerationResponse(BaseModel):
 
 # --- Configuration (using same model for consistency) ---
 MODEL_NAME = "gemini-2.5-flash-preview-09-2025"
-API_URL_TEMPLATE = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL_NAME}:generateContent?key="
-API_KEY = settings.GEMINI_API_KEY 
+
+# --- Deferred Client Initialization ---
+# We use a global variable to hold the initialized asynchronous client
+global_client = None
 
 # --- Detailed System Prompt for University Prep (UPDATED) ---
 SYSTEM_PROMPT = """
@@ -37,32 +44,14 @@ RULES FOR QUESTION GENERATION:
 
 def get_academic_question_generation_schema() -> Dict[str, Any]:
     """
-    Creates the response schema based on the internal UniversityQuestionGenerationResponse model, 
-    ensuring it is structured correctly for the Gemini API.
+    Returns the JSON schema dictionary generated from the Pydantic model. 
+    (Kept for consistency and potential debug printing, but the main function passes the Pydantic class.)
     """
-    # 1. Get the JSON schema for the GeneratedQuestion (the array item)
-    item_schema = GeneratedQuestion.model_json_schema()
+    schema_definition = UniversityQuestionGenerationResponse.model_json_schema()
     
-    # Extract the properties needed for the 'items' part of the array
-    item_properties = item_schema.get('properties', {})
-    item_required = item_schema.get('required', [])
-
-    # 2. Construct the final, compliant response schema manually
-    schema_definition = {
-        "type": "OBJECT",
-        "properties": {
-            "questions": {
-                "type": "ARRAY",
-                "description": "A list containing exactly 10 academic interview questions.",
-                "items": {
-                    "type": "OBJECT",
-                    "properties": item_properties,
-                    "required": item_required
-                }
-            }
-        },
-        "required": ["questions"]
-    }
+    print("\n--- DEBUG: Generated Schema Sent to Gemini API ---")
+    print(json.dumps(schema_definition, indent=2))
+    print("--------------------------------------------------\n")
     
     return schema_definition
 
@@ -71,19 +60,32 @@ async def generate_university_prep_questions(
     student_record_text: str,
     universities: str, # Comma-separated list of universities
     departments: str, # Comma-separated list of departments
-    # Placeholder for RAG if you implement one for academic papers/research
     reference_questions: Optional[List[str]] = None
 ) -> List[GeneratedQuestion]:
     """
-    Calls the Gemini API to generate structured academic interview questions based on 
-    the student record, preferred universities, and departments.
+    Calls the Gemini API using the official SDK (Client.aio) to generate 
+    structured academic interview questions.
     """
-    if not API_KEY:
-        raise Exception("API Key is missing. Ensure settings.GEMINI_API_KEY is configured.")
+    global global_client 
+    
+    # 1. Initialize the Native Async Client lazily (on first call)
+    if global_client is None:
+        try:
+            # FIX: Initialize the synchronous Client, then access the async interface via .aio
+            sync_client = genai.Client(api_key=settings.GEMINI_API_KEY)
+            global_client = sync_client.aio
+            logging.info("Gemini Native Async Client (.aio) successfully initialized.")
+        except Exception as e:
+            logging.error(f"FATAL: Could not initialize Gemini client: {e}")
+            raise Exception("Gemini API Client initialization failed.")
 
-    response_schema = get_academic_question_generation_schema()
+    if global_client is None:
+         raise Exception("Gemini API Client failed to initialize after attempt.")
 
-    # Incorporate academic context into the User Query
+    # Execute debug print of schema
+    get_academic_question_generation_schema()
+
+    # 2. Incorporate context into the User Query
     rag_context_text = f"Preferred Universities: {universities}\nPreferred Departments: {departments}\n\n"
     if reference_questions:
         rag_context_joined = "\n- ".join(reference_questions)
@@ -91,66 +93,59 @@ async def generate_university_prep_questions(
     
     print("rag context:" + rag_context_text)
 
-    # Incorporate all inputs into the user query
+    # Construct the final user query
     user_query = (
         f"Generate the 10 University Prep questions using the following details:\n"
         f"--- TARGETS ---\n{rag_context_text}"
         f"--- STUDENT RECORD ---\n{student_record_text}\n---"
     )
     
-    payload = {
-        "contents": [{"parts": [{"text": user_query}]}],
-        "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]},
-        "generationConfig": {
-            "responseMimeType": "application/json",
-            "responseSchema": response_schema,
-            "temperature": 0.7 
-        },
-    }
+    # 3. Define the generation configuration using SDK types
+    config = types.GenerateContentConfig(
+        system_instruction=SYSTEM_PROMPT,
+        response_mime_type="application/json",
+        # Pass the Pydantic class directly for simplified schema definition
+        response_schema=UniversityQuestionGenerationResponse, 
+        temperature=0.7 
+    )
 
-    headers = {'Content-Type': 'application/json'}
-    api_url = API_URL_TEMPLATE + API_KEY 
-    
-    max_retries = 5
-    for attempt in range(max_retries):
-        try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.post(api_url, headers=headers, json=payload)
-                response.raise_for_status() 
-            
-            result = response.json()
-            
-            candidate = result.get('candidates', [{}])[0]
-            json_text = candidate.get('content', {}).get('parts', [{}])[0].get('text')
-            
-            if not json_text:
-                raise ValueError("Gemini returned empty or malformed text response.")
-            
-            # Sanitization for common LLM output formats
-            if json_text.strip().startswith('```') and json_text.strip().endswith('```'):
-                json_text = json_text.strip().strip('`').lstrip('json').strip()
-            
-            parsed_json = json.loads(json_text)
-            
-            # Critical type check (like the one we fixed earlier)
-            if not isinstance(parsed_json, dict):
-                raise TypeError(f"LLM Response Error: Expected a single JSON object (dict), but received type: {type(parsed_json).__name__}. Raw parsed content: {parsed_json}")
+    try:
+        # 4. Make the single, native asynchronous API call. SDK handles retries/backoff.
+        response = await global_client.models.generate_content(
+            model=MODEL_NAME,
+            contents=[user_query], 
+            config=config
+        )
 
-            # Use the new response model for validation
-            validated_response = UniversityQuestionGenerationResponse(**parsed_json)
-            
-            if len(validated_response.questions) != 10:
-                print(f"Warning: AI returned {len(validated_response.questions)} questions, expected 10.")
-                
-            return validated_response.questions
+        # 5. Response Parsing and Validation
+        
+        # The SDK response object contains the text property which holds the JSON string
+        if not response.text:
+            raise ValueError("Gemini returned an empty text response.")
 
-        except (httpx.RequestError, httpx.HTTPStatusError, ValueError, json.JSONDecodeError, TypeError) as e:
-            if attempt < max_retries - 1:
-                wait_time = 2 ** attempt
-                await asyncio.sleep(wait_time)
-            else:
-                if isinstance(e, httpx.HTTPStatusError) and e.response.status_code == 400:
-                    print(f"\n--- FATAL 400 ERROR DETAIL ---")
-                    print(e.response.text)
-                    print("------------------------------\n")
-                raise Exception(f"Failed to generate university prep questions after {max_retries} attempts. Last Error: {e}")
+        json_text = response.text.strip()
+        
+        # No need for manual sanitization, but keep robust JSON parsing
+        parsed_json = json.loads(json_text)
+        
+        # Validate against the Pydantic model
+        validated_response = UniversityQuestionGenerationResponse(**parsed_json)
+            
+        if len(validated_response.questions) != 10:
+            logging.warning(f"AI returned {len(validated_response.questions)} questions, expected 10.")
+            
+        return validated_response.questions
+
+    except APIError as e:
+        # Catches persistent API errors (400, 429, etc.) after internal retries fail.
+        logging.error(f"Gemini API Error (after retries): {e}")
+        if hasattr(e, 'response') and e.response is not None:
+             logging.error(f"Full response detail: {e.response.text}") 
+        raise Exception(f"Failed to generate university prep questions due to persistent API error: {e}")
+    except (ValueError, json.JSONDecodeError, TypeError) as e:
+        # Catches JSON parsing or Pydantic validation errors
+        logging.error(f"Failed to parse AI response into structured JSON: {e}")
+        raise Exception(f"Failed to generate university prep questions due to response parsing error: {e}")
+    except Exception as e:
+        logging.error(f"An unexpected error occurred: {e}")
+        raise Exception(f"An unexpected error occurred during generation: {e}")

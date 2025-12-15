@@ -10,7 +10,7 @@ from supabase import create_client, Client # Using the specific supabase client 
 # --- Setup Imports and Path (Kept from your original file) ---
 # Adjust path to correctly find app/core/config.py and app/services
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from app.services.job_processor import process_interview_job
+from app.services.job_processor import process_interview_job, process_university_prep_job, process_evaluation_job
 from app.services.queue_service import QueueService
 from app.core.config import settings # <-- Use centralized settings
 
@@ -110,6 +110,12 @@ async def run_worker():
                     # Start the slow job in the background and continue immediately.
                     # The completion (and status update) will happen entirely in the background.
                     asyncio.create_task(process_interview_job(job_data, supabase))
+                elif job_type == "university_generation": # NEW ROUTING
+                    # Start the slow job in the background and continue immediately.
+                    asyncio.create_task(process_university_prep_job(job_data, supabase))
+                elif job_type == "evaluation": # NEW ROUTING FOR SUBMIT
+                    # Start the slow job (LLM evaluation) in the background
+                    asyncio.create_task(process_evaluation_job(job_data, supabase))
                 else:
                     logging.warning(f"Session ID: {session_id} -> Skipping unknown job type: {job_type}")
                     

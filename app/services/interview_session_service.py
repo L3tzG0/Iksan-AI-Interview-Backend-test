@@ -160,6 +160,31 @@ class InterviewSessionService:
                 detail=f"Failed to fetch session: {str(e)}"
             )
 
+    def get_session_by_id(self, session_id: int, student_id: int) -> Optional[dict]:
+        """
+        NEW: Get session by ID AND student_id (for authorization checks).
+        
+        Args:
+            session_id: The ID of the session.
+            student_id: The ID of the student (user) who owns the session.
+            
+        Returns:
+            dict or None: The session record if found and owned by the student.
+        """
+        try:
+            response = self.supabase.table('sessions').select(SESSION_COLUMNS)\
+                .eq('id', session_id)\
+                .eq('student_id', student_id)\
+                .limit(1)\
+                .execute()
+            
+            return response.data[0] if response.data else None
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to fetch session for status check: {str(e)}"
+            )
+        
     def get_session_with_details(self, session_id: int) -> Optional[dict]:
         """
         Get session by ID with student and related info (single query).

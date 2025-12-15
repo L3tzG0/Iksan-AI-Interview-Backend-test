@@ -1,6 +1,8 @@
 import asyncio # Import needed for async calls
 from typing import List, Annotated, Any, Optional
 from datetime import datetime
+import logging
+import json
 from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException, status, Query, Request, Path
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
@@ -27,6 +29,7 @@ from app.schemas.interview_session import (
     InterviewSessionResponse, 
     InterviewSessionCreate,
     SessionInitiateResponse,
+    SessionQueueResponse,
     SessionHistoryItem,
     SessionHistoryResponse,
     SessionSubmitRequest,
@@ -44,8 +47,10 @@ from app.services.interview_session_service import InterviewSessionService
 from app.services.text_extraction_service import TextExtractionService
 from app.services.feedback_service import FeedbackService
 from app.services.user_service import UserProfileService
+from app.services.text_sanitizer import sanitize_qa_pairs, sanitize_json_string
 from app.schemas.summary import InterviewSummaryCreate
 from app.schemas.next_step import InterviewNextStepCreate
+from app.services.datetime_utils import pad_microseconds 
 
 
 router = APIRouter()
@@ -107,28 +112,28 @@ def get_my_sessions(
     )
     return JSONResponse(content=jsonable_encoder(response.dict()))
 
-
-@router.post("/submit", response_model=SessionFeedbackResponse)
+@router.post("/submit", 
+    response_model=SessionQueueResponse, # Use the new queue response model
+    status_code=status.HTTP_202_ACCEPTED # Returns 202 Accepted immediately
+)
 @limiter.limit(settings.RATE_LIMIT_LLM)
-async def submit_session_answers( # Changed to async
+async def submit_session_answers(
     request: Request,
+    redis_conn: Annotated[redis.Redis, Depends(get_redis_connection)], # ADDED
     submit_request: SessionSubmitRequest,
     supabase: Annotated[Client, Depends(get_supabase)],
     current_user = Depends(get_current_user)
 ):
     """
-    Submit answers and get complete feedback from LLM.
+    Submit answers and queue the LLM evaluation.
     
-    FE submits the complete QnA history, and this endpoint will:
-    1. Validate and fetch existing session (must be in_progress)
-    2. Call LLM with the whole QnA history and get feedback
-    3. Update the database with scores, summaries, next steps, and detailed feedback
-    4. Update session status to "completed" or "failed"
-    5. Return the complete feedback response
+    This endpoint performs validation, updates session status to 'pending_evaluation',
+    and immediately returns a 202 Accepted response. The heavy evaluation is done
+    by a background worker.
     """
     session_service = InterviewSessionService(supabase)
-    feedback_service = FeedbackService(supabase)
     user_service = UserProfileService(supabase)
+    queue_service = QueueService(redis_conn) # ADDED
     
     session_id = submit_request.session_id
     
@@ -149,167 +154,99 @@ async def submit_session_answers( # Changed to async
         )
         
     if not submit_request.qa_pairs:
-         session_service.update_session_status(session_id, status="completed", total_score=0.0)
-         raise HTTPException(
-            status_code=400, 
-            detail="No question and answer pairs provided for evaluation."
-        )
-
-    try:
-        # 2. Call LLM Evaluation Service
-        # submit_request.qa_pairs is List[QuestionAnswerPair], which the service expects
-        evaluation_result = await generate_session_evaluation(submit_request.qa_pairs)
-
-        # 3. Update Database with results
-        
-        # A. Update main session table with overall score
-        overall_score_10 = round(evaluation_result.overall_scores.overall_score, 1)
-
+        # Edge case: If no answers are provided, mark as completed immediately (no LLM required)
         session_service.update_session_status(
-            session_id=session_id, 
-            status="completed",
-            total_score=overall_score_10,
+            session_id, 
+            status="completed", 
+            total_score=0.0,
             completed_at=datetime.now()
         )
         
-        # B. Save summaries
-        # feedback_service.create_session_summary(
-        #     session_id=session_id,
-        #     strength_text=evaluation_result.session_summary.strength_text,
-        #     areas_for_growth_text=evaluation_result.session_summary.areas_for_growth_text
-        # )
-        summary_data = InterviewSummaryCreate(
-            session_id=session_id,
-            strength_text=evaluation_result.session_summary.strength_text,
-            areas_for_growth_text=evaluation_result.session_summary.areas_for_growth_text
+        # Return 200 OK since the final status is resolved and no further async action is needed
+        response_payload = SessionQueueResponse(
+            success=True,
+            session_id=int(session_id), # Cast to int for the response model
+            message="Session completed with score 0.0 (No Q&A pairs provided)."
         )
-        
-        # Now pass the single Pydantic object to the service method
-        feedback_service.create_session_summary(summary=summary_data)
-
-        # C. Save next steps
-        # feedback_service.create_next_steps_batch(
-        #     session_id=session_id,
-        #     next_steps=evaluation_result.next_steps # List[NextStepItem]
-        # )
-        next_step_creates = [
-            InterviewNextStepCreate(
-                session_id=session_id,
-                next_step_order=idx + 1, # Use index here for order
-                title=ns.title,
-                description_text=ns.description_text
-            )
-            for idx, ns in enumerate(evaluation_result.next_steps)
-        ]
-
-        feedback_service.create_next_steps_batch(
-            next_steps=next_step_creates # Pass the mapped list of objects
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content=jsonable_encoder(response_payload.model_dump())
         )
 
-         # D. Update detailed feedbacks (Q&A and scores)
-        # 1. Create a map of question_order to answer_text from the request
-        qa_map = {p.question_order: p.answer_text for p in submit_request.qa_pairs}
+    try:
+        # clean answer
+        sanitized_qa_pairs = sanitize_qa_pairs(submit_request.qa_pairs)
+        # 2. Update session status to reflect that evaluation is pending
+        session_service.update_session_status(session_id, status="pending_evaluation")
         
-        # 2. Merge answer_text into the LLM's per-question feedback structure
-        combined_feedback_updates = []
-        for fb_item in evaluation_result.per_question_feedback:
-            # Convert the Pydantic object to a mutable dictionary
-            # We use model_dump() here to include all the LLM-generated fields (scores/evaluation_text)
-            update_data = fb_item.model_dump(exclude_none=True, exclude_unset=True)
-            
-            # Look up the corresponding answer text using the question order
-            answer_text_for_q = qa_map.get(fb_item.question_order)
-            
-            # Add the answer_text to the update payload
-            if answer_text_for_q is not None:
-                update_data["answer_text"] = answer_text_for_q
-            
-            combined_feedback_updates.append(update_data)
+        # 3. ENQUEUE THE JOB (Replaces all synchronous LLM/DB steps)
+        job_payload = {
+            "job_type": "evaluation", 
+            "session_id": session_id,
+            "qa_pairs": [p.model_dump() for p in sanitized_qa_pairs],
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        queue_length = queue_service.enqueue_job(job_payload)
 
-        # 3. Send the updated list of dictionaries (which now includes answer_text) to the service
-        feedback_service.update_detailed_feedbacks_batch(
-            session_id=session_id,
-            # We pass a list of dicts/Any, which is handled in the service
-            feedback_updates=combined_feedback_updates 
-        )
-        # 4. Construct final response model
-        
-        # Helper map to link feedback (which lacks Q&A text) back to the input request
-        qa_map = {p.question_order: (p.question_text, p.answer_text) for p in submit_request.qa_pairs}
-        detailed_feedback_list = []
-
-        for fb in evaluation_result.per_question_feedback:
-            # Skip placeholder feedback items from the LLM (unanswered questions)
-            if fb.evaluation_text == "Question not answered by the candidate.":
-                 continue
-            
-            # Get the original Q&A text from the request body
-            q_text, a_text = qa_map.get(
-                fb.question_order, 
-                (f"Question {fb.question_order} (Unanswered)", "N/A")
-            )
-            
-            detailed_feedback_list.append(
-                FeedbackDetail(
-                    question=q_text,
-                    answer=a_text,
-                    evaluation=fb.evaluation_text,
-                    content_relevance_score=fb.content_relevance_score,
-                    structure_score=fb.structure_score,
-                    fluency_score=fb.fluency_score,
-                    confidence_score=fb.confidence_score,
-                    overall_score=fb.overall_score,
-                    is_correct=fb.is_correct
-                )
-            )
-        
-        response_payload = SessionFeedbackResponse(
-            session_id=session_id,
-            overall_score=overall_score_10,
-            strength_summary=evaluation_result.session_summary.strength_text,
-            areas_for_growth=evaluation_result.session_summary.areas_for_growth_text,
-            detailed_feedback=detailed_feedback_list,
-            next_steps=[ns.title or ns.description_text for ns in evaluation_result.next_steps]
+        # 4. Return 202 Accepted response
+        response_payload = SessionQueueResponse(
+            success=True,
+            session_id=int(session_id), # Cast to int for the response model
+            message=f"Session evaluation job accepted and queued. There are {queue_length - 1} pending jobs ahead of yours. Check session status for completion."
         )
         
-        # 5. Return success response
-        return JSONResponse(content=jsonable_encoder(response_payload.dict()))
+        return JSONResponse(
+            status_code=status.HTTP_202_ACCEPTED,
+            content=jsonable_encoder(response_payload.model_dump())
+        )
 
     except Exception as e:
-        # 6. Handle errors and rollback status
+        # If queueing or initial status update fails, mark the session as failed
         error_detail = str(e)
-        # Ensure the session is marked as failed on error
-        session_service.update_session_status(session_id, status="failed")
-        print(f"Error during session evaluation (ID: {session_id}): {e}")
+        session_service.update_session_status(
+            session_id, 
+            status="failed",
+            completed_at=datetime.now()
+        )
+        logging.error(f"Critical error during session submission/queuing for ID {session_id}: {e}")
         
+        # Re-raise as HTTPException which will return a 500 status code
         raise HTTPException(
             status_code=500,
-            detail=f"AI Session Evaluation or Database Update failed. Error: {error_detail}"
+            detail=f"Failed to queue session evaluation job. Session marked as failed. Error: {error_detail}"
         )
-
 
 # --- ASYNCHRONOUS FLOW - STEP 2: STATUS CHECK (Polling) ---
 @router.get("/status/{session_id}", response_model=SessionStatusResponse)
 async def get_session_status(
     session_id: Annotated[int, Path(description="The ID of the interview session")],
-    current_user = Depends(require_role("student")),
+    current_user = Depends(get_current_user),
     supabase: Client = Depends(get_supabase)
 ):
     """
     Allows the client to poll for the current status of a queued session.
     """
+    user_service = UserProfileService(supabase)
     session_service = InterviewSessionService(supabase)
     
-    session_record = session_service.get_session_by_id(session_id, current_user.id)
-    if not session_record:
-        raise HTTPException(status_code=404, detail="Session not found or unauthorized")
-        
-    status_message = session_record.get('status')
+    # 1. Fetch and validate session state & ownership
+    session = session_service.get_session(session_id)
+    
+    student_details = user_service.get_student_details(current_user.id)
+    student_id = student_details.get("id")
+    if session.get("student_id") != student_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, 
+            detail="You are not authorized to submit to this session."
+        )
+    
+    status_message = session.get('status')
     
     return SessionStatusResponse(
         session_id=session_id,
         status=status_message,
-        is_ready=(status_message == "completed")
+        is_ready=(status_message == "in_progress")
     )
 
 @router.get("/{session_id}", response_model=SessionDetailResponse)
@@ -336,6 +273,11 @@ def get_session_detail(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Session not found"
         )
+    
+    if 'created_at' in session and session['created_at']:
+        session['created_at'] = pad_microseconds(session['created_at'])
+    if 'completed_at' in session and session['completed_at']:
+        session['completed_at'] = pad_microseconds(session['completed_at'])
     
     # >>> NEW CHECK: If session is not completed, block retrieval and advise polling. <<<
     current_status = session.get("status")
@@ -566,11 +508,15 @@ async def initiate_interview_session(
         )
  
 # Initiate route for university prep
-
-@router.post("/initiate_university_prep", response_model=SessionInitiateResponse)
+# --- ASYNCHRONOUS FLOW - STEP 1: PRODUCER (Initiate & Queue) ---
+@router.post("/initiate_university_prep", 
+    response_model=SessionInitiateResponse,
+    status_code=status.HTTP_202_ACCEPTED # Returns 202 Accepted immediately
+)
 @limiter.limit(settings.RATE_LIMIT_LLM)
 async def initiate_university_prep_session(
     request: Request,
+    redis_conn: Annotated[redis.Redis, Depends(get_redis_connection)], # ADDED
     file: Optional[UploadFile] = File(None, description="Student Record/Transcript file (PDF, DOCX, TXT, MD)"),
     raw_text: Optional[str] = Form(None, description="Raw student record text content"),
     universities: str = Form(..., description="Comma-separated list of preferred universities (e.g., 'Stanford, MIT')"),
@@ -579,18 +525,17 @@ async def initiate_university_prep_session(
     supabase: Client = Depends(get_supabase)
 ):
     """
-    Initiate new university preparation session by processing student record/transcript.
-    
-    Requires: Authentication (JWT token) - Student role only
-    Rate limited: 10 requests per minute per user.
+    Initiate new university preparation session. Saves input data, creates a session in 'pending' status, 
+    and pushes the job to the Redis queue for asynchronous processing by the worker.
+    Returns 202 Accepted immediately.
     """
-    # Initialize services (same as the job prep route)
+    # Initialize services
     storage_service = StorageService(supabase)
     session_service = InterviewSessionService(supabase)
     document_service = DocumentService(supabase)
     extraction_service = TextExtractionService()
-    feedback_service = FeedbackService(supabase)
     user_service = UserProfileService(supabase)
+    queue_service = QueueService(redis_conn) # ADDED
     
     session_id: int | None = None
     
@@ -608,7 +553,7 @@ async def initiate_university_prep_session(
                 detail="Preferred 'universities' and 'departments' must be provided for academic question generation."
             )
 
-        # Steps 1-3: User check, Session Creation, and Document Processing
+        # Step 1: User check
         student_details = user_service.get_student_details(current_user.id)
         if not student_details:
             raise HTTPException(
@@ -617,13 +562,15 @@ async def initiate_university_prep_session(
             )
         student_id = student_details.get("id")
         
-        session = session_service.create_session(student_id=student_id, status="in_progress")
+        # Step 2: Create session with initial 'pending' status (CHANGED from "in_progress")
+        session = session_service.create_session(student_id=student_id, status="pending")
         session_id = session['id']
         assert session_id is not None, "Session ID must be set after creation"
         
+        # Step 3: Process file or use raw_text (Text Extraction)
         cleaned_text_extracted: str 
         
-        # --- File/Raw Text Processing (Using simplified logic for demonstration) ---
+        # --- File/Raw Text Processing (Using existing logic) ---
         if file:
             # File provided - process it (ignore raw_text if also provided)
             # Step 3a: Validate file type and filename
@@ -680,36 +627,31 @@ async def initiate_university_prep_session(
             cleaned_text_extracted = raw_text
         
         # Step 4: Save cleaned text (Student Record) to documents table
-        document = document_service.create_document(
+        document_service.create_document(
             session_id=session_id,
             cleaned_text=cleaned_text_extracted
         )
         
-        # Step 5: RAG Implementation - RETRIEVE CONTEXT
-        academic_context = await retrieve_questions_from_rag(cv_text=cleaned_text_extracted, k=5) # Using k=5 for 5 questions
-
-        # Step 6: Generate interview questions using the *new* LLM service
-        generated_questions_list = await generate_university_prep_questions(
-            student_record_text=cleaned_text_extracted,
-            universities=universities,
-            departments=departments,
-            # Pass the RAG context string to the generator service
-            reference_questions=academic_context.reference_questions
-        )
+        # Step 5: ENQUEUE THE JOB (Replaces all synchronous LLM/RAG/DB steps)
+        job_payload = {
+            "job_type": "university_generation", # NEW job type
+            "session_id": session_id,
+            "student_id": student_id,
+            "student_record_text": cleaned_text_extracted,
+            "universities": universities,
+            "departments": departments,
+            "timestamp": datetime.now().isoformat()
+        }
         
-        # Step 7: Create detailed_feedbacks records
-        feedback_service.create_detailed_feedbacks_batch(
-            session_id=session_id,
-            questions=generated_questions_list
-        )
+        queue_length = queue_service.enqueue_job(job_payload)
         
-        # Step 8: Build response
+        # Step 6: Build 202 response
         response = SessionInitiateResponse(
             success=True,
-            # Inform the user about the RAG context used
-            message=f"University Prep session initiated successfully with 10 questions. RAG query used: {academic_context.source_query[:50]}...",
-            session_id=session['id'],
-            questions=generated_questions_list
+            # Message confirms the request is queued and gives queue length
+            message=f"University Prep request accepted and queued. Session ID: {session_id}. There are {queue_length - 1} pending jobs ahead of you.",
+            session_id=session_id,
+            questions=[] # Always empty in async mode
         )
         
         return JSONResponse(content=jsonable_encoder(response.dict()))
@@ -722,8 +664,9 @@ async def initiate_university_prep_session(
         _rollback_session_creation(session_service, session_id)
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to initiate university prep session: {str(e)}"
+            detail=f"Failed to queue university prep session: {str(e)}"
         )
+    
 
 def _rollback_session_creation(
     session_service: InterviewSessionService,

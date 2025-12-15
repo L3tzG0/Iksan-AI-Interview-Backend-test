@@ -1,12 +1,11 @@
+import os
 import json
+import time
+import httpx
+import asyncio
+import math
 from typing import Dict, Any, List
-import logging
 from pydantic import BaseModel, ValidationError
-
-# New SDK Imports
-from google import genai
-from google.genai import types
-from google.genai.errors import APIError
 
 # NOTE: Importing core models from the existing schema file
 from app.schemas.interview_session import (
@@ -18,30 +17,19 @@ from app.schemas.interview_session import (
 )
 from app.core.config import settings
 
-# --- Setup Logging ---
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - EVAL_GEN - %(message)s')
-
-# --- Internal LLM Output Wrapper (LLM is instructed *not* to calculate overall_scores) ---
-class EvaluationLLMOutput(BaseModel):
-    """The JSON object structure that the LLM is explicitly asked to return."""
-    per_question_feedback: List[DetailedEvaluationItem] 
-    session_summary: SessionSummary
-    next_steps: List[NextStepItem] 
-
-# --- Final Return Type (Includes Python-calculated scores) ---
+# --- Internal LLM Output Wrapper (Required for service validation and return type) ---
 class EvaluationBatchResponse(BaseModel):
     """The single, comprehensive JSON object returned by the service, combining LLM output and backend calculation."""
     per_question_feedback: List[DetailedEvaluationItem] 
-    overall_scores: OverallScores 
+    overall_scores: OverallScores # Calculated by the backend
     session_summary: SessionSummary
     next_steps: List[NextStepItem] 
 
 
 # --- Configuration ---
 MODEL_NAME = "gemini-2.5-flash"
-
-# --- Deferred Client Initialization ---
-global_client = None
+API_URL_TEMPLATE = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL_NAME}:generateContent?key="
+API_KEY = settings.GEMINI_API_KEY
 
 # --- SCORING WEIGHTS (Used by Python code for all overall score calculations) ---
 # Weights must sum to 1.0 (100%).
@@ -98,6 +86,47 @@ Your task is only to provide the four component scores (CR, ST, FL, CP) and the 
 2. SESSION SUMMARY: Provide separate 2-3 sentence summaries for 'strength_text' and 'areas_for_growth_text'. The analysis MUST be holistic, referencing patterns across ONLY the N COMPLETED QUESTIONS.
 3. NEXT STEPS: Provide EXACTLY 3 actionable 'NextStepItem' recommendations, based ONLY on the N COMPLETED QUESTIONS.
 """
+
+def _get_pydantic_properties(model: BaseModel) -> Dict[str, Any]:
+    """Helper to extract properties and required fields from a Pydantic model for inline use."""
+    schema = model.model_json_schema(by_alias=True)
+    return {
+        "type": "OBJECT",
+        "properties": schema.get('properties', {}),
+        "required": schema.get('required', [])
+    }
+
+
+def get_evaluation_generation_schema() -> Dict[str, Any]:
+    """
+    Manually constructs the comprehensive JSON response schema for the LLM, 
+    using the core models from the interview_session schema.
+    """
+    
+    detailed_item_schema = _get_pydantic_properties(DetailedEvaluationItem)
+    session_summary_schema = _get_pydantic_properties(SessionSummary)
+    next_step_item_schema = _get_pydantic_properties(NextStepItem)
+
+    schema_definition = {
+        "type": "OBJECT",
+        "properties": {
+            "per_question_feedback": {
+                "type": "ARRAY",
+                "description": "A list containing exactly 10 detailed feedback objects, padded with placeholders if N < 10.",
+                "items": detailed_item_schema
+            },
+            "session_summary": session_summary_schema,
+            "next_steps": {
+                "type": "ARRAY",
+                "description": "Exactly 3 actionable next step recommendations.",
+                "items": next_step_item_schema
+            }
+        },
+        "required": ["per_question_feedback", "session_summary", "next_steps"]
+    }
+    
+    return schema_definition
+
 
 def _apply_weighted_per_question_scores(feedback_items: List[DetailedEvaluationItem]) -> List[DetailedEvaluationItem]:
     """
@@ -171,24 +200,11 @@ def _calculate_overall_scores(feedback_items: List[DetailedEvaluationItem]) -> O
 
 async def generate_session_evaluation(qa_pairs: List[QuestionAnswerPair]) -> EvaluationBatchResponse:
     """
-    Calls the Gemini API to generate structured evaluation using the native async SDK.
+    Calls the Gemini API to generate structured evaluation.
     Applies custom weighted scoring in the backend, and calculates the session overall scores.
     """
-    global global_client 
-    
-    # 1. Initialize the Native Async Client lazily (on first call)
-    if global_client is None:
-        try:
-            # Initialize the synchronous Client, then access the async interface via .aio
-            sync_client = genai.Client(api_key=settings.GEMINI_API_KEY)
-            global_client = sync_client.aio
-            logging.info("Gemini Native Async Client (.aio) successfully initialized for evaluation.")
-        except Exception as e:
-            logging.error(f"FATAL: Could not initialize Gemini client: {e}")
-            raise Exception("Gemini API Client initialization failed.")
-
-    if global_client is None:
-         raise Exception("Gemini API Client failed to initialize after attempt.")
+    if not API_KEY:
+        raise Exception("API Key is missing. Ensure settings.GEMINI_API_KEY is configured.")
     
     # --- Metric Calculation (Remains the same) ---
     qa_text = "\n\n--- INTERVIEW TRANSCRIPT AND METRICS ---\n"
@@ -201,7 +217,6 @@ async def generate_session_evaluation(qa_pairs: List[QuestionAnswerPair]) -> Eva
         audio_duration = qa.audio_duration_seconds
         speaking_time_seconds = audio_duration - total_pause_duration_seconds
         
-        # Calculate WPM, Silence Ratio, and PPM
         if audio_duration == 0 or speaking_time_seconds <= 0 or word_count == 0:
             wpm = 0.0
             silence_ratio = 100.0 if audio_duration > 0 else 0.0
@@ -236,69 +251,84 @@ async def generate_session_evaluation(qa_pairs: List[QuestionAnswerPair]) -> Eva
         f"{qa_text}"
     )
     
-    # 2. Define the generation configuration using SDK types
-    config = types.GenerateContentConfig(
-        system_instruction=SYSTEM_PROMPT,
-        response_mime_type="application/json",
-        # Pass the LLM output model class directly for schema definition
-        response_schema=EvaluationLLMOutput, 
-        temperature=0.5 
-    )
+    response_schema = get_evaluation_generation_schema()
 
-    try:
-        # 3. Make the single, native asynchronous API call.
-        response = await global_client.models.generate_content(
-            model=MODEL_NAME,
-            contents=[user_query], 
-            config=config
-        )
+    payload = {
+        "contents": [{"parts": [{"text": user_query}]}],
+        "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+        "generationConfig": {
+            "responseMimeType": "application/json",
+            "responseSchema": response_schema,
+            "temperature": 0.5 
+        },
+    }
 
-        # 4. Response Parsing and Validation
-        
-        if not response.text:
-            raise ValueError("Gemini returned an empty text response.")
+    headers = {'Content-Type': 'application/json'}
+    api_url = API_URL_TEMPLATE + API_KEY 
+    
+    max_retries = 5
+    for attempt in range(max_retries):
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.post(api_url, headers=headers, json=payload)
+                response.raise_for_status() 
+            
+            result = response.json()
+            
+            candidate = result.get('candidates', [{}])[0]
+            json_text = candidate.get('content', {}).get('parts', [{}])[0].get('text')
+            
+            if not json_text:
+                raise ValueError("Gemini returned empty or malformed text response.")
+            
+            # Clean up potential markdown code block surrounding the JSON
+            if json_text.strip().startswith('```') and json_text.strip().endswith('```'):
+                json_text = json_text.strip().strip('`').lstrip('json').strip()
 
-        json_text = response.text.strip()
-        
-        # Clean up potential markdown code block surrounding the JSON
-        if json_text.strip().startswith('```') and json_text.strip().endswith('```'):
-            json_text = json_text.strip().strip('`').lstrip('json').strip()
+            parsed_json = json.loads(json_text)
+            
+            # --- NEW ROBUSTNESS CHECK ---
+            if not isinstance(parsed_json, dict):
+                # The LLM returned a list, a string, or something else instead of the single required JSON object.
+                raise TypeError(f"LLM Response Error: Expected a single JSON object (dict), but received type: {type(parsed_json).__name__}. Raw parsed content: {parsed_json}")
+            # --- END ROBUSTNESS CHECK ---
 
-        parsed_json = json.loads(json_text)
-        
-        # Validate LLM output against the LLM-specific model
-        validated_llm_output = EvaluationLLMOutput(**parsed_json)
-        
-        # 5. POST-PROCESSING (Python Backend Calculations)
-        
-        # A. Parse the LLM's feedback into Pydantic models
-        feedback_items = validated_llm_output.per_question_feedback
-        
-        # B. CRUCIAL STEP: Overwrite the per-question overall_score with the weighted average
-        feedback_items = _apply_weighted_per_question_scores(feedback_items)
-        
-        # C. Calculate the overall session score object 
-        overall_scores_obj = _calculate_overall_scores(feedback_items)
+            
+            # 1. Parse the per-question feedback into Pydantic models (getting the raw dimension scores from the LLM)
+            feedback_items_raw = parsed_json.get("per_question_feedback", [])
+            # Validate feedback items array structure (list of dicts) before iterating
+            if not isinstance(feedback_items_raw, list):
+                 raise ValueError("LLM Response Error: 'per_question_feedback' field is not a list as required by the schema.")
 
-        # 6. Reconstruct the Final Response Model
-        
-        return EvaluationBatchResponse(
-            per_question_feedback=feedback_items,
-            overall_scores=overall_scores_obj,
-            session_summary=validated_llm_output.session_summary,
-            next_steps=validated_llm_output.next_steps
-        )
+            # Note: We wrap the iteration in a try/except to catch Pydantic validation errors
+            try:
+                feedback_items = [DetailedEvaluationItem(**item) for item in feedback_items_raw]
+            except ValidationError as ve:
+                 raise ValueError(f"Pydantic Validation Error during feedback parsing. Check if LLM output adhered to types: {ve}")
 
-    except APIError as e:
-        # Catches persistent API errors (400, 429, etc.) after internal retries fail.
-        logging.error(f"Gemini API Error (after retries): {e}")
-        if hasattr(e, 'response') and e.response is not None:
-             logging.error(f"Full response detail: {e.response.text}") 
-        raise Exception(f"Failed to generate evaluation due to persistent API error: {e}")
-    except (ValueError, json.JSONDecodeError, TypeError, ValidationError) as e:
-        # Catches JSON parsing or Pydantic validation errors
-        logging.error(f"Failed to parse AI response into structured JSON: {e}")
-        raise Exception(f"Failed to generate evaluation due to response parsing error: {e}")
-    except Exception as e:
-        logging.error(f"An unexpected error occurred: {e}")
-        raise Exception(f"An unexpected error occurred during generation: {e}")
+            
+            # 2. CRUCIAL STEP: Overwrite the per-question overall_score with the weighted average
+            feedback_items = _apply_weighted_per_question_scores(feedback_items)
+            
+            # 3. Calculate the overall session score object (weighted average of dimension averages)
+            overall_scores_obj = _calculate_overall_scores(feedback_items)
+
+            # 4. Convert the calculated and overwritten Pydantic objects back to raw JSON for the final response
+            parsed_json['overall_scores'] = overall_scores_obj.model_dump(by_alias=False)
+            parsed_json['per_question_feedback'] = [item.model_dump(by_alias=False) for item in feedback_items]
+            
+            # 5. Validate the *complete* response against the EvaluationBatchResponse model
+            validated_response = EvaluationBatchResponse(**parsed_json)
+            
+            return validated_response
+
+        except (httpx.RequestError, httpx.HTTPStatusError, ValueError, json.JSONDecodeError, TypeError) as e:
+            if attempt < max_retries - 1:
+                wait_time = 2 ** attempt
+                await asyncio.sleep(wait_time)
+            else:
+                if isinstance(e, httpx.HTTPStatusError) and e.response.status_code == 400:
+                    print(f"\n--- FATAL 400 ERROR DETAIL ---")
+                    print(e.response.text)
+                    print("------------------------------\n")
+                raise Exception(f"Failed to generate evaluation after {max_retries} attempts. Last Error: {e}")

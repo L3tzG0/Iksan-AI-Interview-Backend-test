@@ -2,14 +2,22 @@ import asyncio
 from typing import Dict, Any, List
 import logging
 from app.services.question_generator import generate_interview_questions
+from app.services.university_question_generator import generate_university_prep_questions
+from app.services.evaluation_generator import generate_session_evaluation
 from app.services.rag_service import retrieve_questions_from_rag
 from app.services.feedback_service import FeedbackService
 from app.services.interview_session_service import InterviewSessionService
-from app.schemas.interview_session import GeneratedQuestion # For typing
+from app.schemas.interview_session import GeneratedQuestion, QuestionAnswerPair 
+from app.schemas.summary import InterviewSummaryCreate
+from app.schemas.next_step import InterviewNextStepCreate
 from supabase import Client
 from datetime import datetime
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - JobProcessor - %(message)s')
+
+# Constants for retry logic
+MAX_JOB_RETRIES = 3
+INITIAL_BACKOFF_SECONDS = 5
 
 
 async def process_interview_job(
@@ -17,7 +25,7 @@ async def process_interview_job(
     supabase: Client
 ) -> List[GeneratedQuestion]:
     """
-    Executes the slow, core logic for an interview session job.
+    Executes the slow, core logic for an interview session job, with retry mechanism.
     This function is executed by the background worker process.
     """
     session_id = job_data["session_id"]
@@ -31,20 +39,39 @@ async def process_interview_job(
     try:
         logging.info(f"Session {session_id}: Starting RAG query and LLM generation...")
         
-        # 1. Update session status to 'in_progress'
+        # 1. Update session status to 'generating'
         session_service.update_session_status(session_id, status="generating")
 
-        # 2. RAG Implementation
-        rag_context = await retrieve_questions_from_rag(cv_text=cv_text, k=5)
+        generated_questions_list = None
+        for attempt in range(MAX_JOB_RETRIES):
+            try:
+                logging.info(f"Session {session_id}: Attempt {attempt + 1}/{MAX_JOB_RETRIES} to generate questions...")
+                
+                # 2. RAG Implementation
+                rag_context = await retrieve_questions_from_rag(cv_text=cv_text, k=5)
 
-        # 3. Generate interview questions using LLM (The slow step, approx 30 seconds)
-        generated_questions_list = await generate_interview_questions(
-            cv_text=cv_text,
-            field=field,
-            role=role,
-            reference_questions=rag_context.reference_questions
-        )
-        
+                # 3. Generate interview questions using LLM (The slow step)
+                generated_questions_list = await generate_interview_questions(
+                    cv_text=cv_text,
+                    field=field,
+                    role=role,
+                    reference_questions=rag_context.reference_questions
+                )
+                # Success! Break the retry loop
+                break 
+            except Exception as e:
+                if attempt == MAX_JOB_RETRIES - 1:
+                    raise # Re-raise on final failure
+                
+                # Log the retry and wait with exponential backoff
+                wait_time = INITIAL_BACKOFF_SECONDS * (2 ** attempt)
+                logging.warning(f"Session {session_id}: Question generation failed (Attempt {attempt + 1}). Retrying in {wait_time}s. Error: {e}")
+                await asyncio.sleep(wait_time)
+
+        # Check if generation was successful after all retries
+        if generated_questions_list is None:
+            raise Exception("Question generation failed after all retries.")
+            
         # 4. Create detailed_feedbacks records
         feedback_service.create_detailed_feedbacks_batch(
             session_id=session_id,
@@ -53,13 +80,199 @@ async def process_interview_job(
         
         # 5. Update final status
         session_service.update_session_status(session_id, status="in_progress")
-        logging.info(f"Session {session_id}: Successfully processed and updated to completed.")
+        logging.info(f"Session {session_id}: Successfully processed and updated to in_progress.")
         
         return generated_questions_list
 
     except Exception as e:
-        # If processing fails, mark the session as failed
-        logging.error(f"Session {session_id}: Processing failed. Error: {e}")
+        # If processing fails after all retries, mark the session as failed
+        logging.error(f"Session {session_id}: Processing failed after all retries. Error: {e}")
         session_service.update_session_status(session_id, status="failed")
-        # Do not re-raise in the worker; just log the error and move on to the next job
         return []
+    
+
+async def process_university_prep_job(
+    job_data: Dict[str, Any], 
+    supabase: Client
+) -> List[GeneratedQuestion]:
+    """
+    Executes the core logic for a university preparation session job, with retry mechanism.
+    """
+    session_id = job_data["session_id"]
+    student_record_text = job_data["student_record_text"]
+    universities = job_data["universities"]
+    departments = job_data["departments"]
+    
+    session_service = InterviewSessionService(supabase)
+    feedback_service = FeedbackService(supabase)
+
+    try:
+        logging.info(f"Session {session_id}: Starting University Prep RAG query and LLM generation...")
+        
+        # 1. Update session status to 'generating'
+        session_service.update_session_status(session_id, status="generating")
+
+        generated_questions_list = None
+        for attempt in range(MAX_JOB_RETRIES):
+            try:
+                logging.info(f"Session {session_id}: Attempt {attempt + 1}/{MAX_JOB_RETRIES} to generate university prep questions...")
+                
+                # 2. RAG Implementation
+                academic_context = await retrieve_questions_from_rag(cv_text=student_record_text, k=5)
+
+                # 3. Generate questions using LLM
+                generated_questions_list = await generate_university_prep_questions(
+                    student_record_text=student_record_text,
+                    universities=universities,
+                    departments=departments,
+                    reference_questions=academic_context.reference_questions
+                )
+                # Success! Break the retry loop
+                break
+            except Exception as e:
+                if attempt == MAX_JOB_RETRIES - 1:
+                    raise # Re-raise on final failure
+                
+                # Log the retry and wait with exponential backoff
+                wait_time = INITIAL_BACKOFF_SECONDS * (2 ** attempt)
+                logging.warning(f"Session {session_id}: University Prep generation failed (Attempt {attempt + 1}). Retrying in {wait_time}s. Error: {e}")
+                await asyncio.sleep(wait_time)
+
+        # Check if generation was successful after all retries
+        if generated_questions_list is None:
+            raise Exception("University Prep generation failed after all retries.")
+            
+        # 4. Create detailed_feedbacks records
+        feedback_service.create_detailed_feedbacks_batch(
+            session_id=session_id,
+            questions=generated_questions_list
+        )
+        
+        # 5. Update final status
+        session_service.update_session_status(session_id, status="in_progress")
+        logging.info(f"Session {session_id}: Successfully processed University Prep and updated to in_progress.")
+        
+        return generated_questions_list
+
+    except Exception as e:
+        # If processing fails after all retries, mark the session as failed
+        logging.error(f"Session {session_id}: University Prep Processing failed after all retries. Error: {e}")
+        session_service.update_session_status(session_id, status="failed")
+        return []
+    
+
+async def process_evaluation_job(
+    job_data: Dict[str, Any], 
+    supabase: Client
+) -> None:
+    """
+    Executes the core LLM evaluation and database update logic for a completed session.
+    Implements a retry mechanism for transient LLM API errors.
+    """
+    session_id = job_data["session_id"]
+    
+    # Reconstruct the list of QuestionAnswerPair objects from serialized data
+    qa_pairs_dicts = job_data["qa_pairs"]
+    qa_pairs = [QuestionAnswerPair(**p) for p in qa_pairs_dicts]
+    
+    session_service = InterviewSessionService(supabase)
+    feedback_service = FeedbackService(supabase)
+    
+    try:
+        logging.info(f"Session {session_id}: Starting LLM evaluation...")
+        
+        # 1. Update session status to 'evaluating'
+        session_service.update_session_status(session_id, status="evaluating")
+
+        evaluation_result = None
+        for attempt in range(MAX_JOB_RETRIES):
+            try:
+                # 2. Call LLM Evaluation Service (The heavy lifting)
+                logging.info(f"Session {session_id}: Attempt {attempt + 1}/{MAX_JOB_RETRIES} to call LLM...")
+                evaluation_result = await generate_session_evaluation(qa_pairs)
+                # Success! Break the retry loop
+                break 
+            except Exception as e:
+                # Check if it's the last attempt
+                if attempt == MAX_JOB_RETRIES - 1:
+                    raise # Re-raise on final failure to be caught by the outer block
+                
+                # Log the retry and wait with exponential backoff
+                wait_time = INITIAL_BACKOFF_SECONDS * (2 ** attempt)
+                logging.warning(f"Session {session_id}: LLM call failed (Attempt {attempt + 1}). Retrying in {wait_time}s. Error: {e}")
+                await asyncio.sleep(wait_time)
+
+        # Check if evaluation was successful after all retries
+        if evaluation_result is None:
+            raise Exception("LLM evaluation failed after all retries.")
+
+        # --- DATABASE UPDATES START HERE (Executed only on successful evaluation) ---
+        
+        # A. Update main session table with overall score
+        overall_score_10 = round(evaluation_result.overall_scores.overall_score, 1)
+
+        session_service.update_session_status(
+            session_id=session_id, 
+            status="completed", # Final status on successful evaluation
+            total_score=overall_score_10,
+            completed_at=datetime.now()
+        )
+        logging.info(f"Session {session_id}: Main session table updated with score {overall_score_10}.")
+        
+        # B. Save summaries
+        summary_data = InterviewSummaryCreate(
+            session_id=session_id,
+            strength_text=evaluation_result.session_summary.strength_text,
+            areas_for_growth_text=evaluation_result.session_summary.areas_for_growth_text
+        )
+        feedback_service.create_session_summary(summary=summary_data)
+        logging.info(f"Session {session_id}: Summary saved.")
+
+        # C. Save next steps
+        next_step_creates = [
+            InterviewNextStepCreate(
+                session_id=session_id,
+                next_step_order=idx + 1,
+                title=ns.title,
+                description_text=ns.description_text
+            )
+            for idx, ns in enumerate(evaluation_result.next_steps)
+        ]
+        feedback_service.create_next_steps_batch(next_steps=next_step_creates)
+        logging.info(f"Session {session_id}: Next steps saved.")
+
+
+        # D. Update detailed feedbacks (Q&A and scores)
+        qa_map = {p.question_order: p.answer_text for p in qa_pairs}
+        combined_feedback_updates = []
+        for fb_item in evaluation_result.per_question_feedback:
+            # Convert the Pydantic object to a mutable dictionary
+            update_data = fb_item.model_dump(exclude_none=True, exclude_unset=True)
+            
+            # Look up the corresponding answer text using the question order
+            answer_text_for_q = qa_map.get(fb_item.question_order)
+            
+            if answer_text_for_q is not None:
+                update_data["answer_text"] = answer_text_for_q
+            
+            combined_feedback_updates.append(update_data)
+
+        # Send the updated list of dictionaries
+        feedback_service.update_detailed_feedbacks_batch(
+            session_id=session_id,
+            feedback_updates=combined_feedback_updates 
+        )
+        logging.info(f"Session {session_id}: Detailed feedbacks updated.")
+        
+        logging.info(f"Session {session_id}: Evaluation successfully processed and marked completed.")
+
+    except Exception as e:
+        # If processing fails after all retries, mark the session as failed
+        logging.error(f"Session {session_id}: Evaluation processing failed after all retries. Error: {e}")
+        # Ensure the session is marked as failed on error
+        session_service.update_session_status(
+            session_id, 
+            status="failed",
+            completed_at=datetime.now()
+        )
+        return # Do not re-raise in the worker
