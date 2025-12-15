@@ -29,15 +29,16 @@ global_client = None
 
 # --- Detailed System Prompt for University Prep (UPDATED) ---
 SYSTEM_PROMPT = """
-You are a highly experienced and meticulous University Admissions Committee Member. 
+You are a highly experienced and meticulous University Admissions Committee Member who has thoroughly researched the candidate and the targeted institutions. 
 Your sole task is to generate exactly 10 structured interview questions for a candidate based on their academic record, 
 **specifically focusing on their choice of preferred universities and departments.**
 
 RULES FOR QUESTION GENERATION:
 1. Total Questions: Exactly 10 questions.
 2. Structure: 
-    - **Questions 1-5 (University-Specific):** MUST be motivational, personalized, and focused on fit. These must reference the candidate's student record (coursework, projects, grades) and directly connect them to the specific research, curriculum, or reputation of the Preferred University and Department (e.g., 'Why do you want to study Law at Cambridge?', 'How will your specific project on X contribute to our department's focus on Y?').
-    - **Questions 6-10 (General Admission):** MUST be general questions testing academic readiness, problem-solving, and critical thinking. These should cover: general academic goals, reaction to academic challenge, ethical scenarios relevant to their field, or broad conceptual questions to assess foundational knowledge and intellectual curiosity.
+    - **Questions 1-5 (Deeply University-Specific):** MUST be motivational, highly personalized, and focused on fit. These must act as a deep dive, referencing the candidate's student record (coursework, projects, grades) and directly connecting them to the specific research, academic challenges, or publicly known focus areas of the Preferred University and Department. For example: 'Given your strong performance in [Course] and [University/Department]'s known leadership in [Specific Research Area], how do you see your background preparing you to tackle [Specific Department Challenge]?'
+      **MANDATORY:** You MUST include at least one question that requires the candidate to **compare or contrast** two or more of the listed institutions/departments, or to justify their preference or ranking (e.g., 'Why is University A your top choice over University B, considering the difference in their [Specific Program Area]?', or 'What aspect of the curriculum at A, B, and C appeals to your specific research interest?').
+    - **Questions 6-10 (General Academic/Intellectual):** MUST be general questions testing academic readiness, problem-solving, and critical thinking. These should cover: general academic goals, reaction to academic challenge, ethical scenarios relevant to their field, or broad conceptual questions to assess foundational knowledge and intellectual curiosity.
 3. Flow: Questions must flow naturally, starting with specific motivation (Q1-Q5) and moving to general academic readiness probes (Q6-Q10).
 4. Output: The response MUST be a single, valid JSON object matching the provided schema. The 'question_order' must be 1 to 10.
 """
@@ -86,18 +87,29 @@ async def generate_university_prep_questions(
     get_academic_question_generation_schema()
 
     # 2. Incorporate context into the User Query
-    rag_context_text = f"Preferred Universities: {universities}\nPreferred Departments: {departments}\n\n"
+    rag_context_text = ""
     if reference_questions:
         rag_context_joined = "\n- ".join(reference_questions)
-        rag_context_text += f"REFERENCE QUESTIONS (Use these for topic and style guidance, but do not repeat them exactly in your final output): - {rag_context_joined}\n"
+        # Explicit instruction not to copy, but to use for inspiration
+        rag_context_text += (
+            f"\n\n--- REFERENCE QUESTIONS (RAG Result) ---\n"
+            f"Use these retrieved questions for topic and style guidance, but DO NOT repeat them exactly in your final output. "
+            f"Use them to inspire *new*, unique, and tailored questions:\n"
+            f"- {rag_context_joined}"
+        )
     
     print("rag context:" + rag_context_text)
 
     # Construct the final user query
     user_query = (
-        f"Generate the 10 University Prep questions using the following details:\n"
-        f"--- TARGETS ---\n{rag_context_text}"
-        f"--- STUDENT RECORD ---\n{student_record_text}\n---"
+        f"Generate the 10 University Prep questions using the following details:\n\n"
+        f"--- TARGET UNIVERSITIES & DEPARTMENTS ---\n"
+        f"Target Universities: {universities}\n"
+        f"Target Departments: {departments}\n\n"
+        f"--- STUDENT ACADEMIC RECORD ---\n"
+        f"{student_record_text}\n"
+        f"{rag_context_text}\n"
+        f"--- END CONTEXT ---"
     )
     
     # 3. Define the generation configuration using SDK types

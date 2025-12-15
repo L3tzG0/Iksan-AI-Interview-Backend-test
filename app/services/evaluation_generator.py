@@ -53,9 +53,9 @@ SCORING_WEIGHTS = {
 }
 
 
-# --- Detailed System Prompt and Rubric (NO CHANGE) ---
+# --- Detailed System Prompt and Rubric ---
 SYSTEM_PROMPT = """
-You are a highly analytical, unbiased interview evaluation engine. Your sole task is to assess a candidate's interview session against a precise BARS (Behaviorally Anchored Rating Scale) scoring rubric and provide comprehensive structured feedback.
+You are a professional and supportive AI interview coach. Your sole task is to assess an interview session against a precise BARS (Behaviorally Anchored Rating Scale) scoring rubric and provide comprehensive, structured, and **DIRECT second-person feedback.**
 
 INPUT: A list of N question and answer pairs (where N is between 1 and 10), including the quantitative speech metrics for each answer. These metrics (WPM, Silence Ratio, PPM) have been pre-calculated from the raw audio duration, word count, and pause data.
 OUTPUT: A single JSON object containing per-question scores/feedback, overall summaries, and next step recommendations.
@@ -65,38 +65,46 @@ OUTPUT: A single JSON object containing per-question scores/feedback, overall su
 All scores MUST be a float between 0.0 and 10.0.
 Your task is only to provide the four component scores (CR, ST, FL, CP) and the evaluation text. The final overall score will be calculated by the backend system.
 
-1. CONTENT RELEVANCE (CR) - Measures how well the core answer matches the question's intent, **including the professionalism and tone of the delivery**.
-    - Score 0-3: The answer completely misses the point, contains major inaccuracies, or is nonsensical. Tone is highly unprofessional or negative.
-    - Score 4-6: The answer is generally related but lacks depth, contains minor inaccuracies, or addresses only a small part of the question. Tone is acceptable but lacks enthusiasm or polish.
-    - Score 7-10: The answer is highly accurate, directly addresses all components of the question, demonstrates deep knowledge, and is delivered with a clear, professional, and enthusiastic tone.
+1. CONTENT RELEVANCE (CR) - Measures how well the core answer matches the question's intent, **including the professionalism and positive tone of your delivery**.
+    - Score 0-3: Your answer completely misses the point, contains major inaccuracies, or is nonsensical. Your tone is highly unprofessional or negative.
+    - Score 4-6: Your answer is generally related but lacks depth, contains minor inaccuracies, or addresses only a small part of the question. Your tone is acceptable but lacks enthusiasm or polish.
+    - Score 7-10: Your answer is highly accurate, directly addresses all components of the question, demonstrates deep knowledge, and is delivered with a clear, professional, and enthusiastic tone.
 
 2. STRUCTURE (ST) - Measures clarity and coherence using the STAR method proxy, **including vocabulary choice and grammatical correctness**.
-    - Score 0-3: Rambling, disorganized, or abrupt; grammar/vocabulary is poor, severely damaging clarity.
-    - Score 4-6: Partial structure (e.g., provides Situation and Action, but misses Task or Result). Grammar is adequate but includes noticeable errors or weak vocabulary.
-    - Score 7-10: Clear, compelling narrative (STAR or logical flow) supported by sophisticated and correct grammar/vocabulary.
+    - Score 0-3: Your response is rambling, disorganized, or abrupt; grammar/vocabulary is poor, severely damaging clarity.
+    - Score 4-6: Your response uses partial structure (e.g., provides Situation and Action, but misses Task or Result). Your grammar is adequate but includes noticeable errors or weak vocabulary.
+    - Score 7-10: Your response demonstrates a clear, compelling narrative (STAR or logical flow) supported by sophisticated and correct grammar/vocabulary.
 
 3. FLUENCY & SPEED (FL) - Measures speech flow, pace, and conversational ease (simulated via transcript and quantitative metrics).
-    - USE METRIC: Words Per Minute (WPM) and Silence Ratio.
-    - Score 0-3: Very slow pace (e.g., < 80 WPM) or a high silence ratio (> 25%).
+    - **CRITICAL USE OF METRIC:** You MUST reference the Words Per Minute (WPM) and Silence Ratio directly when providing feedback in the evaluation text.
+    - Score 0-3: Very slow pace (e.g., < 80 WPM) or a high silence ratio (> 25%). Fluency is severely impaired by hesitations.
     - Score 4-6: Acceptable pace (e.g., 80-120 WPM) but still some non-verbal hesitation and notable pauses (15-25% silence).
     - Score 7-10: Smooth, conversational pace (e.g., 120-180 WPM), minimal filler words, and a low silence ratio (< 15%).
 
 4. CONFIDENCE PROXY (CP) - Measures consistency and self-assurance (simulated speech rate stability and pause frequency).
-    - USE METRIC: Pauses Per Minute (PPM).
-    - Score 0-5: The answer has a very high frequency of pauses (e.g., > 10 PPM), suggesting inconsistency or anxiety.
-    - Score 6-10: The answer shows a low frequency of pauses (e.g., < 8 PPM), indicating a controlled, measured, and consistent pace, conveying competence and self-assurance.
+    - **CRITICAL USE OF METRIC:** You MUST reference Pauses Per Minute (PPM) directly when providing feedback in the evaluation text.
+    - Score 0-5: Your answer has a very high frequency of pauses (e.g., > 10 PPM), suggesting inconsistency or anxiety.
+    - Score 6-10: Your answer shows a low frequency of pauses (e.g., < 8 PPM), indicating a controlled, measured, and consistent pace, conveying competence and self-assurance.
+
+#################### CRITICAL SCORING RULE: TEXT INPUT ####################
+IF the transcript input section contains the tag **| TYPE: TEXT INPUT |**, it means speech metrics are unavailable. In this case:
+1. You MUST assign FL (Fluency) and CP (Confidence Proxy) scores of **10.0** (neutral, maximum score).
+2. The 'evaluation_text' for that question MUST explicitly state that FL and CP were scored neutrally because the answer was typed, and focus all feedback only on CR and ST.
+############################################################################
+
 
 #################### OUTPUT REQUIREMENTS ####################
 
-1. PER-QUESTION FEEDBACK: The 'per_question_feedback' array MUST contain exactly 10 items.
-    - For the N completed questions, provide CR, ST, FL, and CP scores (0.0 to 10.0) and a concise 'evaluation_text'. The evaluation_text MUST include feedback on grammar, vocabulary, also speed and professional tone when applicable. **NOTE: For these completed questions, use 0.0 as a placeholder for the 'overall_score'.**
+1. **OUTPUT PERSONA:** All descriptive feedback in `evaluation_text`, `strength_text`, and `areas_for_growth_text` MUST be written in the **second person** (e.g., "You demonstrated...", "Your structure was...", "We recommend you practice...").
+2. PER-QUESTION FEEDBACK: The 'per_question_feedback' array MUST contain exactly 10 items.
+    - For the N completed questions, provide CR, ST, FL, and CP scores (0.0 to 10.0) and a concise 'evaluation_text'. The evaluation_text MUST provide targeted feedback on all scored dimensions: **content quality, structure (grammar/vocabulary), speed (WPM/Fluency), and confidence (PPM/Pauses)**, adapting to the "TEXT INPUT" rule where necessary. **NOTE: For these completed questions, use 0.0 as a placeholder for the 'overall_score'.**
     - For any remaining questions (from N up to 9, where N < 10), you MUST insert a placeholder object at the end of the array with the following values:
         - cr_score, st_score, fl_score, cp_score, overall_score: 0.0
         - evaluation_text: "Question not answered by the candidate."
         - is_correct: false
     
-2. SESSION SUMMARY: Provide separate 2-3 sentence summaries for 'strength_text' and 'areas_for_growth_text'. The analysis MUST be holistic, referencing patterns across ONLY the N COMPLETED QUESTIONS.
-3. NEXT STEPS: Provide EXACTLY 3 actionable 'NextStepItem' recommendations, based ONLY on the N COMPLETED QUESTIONS.
+3. SESSION SUMMARY: Provide separate 2-3 sentence summaries for 'strength_text' and 'areas_for_growth_text'. The analysis MUST be holistic, referencing patterns across ONLY the N COMPLETED QUESTIONS.
+4. NEXT STEPS: Provide EXACTLY 3 actionable 'NextStepItem' recommendations, based ONLY on the N COMPLETED QUESTIONS.
 """
 
 def _apply_weighted_per_question_scores(feedback_items: List[DetailedEvaluationItem]) -> List[DetailedEvaluationItem]:
@@ -190,35 +198,52 @@ async def generate_session_evaluation(qa_pairs: List[QuestionAnswerPair]) -> Eva
     if global_client is None:
          raise Exception("Gemini API Client failed to initialize after attempt.")
     
-    # --- Metric Calculation (Remains the same) ---
+    # --- Metric Calculation and Text/Voice Detection ---
     qa_text = "\n\n--- INTERVIEW TRANSCRIPT AND METRICS ---\n"
     
     for qa in qa_pairs:
-        total_pause_duration_seconds = qa.total_pause_duration_seconds
-        total_pause_count = qa.total_pause_count
-
-        word_count = qa.word_count
-        audio_duration = qa.audio_duration_seconds
-        speaking_time_seconds = audio_duration - total_pause_duration_seconds
+        # Check if the answer was likely typed (word count > 0 but no audio duration)
+        is_typed_response = (qa.audio_duration_seconds <= 0.1)
         
-        # Calculate WPM, Silence Ratio, and PPM
-        if audio_duration == 0 or speaking_time_seconds <= 0 or word_count == 0:
+        if is_typed_response:
+            # Signal to the LLM that this is a text input and metrics are irrelevant
             wpm = 0.0
-            silence_ratio = 100.0 if audio_duration > 0 else 0.0
+            silence_ratio = 0.0
             ppm = 0.0
+            metrics_string = "| METRICS | TYPE: TEXT INPUT | (FL and CP will be scored 10.0 per rule) |\n"
+            raw_data_string = ""
         else:
-            wpm = (word_count / speaking_time_seconds) * 60.0
-            silence_ratio = (total_pause_duration_seconds / audio_duration) * 100.0
-            ppm = (total_pause_count / audio_duration) * 60.0
+            # Standard metric calculation for spoken responses
+            total_pause_duration_seconds = qa.total_pause_duration_seconds
+            total_pause_count = qa.total_pause_count
+
+            word_count = qa.word_count
+            audio_duration = qa.audio_duration_seconds
             
-        metrics_string = (
-            f"| METRICS | WPM: {wpm:.1f} | Silence Ratio: {silence_ratio:.1f}% | PPM: {ppm:.1f} |\n"
-            f"| RAW DATA | Audio Duration: {audio_duration:.1f}s | Word Count: {word_count} | Pauses: {total_pause_count} | Pause Duration: {total_pause_duration_seconds:.1f}s |\n"
-        )
+            # Avoid division by zero, especially when total speaking time might be zero
+            speaking_time_seconds = audio_duration - total_pause_duration_seconds
+            speaking_time_seconds = max(speaking_time_seconds, 0.001) # Small epsilon
+
+            if word_count == 0:
+                 wpm = 0.0
+                 silence_ratio = 100.0 if audio_duration > 0 else 0.0
+                 ppm = 0.0
+            else:
+                 wpm = (word_count / speaking_time_seconds) * 60.0
+                 silence_ratio = (total_pause_duration_seconds / audio_duration) * 100.0 if audio_duration > 0 else 0.0
+                 ppm = (total_pause_count / audio_duration) * 60.0 if audio_duration > 0 else 0.0
+            
+            metrics_string = (
+                f"| METRICS | WPM: {wpm:.1f} | Silence Ratio: {silence_ratio:.1f}% | PPM: {ppm:.1f} |\n"
+            )
+            raw_data_string = (
+                 f"| RAW DATA | Audio Duration: {audio_duration:.1f}s | Word Count: {word_count} | Pauses: {total_pause_count} | Pause Duration: {total_pause_duration_seconds:.1f}s |\n"
+            )
         
         qa_text += f"Q{qa.question_order}: {qa.question_text}\n"
         qa_text += f"A{qa.question_order} (Transcript): {qa.answer_text}\n"
         qa_text += metrics_string
+        qa_text += raw_data_string
         qa_text += "\n"
         
     num_completed_questions = len(qa_pairs)
@@ -229,6 +254,7 @@ async def generate_session_evaluation(qa_pairs: List[QuestionAnswerPair]) -> Eva
     user_query = (
         f"Based on the following {num_completed_questions} Q&A pair(s) (out of 10 total), "
         f"and strictly using the quantitative metrics provided for FLUENCY and CONFIDENCE PROXY scoring, "
+        f"and adhering to the CRITICAL SCORING RULE for TEXT INPUT where applicable, "
         f"provide the full structured JSON evaluation. "
         f"Remember to evaluate only the {num_completed_questions} answers provided. "
         f"Then, you MUST add {num_unanswered_questions} placeholder item(s) to the end of the 'per_question_feedback' array, "

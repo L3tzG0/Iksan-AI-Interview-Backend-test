@@ -281,7 +281,7 @@ def get_session_detail(
     
     # >>> NEW CHECK: If session is not completed, block retrieval and advise polling. <<<
     current_status = session.get("status")
-    if current_status != "in_progress":
+    if current_status not in ["in_progress", "completed"]:
         # Raise 409 Conflict to signal that the request cannot be fulfilled yet.
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

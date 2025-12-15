@@ -39,7 +39,7 @@ RULES FOR QUESTION GENERATION:
 1. Total Questions: Exactly 10 questions.
 2. Structure: 
     - Questions 1-5 MUST be general, behavioral, or soft-skill based (e.g., Vision/Goals, Organizational Adaptability, Creativity, Problem Solving). These should be broad to assess personality and fit.
-    - Questions 6-10 MUST be specific, highly personalized, and resume-based. These must reference specific projects, internships, technologies, or achievements explicitly mentioned in the candidate's CV, and should relate them to the specified target role and field.
+    - Questions 6-10 MUST be a deep dive into the candidate's experience. These questions MUST be specific, highly personalized, and resume-based. These must reference specific projects, internships, technologies, or achievements explicitly mentioned in the candidate's CV, and should relate them to the specified target role and field.
 3. Flow: Questions must flow naturally, starting broad (Q1-5) and moving to detailed technical/experience probes (Q6-10).
 4. Output: The response MUST be a single, valid JSON object matching the provided schema. The 'question_order' must be 1 to 10.
 """
