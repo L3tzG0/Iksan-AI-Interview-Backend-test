@@ -179,6 +179,7 @@ async def student_login(
         school_info = student.get("schools") if student else None
         major_info = student.get("majors") if student else None
         class_info = student.get("classes") if student else None
+        role_info = user_profile.get("roles") if user_profile else None
         
         student_login_response = StudentLoginResponse(
             access_token=result["access_token"],
@@ -187,6 +188,8 @@ async def student_login(
             user_id=result["user"].id,
             student_id=login_data.student_id,
             full_name=user_profile.get("full_name") if user_profile else None,
+            role_id=user_profile.get("role_id") if user_profile else None,
+            role_name=role_info.get("role_name") if role_info else None,
             school_name=school_info.get("school_name") if school_info else None,
             major_name=major_info.get("major_name") if major_info else None,
             class_name=class_info.get("class_name") if class_info else None,
