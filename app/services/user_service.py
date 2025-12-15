@@ -273,7 +273,15 @@ class UserProfileService:
                 role_filter_id = RoleType.STUDENT.value
 
             def build_query():
-                base_query = self.supabase.table("user_profiles").select(USER_LIST_COLUMNS, count="exact")
+                # When a teacher is viewing, we must ensure that only students from
+                # the teacher's school are returned. Using an inner join on the
+                # `students` relation excludes parent `user_profiles` rows that
+                # have no matching `students` row for the given `school_id`.
+                base_select = USER_LIST_COLUMNS
+                if viewer_role_normalized == RoleName.TEACHER.value and viewer_school_id is not None:
+                    base_select = USER_LIST_COLUMNS.replace("students(", "students!inner(")
+
+                base_query = self.supabase.table("user_profiles").select(base_select, count="exact")
                 if role_filter_id is not None:
                     base_query = base_query.eq("role_id", role_filter_id)
                 if search:
