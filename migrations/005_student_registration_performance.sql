@@ -112,7 +112,12 @@ BEGIN
      WHERE school_number IS NOT NULL;
 
     -- Ensure nextval() will produce v_max+1
-    PERFORM setval('public.schools_school_number_seq', v_max_school_num, true);
+    IF v_max_school_num < 1 THEN
+        -- Empty table: initialize so nextval() returns 1
+        PERFORM setval('public.schools_school_number_seq', 1, false);
+    ELSE
+        PERFORM setval('public.schools_school_number_seq', v_max_school_num, true);
+    END IF;
 END $$;
 
 -- Majors: 4-digit major_number (0001..9999)
@@ -135,7 +140,12 @@ BEGIN
       FROM public.majors
      WHERE major_number IS NOT NULL;
 
-    PERFORM setval('public.majors_major_number_seq', v_max_major_num, true);
+    IF v_max_major_num < 1 THEN
+        -- Empty table: initialize so nextval() returns 1
+        PERFORM setval('public.majors_major_number_seq', 1, false);
+    ELSE
+        PERFORM setval('public.majors_major_number_seq', v_max_major_num, true);
+    END IF;
 END $$;
 
 -- Replace functions to use sequences (removes MAX()+1 races)
