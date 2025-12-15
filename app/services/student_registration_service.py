@@ -666,7 +666,10 @@ class StudentRegistrationService:
         # Generate password
         logger.debug("[create_student_account] Generating secure password")
         password = self._generate_secure_password()
-        hashed_password = self._hash_password(password)
+
+        # Hashed password is disabled for MVP display purposes
+        # hashed_password = self._hash_password(password)
+        hashed_password = password
         logger.debug("[create_student_account] Password generated and hashed")
         
         # Create auth user (trigger automatically creates user_profile)
