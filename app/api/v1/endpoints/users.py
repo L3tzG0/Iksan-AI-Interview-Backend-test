@@ -20,9 +20,21 @@ async def read_user_profiles(
     search: Optional[str] = Query(default=None, description="Search by name or email"),
     role_context: RoleContext = Depends(require_role(["admin", "teacher"]))
 ):
-    """
-    Retrieve user profiles with pagination and role-aware filtering.
-    Requires admin or teacher role; teachers are scoped to students in their school.
+    """Retrieve users with pagination and role-aware filtering.
+
+    Requires admin or teacher role to access this endpoint.
+
+    Access Control:
+
+    - Admins: Can see all users with all roles
+    - Teachers: Scoped to students in their own school
+
+    Query Parameters support filtering by role and searching by name or email.
+    
+    Student records include associated student ID and passwords.
+
+    Returns:
+        PaginatedResponse[UserListItemResponse]: Paginated list of user profiles with total count.
     """
     service = UserProfileService(supabase)
     profiles, total = await service.list_users(
