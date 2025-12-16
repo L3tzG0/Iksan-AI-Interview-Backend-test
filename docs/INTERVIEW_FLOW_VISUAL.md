@@ -279,7 +279,3 @@
 │                                                                  │
 └──────────────────────────────────────────────────────────────────┘
 ```
-
----
-
-**See [INTERVIEW_FLOW_FRONTEND_INTEGRATION.md](./INTERVIEW_FLOW_FRONTEND_INTEGRATION.md) for detailed implementation guide.**
