@@ -5,7 +5,7 @@ import redis
 import os
 import sys
 from typing import Dict, Any
-from supabase import create_client, Client # Using the specific supabase client import
+from supabase import create_async_client, AsyncClient # Use async Supabase client
 
 # --- Setup Imports and Path (Kept from your original file) ---
 # Adjust path to correctly find app/core/config.py and app/services
@@ -21,15 +21,15 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - WORKER - %(message
 # This is the core of the rate limiting enforcement.
 next_allowed_start_time = time.time()
 
-def initialize_supabase() -> Client:
-    """Initializes and returns the Supabase client using settings."""
+async def initialize_supabase() -> AsyncClient:
+    """Initializes and returns the async Supabase client using settings."""
     try:
         logging.info("Initializing Supabase Client...")
         
         if not settings.SUPABASE_URL or not settings.SUPABASE_KEY:
             raise ValueError("Supabase credentials are not fully configured.")
             
-        return create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
+        return await create_async_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
     except Exception as e:
         logging.error(f"Failed to initialize Supabase: {e}")
         sys.exit(1)
@@ -70,8 +70,8 @@ async def run_worker():
     """
     global next_allowed_start_time
     
-    # Initialize services (Synchronous calls are fine here)
-    supabase = initialize_supabase()
+    # Initialize services
+    supabase = await initialize_supabase()
     redis_conn = initialize_redis()
     queue_service = QueueService(redis_conn)
     

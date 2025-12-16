@@ -10,7 +10,7 @@ from app.services.interview_session_service import InterviewSessionService
 from app.schemas.interview_session import GeneratedQuestion, QuestionAnswerPair 
 from app.schemas.summary import InterviewSummaryCreate
 from app.schemas.next_step import InterviewNextStepCreate
-from supabase import Client
+from supabase import AsyncClient
 from datetime import datetime
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - JobProcessor - %(message)s')
@@ -22,7 +22,7 @@ INITIAL_BACKOFF_SECONDS = 5
 
 async def process_interview_job(
     job_data: Dict[str, Any], 
-    supabase: Client
+    supabase: AsyncClient
 ) -> List[GeneratedQuestion]:
     """
     Executes the slow, core logic for an interview session job, with retry mechanism.
@@ -93,7 +93,7 @@ async def process_interview_job(
 
 async def process_university_prep_job(
     job_data: Dict[str, Any], 
-    supabase: Client
+    supabase: AsyncClient
 ) -> List[GeneratedQuestion]:
     """
     Executes the core logic for a university preparation session job, with retry mechanism.
@@ -163,7 +163,7 @@ async def process_university_prep_job(
 
 async def process_evaluation_job(
     job_data: Dict[str, Any], 
-    supabase: Client
+    supabase: AsyncClient
 ) -> None:
     """
     Executes the core LLM evaluation and database update logic for a completed session.
