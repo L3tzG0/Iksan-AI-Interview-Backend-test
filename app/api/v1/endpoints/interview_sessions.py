@@ -521,7 +521,7 @@ async def initiate_university_prep_session(
     raw_text: Optional[str] = Form(None, description="Raw student record text content"),
     universities: str = Form(..., description="Comma-separated list of preferred universities (e.g., 'Stanford, MIT')"),
     departments: str = Form(..., description="Comma-separated list of preferred academic departments (e.g., 'Computer Science, Electrical Engineering')"),
-    current_user = Depends(require_role("student"))
+    role_context: RoleContext = Depends(require_role("student"))
 ):
     """
     Initiate new university preparation session. Saves input data, creates a session in 'pending' status, 
@@ -553,7 +553,7 @@ async def initiate_university_prep_session(
             )
 
         # Step 1: User check
-        student_details = await user_service.get_student_details(current_user.id)
+        student_details = await user_service.get_student_details(role_context.user.id)
         if not student_details:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -562,7 +562,7 @@ async def initiate_university_prep_session(
         student_id = student_details.get("id")
         
         # Step 2: Create session with initial 'pending' status (CHANGED from "in_progress")
-        session = session_service.create_session(student_id=student_id, status="pending")
+        session = await session_service.create_session(student_id=student_id, status="pending")
         session_id = session['id']
         assert session_id is not None, "Session ID must be set after creation"
         
