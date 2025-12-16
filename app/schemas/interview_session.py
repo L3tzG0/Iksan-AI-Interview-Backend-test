@@ -92,6 +92,7 @@ class SessionSubmitRequest(BaseModel):
 
 class FeedbackDetail(BaseModel):
     """Detailed feedback for a single Q&A"""
+    question_order: Optional[int] = None
     question: str
     answer: str
     evaluation: str
