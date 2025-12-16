@@ -229,9 +229,9 @@ async def get_session_status(
     session_service = InterviewSessionService(supabase)
     
     # 1. Fetch and validate session state & ownership
-    session = session_service.get_session(session_id)
+    session = await session_service.get_session(session_id)
     
-    student_details = user_service.get_student_details(current_user.id)
+    student_details = await user_service.get_student_details(current_user.id)
     student_id = student_details.get("id")
     if session.get("student_id") != student_id:
         raise HTTPException(
@@ -552,7 +552,7 @@ async def initiate_university_prep_session(
             )
 
         # Step 1: User check
-        student_details = user_service.get_student_details(current_user.id)
+        student_details = await user_service.get_student_details(current_user.id)
         if not student_details:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
