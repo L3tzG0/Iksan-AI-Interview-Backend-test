@@ -1,104 +1,114 @@
 erDiagram
-    ROLES {
-        int id PK
-        string role_name
+    roles {
+        bigint id PK
+        text role_name "UNIQUE"
     }
 
-    SCHOOLS {
-        int id PK
-        string school_name
+    schools {
+        bigint id PK
+        text school_name "UNIQUE"
+        char_3 school_number "UNIQUE; nullable; assigned via function"
     }
 
-    MAJORS {
-        int id PK
-        string major_name
+    majors {
+        bigint id PK
+        text major_name "UNIQUE"
+        char_4 major_number "UNIQUE; nullable; assigned via function"
     }
 
-    AUTH_USERS {
-        uuid id PK "Managed by Supabase Auth"
-        string email
-        string encrypted_password "Managed by Supabase Auth"
+    auth_users {
+        uuid id PK "auth.users (Supabase-managed)"
+        text email
         jsonb raw_user_meta_data
-        timestamp created_at
+        timestamptz created_at
     }
 
-    USER_PROFILES {
-        uuid id PK
-        string email
-        string full_name
-        int role_id FK
-        timestamp created_at
-        timestamp updated_at
+    user_profiles {
+        uuid id PK "FK -> auth.users(id)"
+        text full_name
+        text email "UNIQUE"
+        bigint role_id FK "nullable; ON DELETE SET NULL"
+        timestamptz created_at
+        timestamptz updated_at
     }
 
-    TEACHERS {
-        int id PK
-        uuid user_id FK
-        int school_id FK
-        timestamp created_at
-        timestamp updated_at
+    teachers {
+        bigint id PK
+        uuid user_id FK "UNIQUE"
+        bigint school_id FK "nullable; ON DELETE SET NULL"
+        timestamptz created_at
+        timestamptz updated_at
     }
 
-    CLASSES {
-        int id PK
-        string class_name
-        string grade_level
-        int homeroom_teacher_id FK
+    classes {
+        bigint id PK
+        text class_name
+        int grade_level "CHECK (1,2,3)"
     }
 
-    STUDENTS {
-        int id PK
-        string student_id UK "Student ID number"
-        uuid user_id FK
-        int school_id FK
-        int major_id FK
-        int current_class_id FK
-        timestamp created_at
-        timestamp updated_at
+    students {
+        bigint id PK
+        text student_id "UNIQUE; generated student identifier"
+        uuid user_id FK "UNIQUE"
+        bigint school_id FK "NOT NULL"
+        bigint major_id FK "NOT NULL"
+        bigint current_class_id FK "NOT NULL"
+        text stored_password "nullable; hashed for display"
+        timestamptz created_at
+        timestamptz updated_at
     }
 
-    SESSIONS {
-        int id PK
-        int student_id FK
-        string status
-        timestamp completed_at
-        numeric total_score
-        timestamp created_at
+    student_number_tracking {
+        bigint id PK
+        bigint school_id FK
+        bigint major_id FK
+        int last_student_number
+        timestamptz created_at
+        timestamptz updated_at
     }
 
-    DOCUMENTS {
-        int id PK
-        int session_id FK
+    sessions {
+        bigint id PK
+        bigint student_id FK
+        text status
+        timestamptz completed_at
+        numeric total_score "NUMERIC(3,1); 0..10"
+        timestamptz created_at
+    }
+
+    documents {
+        bigint id PK
+        bigint session_id FK
         text cleaned_text
     }
 
-    SUMMARIES {
-        int id PK
-        int session_id FK
+    summaries {
+        bigint id PK
+        bigint session_id FK "UNIQUE"
         text strength_text
         text areas_for_growth_text
     }
 
-    DETAILED_FEEDBACKS {
-        int id PK
-        int session_id FK
+    detailed_feedbacks {
+        bigint id PK
+        bigint session_id FK
         int question_order
         text question_text
         text answer_text
         text evaluation_text
-        boolean is_correct
-        numeric content_relevance_score
-        numeric structure_score
-        numeric fluency_score
-        numeric confidence_score
-        numeric overall_score
+        boolean is_correct "DEFAULT FALSE"
+        numeric content_relevance_score "NUMERIC(3,1); 0..10"
+        numeric structure_score "NUMERIC(3,1); 0..10"
+        numeric fluency_score "NUMERIC(3,1); 0..10"
+        numeric confidence_score "NUMERIC(3,1); 0..10"
+        numeric overall_score "NUMERIC(3,1); 0..10"
     }
 
-    NEXT_STEPS {
-        int id PK
-        int session_id FK
+    next_steps {
+        bigint id PK
+        bigint session_id FK
         int next_step_order
-        string title
+        text title "NOT NULL"
         text description_text
     }
 
@@ -115,18 +125,19 @@ erDiagram
         varchar document
         jsonb cmetadata
     }
-
-    AUTH_USERS ||--|| USER_PROFILES : "synced via trigger"
-    ROLES ||--o{ USER_PROFILES : "assigned to"
-    USER_PROFILES ||--o| TEACHERS : "may be"
-    USER_PROFILES ||--o| STUDENTS : "may be"
-    SCHOOLS ||--o{ TEACHERS : "employs"
-    SCHOOLS ||--o{ STUDENTS : "has"
-    MAJORS ||--o{ STUDENTS : "has"
-    CLASSES ||--o{ STUDENTS : "contains"
-    TEACHERS ||--o{ CLASSES : "homeroom for"
-    STUDENTS ||--o{ SESSIONS : "takes"
-    SESSIONS ||--o{ DOCUMENTS : "contains"
-    SESSIONS ||--|| SUMMARIES : "has"
-    SESSIONS ||--o{ DETAILED_FEEDBACKS : "has"
-    SESSIONS ||--o{ NEXT_STEPS : "has"
+    
+    auth_users ||--|| user_profiles : "synced via trigger"
+    roles ||--o{ user_profiles : "assigned to"
+    user_profiles ||--o| teachers : "may be"
+    user_profiles ||--o| students : "may be"
+    schools ||--o{ teachers : "employs"
+    schools ||--o{ students : "has"
+    majors ||--o{ students : "has"
+    classes ||--o{ students : "contains"
+    schools ||--o{ student_number_tracking : "tracks"
+    majors ||--o{ student_number_tracking : "tracks"
+    students ||--o{ sessions : "takes"
+    sessions ||--o{ documents : "contains"
+    sessions ||--|| summaries : "has"
+    sessions ||--o{ detailed_feedbacks : "has"
+    sessions ||--o{ next_steps : "has"

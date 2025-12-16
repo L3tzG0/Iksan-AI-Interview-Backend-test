@@ -3,7 +3,7 @@ from datetime import datetime
 from pydantic import BaseModel, EmailStr
 from uuid import UUID
 from app.schemas.role import RoleResponse
-from app.schemas.types import FlexibleDateTime
+from app.schemas.types import FlexibleDateTime, RoleName
 
 class UserProfileBase(BaseModel):
     email: EmailStr
@@ -18,11 +18,6 @@ class UserProfileCreate(UserProfileBase):
     """
     pass
 
-class UserProfileUpdate(BaseModel):
-    email: Optional[EmailStr] = None
-    full_name: Optional[str] = None
-    role_id: Optional[int] = None
-
 class UserProfileResponse(UserProfileBase):
     id: UUID
     created_at: FlexibleDateTime
@@ -33,3 +28,17 @@ class UserProfileResponse(UserProfileBase):
 
 class UserProfileWithRole(UserProfileResponse):
     role: RoleResponse
+
+
+class UserListItemResponse(BaseModel):
+    id: UUID
+    email: EmailStr
+    full_name: str
+    role: RoleName
+    created_at: FlexibleDateTime
+    updated_at: FlexibleDateTime
+    student_id: Optional[str] = None
+    password: Optional[str] = None
+
+    class Config:
+        from_attributes = True

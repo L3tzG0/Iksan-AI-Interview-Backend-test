@@ -16,3 +16,6 @@ langchain-postgres==0.0.16
 psycopg2-binary==2.9.11
 redis==7.1.0
 google-genai==1.55.0
+
+# Load Testing
+locust>=2.20.0

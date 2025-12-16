@@ -1,64 +1,48 @@
-from typing import List, Annotated, Optional
+from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, Query
-from supabase import Client
+from supabase import AsyncClient
+from app.api.dependencies import require_role, RoleContext
 from app.core.database import get_supabase
-from app.schemas.user import UserProfileResponse, UserProfileUpdate
 from app.schemas.pagination import PaginatedResponse, create_paginated_response
+from app.schemas.types import RoleName
+from app.schemas.user import UserListItemResponse
 from app.services.user_service import UserProfileService
-from uuid import UUID
 
 router = APIRouter()
 
 
-@router.get("/", response_model=PaginatedResponse[UserProfileResponse])
-def read_user_profiles(
-    supabase: Annotated[Client, Depends(get_supabase)],
+@router.get("/", response_model=PaginatedResponse[UserListItemResponse])
+async def read_user_profiles(
+    supabase: Annotated[AsyncClient, Depends(get_supabase)],
     skip: int = Query(default=0, ge=0, description="Number of records to skip"),
     limit: int = Query(default=20, ge=1, le=100, description="Maximum records to return"),
-    role_id: Optional[int] = Query(default=None, description="Filter by role ID"),
+    role: Optional[RoleName] = Query(default=None, description="Filter by role name"),
     search: Optional[str] = Query(default=None, description="Search by name or email"),
-    with_role: bool = Query(default=False, description="Include role information")
+    role_context: RoleContext = Depends(require_role(["admin", "teacher"]))
 ):
-    """
-    Retrieve user profiles with pagination and optional filtering.
+    """Retrieve users with pagination and role-aware filtering.
+
+    Requires admin or teacher role to access this endpoint.
+
+    Access Control:
+
+    - Admins: Can see all users with all roles
+    - Teachers: Scoped to students in their own school
+
+    Query Parameters support filtering by role and searching by name or email.
     
-    - **skip**: Number of records to skip (default: 0)
-    - **limit**: Max records to return (default: 20, max: 100)
-    - **role_id**: Filter by role ID
-    - **search**: Search by name or email (partial match)
-    - **with_role**: Include role information
+    Student records include associated student ID and passwords.
+
+    Returns:
+        PaginatedResponse[UserListItemResponse]: Paginated list of user profiles with total count.
     """
     service = UserProfileService(supabase)
-    profiles, total = service.get_all_profiles(
+    profiles, total = await service.list_users(
         skip=skip,
         limit=limit,
-        role_id=role_id,
+        role=role.value if role else None,
         search=search,
-        with_role=with_role
+        viewer_role=role_context.role_name,
+        viewer_user_id=role_context.user.id,
     )
     return create_paginated_response(items=profiles, total=total, skip=skip, limit=limit)
-
-@router.get("/{user_id}", response_model=UserProfileResponse)
-def read_user_profile_by_id(
-    user_id: UUID,
-    supabase: Annotated[Client, Depends(get_supabase)]
-):
-    """
-    Get a specific user profile by UUID.
-    """
-    service = UserProfileService(supabase)
-    profile = service.get_profile(user_id)
-    return profile
-
-@router.put("/{user_id}", response_model=UserProfileResponse)
-def update_user_profile(
-    user_id: UUID,
-    profile_in: UserProfileUpdate,
-    supabase: Annotated[Client, Depends(get_supabase)]
-):
-    """
-    Update a user profile.
-    """
-    service = UserProfileService(supabase)
-    profile = service.update_profile(user_id, profile_in)
-    return profile

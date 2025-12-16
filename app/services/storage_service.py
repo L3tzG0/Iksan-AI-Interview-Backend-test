@@ -1,10 +1,7 @@
-import uuid
 import re
-from datetime import datetime
-from typing import Optional
 from pathlib import Path
 from fastapi import HTTPException, UploadFile
-from supabase import Client
+from supabase import AsyncClient
 from app.core.config import settings
 
 
@@ -22,12 +19,10 @@ class StorageService:
         'application/pdf': [b'%PDF'],
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document': [b'PK\x03\x04'],  # ZIP-based format
         'text/plain': [],  # Text files don't have specific signatures
-        'text/markdown': []  # Markdown files don't have specific signatures
     }
     
-    def __init__(self, supabase: Client):
+    def __init__(self, supabase: AsyncClient):
         self.supabase = supabase
-        self.bucket = settings.SUPABASE_STORAGE_BUCKET
     
     @staticmethod
     def sanitize_filename(filename: str) -> str:
@@ -135,107 +130,3 @@ class StorageService:
         
         # Note: file.size might not be available for all UploadFile instances
         # We'll check size after reading the bytes
-    
-    def _generate_storage_path(
-        self, 
-        student_id: int, 
-        session_id: int, 
-        filename: str
-    ) -> str:
-        """
-        Generate unique storage path for document
-        
-        Format: interviews/{student_id}/{session_id}/{uuid}_{filename}
-        """
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-        unique_id = str(uuid.uuid4())[:8]
-        safe_filename = filename.replace(" ", "_")
-        
-        return f"interviews/{student_id}/{session_id}/{timestamp}_{unique_id}_{safe_filename}"
-    
-    async def upload_document(
-        self,
-        file_bytes: bytes,
-        filename: str,
-        content_type: str,
-        student_id: int,
-        session_id: int
-    ) -> str:
-        """
-        Upload document to Supabase storage
-        
-        Args:
-            file_bytes: File content as bytes
-            filename: Original filename
-            content_type: MIME type
-            student_id: Student ID
-            session_id: Session ID
-        
-        Returns:
-            str: Storage path of uploaded file
-        
-        Raises:
-            HTTPException: If upload fails
-        """
-        # Check file size
-        if len(file_bytes) > settings.MAX_FILE_SIZE:
-            raise HTTPException(
-                status_code=400,
-                detail=f"File too large. Maximum size: {settings.MAX_FILE_SIZE / (1024*1024):.1f}MB"
-            )
-        
-        # Generate storage path
-        storage_path = self._generate_storage_path(student_id, session_id, filename)
-        
-        try:
-            # Upload to Supabase storage
-            response = self.supabase.storage.from_(self.bucket).upload(
-                path=storage_path,
-                file=file_bytes,
-                file_options={"content-type": content_type}
-            )
-            
-            return storage_path
-            
-        except Exception as e:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to upload file to storage: {str(e)}"
-            )
-    
-    def delete_document(self, path: str) -> bool:
-        """
-        Delete document from storage
-        
-        Args:
-            path: Storage path of file to delete
-        
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        try:
-            self.supabase.storage.from_(self.bucket).remove([path])
-            return True
-        except Exception as e:
-            # Log error but don't raise - this is cleanup operation
-            print(f"Warning: Failed to delete file from storage: {str(e)}")
-            return False
-    
-    def get_public_url(self, path: str) -> str:
-        """
-        Get public URL for a document
-        
-        Args:
-            path: Storage path
-        
-        Returns:
-            str: Public URL
-        """
-        try:
-            response = self.supabase.storage.from_(self.bucket).get_public_url(path)
-            return response
-        except Exception as e:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to get public URL: {str(e)}"
-            )

@@ -1,17 +1,17 @@
-import asyncio # Import needed for async calls
-from typing import List, Annotated, Any, Optional
+from typing import Annotated, Optional
 from datetime import datetime
 import logging
 import json
 from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException, status, Query, Request, Path
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
-from supabase import Client
+from supabase import AsyncClient
 from app.core.database import get_supabase
 from app.core.config import settings
 from app.core.security import get_current_user
 from app.core.rate_limit import limiter
-from app.api.dependencies import require_role
+from app.api.dependencies import require_role, RoleContext
+from app.services.storage_service import StorageService
 
 #redis import
 import redis 
@@ -27,7 +27,6 @@ from app.services.rag_service import retrieve_questions_from_rag
 
 from app.schemas.interview_session import (
     InterviewSessionResponse, 
-    InterviewSessionCreate,
     SessionInitiateResponse,
     SessionQueueResponse,
     SessionHistoryItem,
@@ -41,7 +40,6 @@ from app.schemas.interview_session import (
     SessionStatusResponse
 )
 from app.schemas.pagination import PaginatedResponse, create_paginated_response
-from app.services.storage_service import StorageService
 from app.services.document_service import DocumentService
 from app.services.interview_session_service import InterviewSessionService
 from app.services.text_extraction_service import TextExtractionService
@@ -58,9 +56,9 @@ router = APIRouter()
 
 @router.get("/", response_model=SessionHistoryResponse)
 @limiter.limit(settings.RATE_LIMIT_DEFAULT)
-def get_my_sessions(
+async def get_my_sessions(
     request: Request,
-    supabase: Annotated[Client, Depends(get_supabase)],
+    supabase: Annotated[AsyncClient, Depends(get_supabase)],
     current_user = Depends(get_current_user),
     skip: int = Query(default=0, ge=0, description="Number of records to skip"),
     limit: int = Query(default=20, ge=1, le=100, description="Maximum records to return"),
@@ -80,7 +78,7 @@ def get_my_sessions(
     """
     # Get student_id from current_user
     user_service = UserProfileService(supabase)
-    student_details = user_service.get_student_details(current_user.id)
+    student_details = await user_service.get_student_details(current_user.id)
     
     if not student_details:
         raise HTTPException(
@@ -92,7 +90,7 @@ def get_my_sessions(
     
     # Fetch real session data with pagination
     session_service = InterviewSessionService(supabase)
-    sessions, total = session_service.get_sessions_by_student(
+    sessions, total = await session_service.get_sessions_by_student(
         student_id=student_id,
         skip=skip,
         limit=limit,
@@ -121,7 +119,7 @@ async def submit_session_answers(
     request: Request,
     redis_conn: Annotated[redis.Redis, Depends(get_redis_connection)], # ADDED
     submit_request: SessionSubmitRequest,
-    supabase: Annotated[Client, Depends(get_supabase)],
+    supabase: Annotated[AsyncClient, Depends(get_supabase)],
     current_user = Depends(get_current_user)
 ):
     """
@@ -138,14 +136,14 @@ async def submit_session_answers(
     session_id = submit_request.session_id
     
     # 1. Fetch and validate session state & ownership
-    session = session_service.get_session(session_id)
+    session = await session_service.get_session(session_id)
     if not session or session.get("status") != "in_progress":
         raise HTTPException(
             status_code=400, 
             detail=f"Session {session_id} not found or not in 'in_progress' status."
         )
     
-    student_details = user_service.get_student_details(current_user.id)
+    student_details = await user_service.get_student_details(current_user.id)
     student_id = student_details.get("id")
     if session.get("student_id") != student_id:
         raise HTTPException(
@@ -155,7 +153,7 @@ async def submit_session_answers(
         
     if not submit_request.qa_pairs:
         # Edge case: If no answers are provided, mark as completed immediately (no LLM required)
-        session_service.update_session_status(
+        await session_service.update_session_status(
             session_id, 
             status="completed", 
             total_score=0.0,
@@ -204,7 +202,7 @@ async def submit_session_answers(
     except Exception as e:
         # If queueing or initial status update fails, mark the session as failed
         error_detail = str(e)
-        session_service.update_session_status(
+        await session_service.update_session_status(
             session_id, 
             status="failed",
             completed_at=datetime.now()
@@ -251,10 +249,10 @@ async def get_session_status(
 
 @router.get("/{session_id}", response_model=SessionDetailResponse)
 @limiter.limit(settings.RATE_LIMIT_DEFAULT)
-def get_session_detail(
+async def get_session_detail(
     request: Request,
     session_id: int,
-    supabase: Annotated[Client, Depends(get_supabase)],
+    supabase: Annotated[AsyncClient, Depends(get_supabase)],
     current_user = Depends(get_current_user)
 ):
     """
@@ -266,7 +264,7 @@ def get_session_detail(
     user_service = UserProfileService(supabase)
     
     # Get the session with all related data in single query
-    session = session_service.get_session_with_feedbacks(session_id)
+    session = await session_service.get_session_with_feedbacks(session_id)
     
     if not session:
         raise HTTPException(
@@ -289,7 +287,7 @@ def get_session_detail(
         )
     
     # Verify current user owns this session (get student details)
-    student_details = user_service.get_student_details(current_user.id)
+    student_details = await user_service.get_student_details(current_user.id)
     if student_details and student_details.get("id") != session.get("student_id"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -369,13 +367,12 @@ def get_session_detail(
 async def initiate_interview_session(
     request: Request,
     redis_conn: Annotated[redis.Redis, Depends(get_redis_connection)],
-    file: Optional[UploadFile] = File(None, description="Document file (PDF, DOCX, TXT, MD)"),
+    file: Optional[UploadFile] = File(None, description="Document file (PDF, DOCX, & TXT)"),
     raw_text: Optional[str] = Form(None, description="Raw text content"),
     field: str = Form(..., description="Target industry/field for the interview."),
     role: str = Form(..., description="Target job role for the interview."),
-    current_user = Depends(require_role("student")),
-    supabase: Client = Depends(get_supabase),
-    # Redis is injected for the Queue Service
+    role_context: RoleContext = Depends(require_role("student")),
+    supabase: AsyncClient = Depends(get_supabase)
 ):
     """
     Initiate new interview session. Saves input data, creates a session in 'pending' status, 
@@ -405,8 +402,9 @@ async def initiate_interview_session(
                 detail="Target 'field' and 'role' must be provided for question generation."
             )
 
-        # Step 1: Get student_id 
-        student_details = user_service.get_student_details(current_user.id)
+        # Step 1: Get student_id from token-derived current_user
+        student_details = await user_service.get_student_details(role_context.user.id)
+        
         if not student_details:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -414,9 +412,9 @@ async def initiate_interview_session(
             )
         student_id = student_details.get("id")
         
-        # Step 2: Create session with initial 'pending' status
+        # Step 2: Create session
         # NOTE: Status is set to "pending" instead of the synchronous "in_progress"
-        session = session_service.create_session(student_id=student_id, status="pending")
+        session = await session_service.create_session(student_id=student_id, status="pending")
         session_id = session['id']
         assert session_id is not None, "Session ID must be set after creation"
         
@@ -598,7 +596,7 @@ async def initiate_university_prep_session(
             total_read = 0
             buffer = bytearray()
             while True:
-                chunk = await file.read(chunk_size) # Changed to await file.read()
+                chunk = await file.read(chunk_size)
                 if not chunk:
                     break
                 total_read += len(chunk)
@@ -626,8 +624,8 @@ async def initiate_university_prep_session(
                 raise HTTPException(status_code=400, detail="raw_text cannot be None")
             cleaned_text_extracted = raw_text
         
-        # Step 4: Save cleaned text (Student Record) to documents table
-        document_service.create_document(
+        # Step 4: Save cleaned text to documents table
+        document = await document_service.create_document(
             session_id=session_id,
             cleaned_text=cleaned_text_extracted
         )
@@ -657,18 +655,21 @@ async def initiate_university_prep_session(
         return JSONResponse(content=jsonable_encoder(response.dict()))
         
     except HTTPException:
-        _rollback_session_creation(session_service, session_id)
+        # HTTPExceptions already have proper status codes and messages
+        # Perform rollback before re-raising
+        await _rollback_session_creation(session_service, session_id)
         raise
         
     except Exception as e:
-        _rollback_session_creation(session_service, session_id)
+        # Unexpected errors - rollback and return 500
+        await _rollback_session_creation(session_service, session_id)
         raise HTTPException(
             status_code=500,
             detail=f"Failed to queue university prep session: {str(e)}"
         )
     
 
-def _rollback_session_creation(
+async def _rollback_session_creation(
     session_service: InterviewSessionService,
     session_id: int | None = None
 ):
@@ -678,6 +679,6 @@ def _rollback_session_creation(
     # Mark session as failed (keep for debugging, don't delete)
     if session_id:
         try:
-            session_service.update_session_status(session_id, status="failed")
+            await session_service.update_session_status(session_id, status="failed")
         except Exception as e:
             print(f"Warning: Failed to update session status during rollback: {str(e)}")

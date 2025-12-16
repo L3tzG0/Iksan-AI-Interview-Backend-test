@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional, Any
 from fastapi import HTTPException
-from supabase import Client
+from supabase import AsyncClient
 
 # Explicit columns to select for documents (avoiding SELECT *)
 DOCUMENT_COLUMNS = "id, session_id, cleaned_text"
@@ -10,10 +10,10 @@ DOCUMENT_COLUMNS = "id, session_id, cleaned_text"
 class DocumentService:
     """Service for handling document database operations"""
     
-    def __init__(self, supabase: Client):
+    def __init__(self, supabase: AsyncClient):
         self.supabase = supabase
     
-    def create_document(
+    async def create_document(
         self,
         session_id: int,
         cleaned_text: str
@@ -37,7 +37,7 @@ class DocumentService:
                 "cleaned_text": cleaned_text
             }
             
-            response = self.supabase.table('documents').insert(document_data).execute()
+            response = await self.supabase.table('documents').insert(document_data).execute()
             
             if not response.data:
                 raise HTTPException(
@@ -55,7 +55,7 @@ class DocumentService:
                 detail=f"Database error while creating document: {str(e)}"
             )
     
-    def get_document_by_session(self, session_id: int) -> Optional[Any]:
+    async def get_document_by_session(self, session_id: int) -> Optional[Any]:
         """
         Get document by session ID with explicit column selection
         
@@ -66,7 +66,7 @@ class DocumentService:
             dict or None: Document record if found
         """
         try:
-            response = self.supabase.table('documents').select(DOCUMENT_COLUMNS).eq('session_id', session_id).execute()
+            response = await self.supabase.table('documents').select(DOCUMENT_COLUMNS).eq('session_id', session_id).execute()
             return response.data[0] if response.data else None
         except Exception as e:
             raise HTTPException(

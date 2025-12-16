@@ -31,7 +31,6 @@ class Settings(BaseSettings):
         default=[
             "application/pdf",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "text/markdown",
             "text/plain"
         ]
     )
@@ -56,6 +55,9 @@ class Settings(BaseSettings):
 
     JOB_PROCESSING_INTERVAL_SECONDS: int = 7
 
+    # Student Registration
+    STUDENT_PASSWORD_SALT: str = "iksan_student_pwd_"
+    
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
 
 
