@@ -301,6 +301,7 @@ async def get_session_detail(
     )
     feedback_list = [
         FeedbackDetail(
+            question_order=fb.get("question_order"),
             question=fb.get("question_text") or "",
             answer=fb.get("answer_text") or "",
             evaluation=fb.get("evaluation_text") or "",
