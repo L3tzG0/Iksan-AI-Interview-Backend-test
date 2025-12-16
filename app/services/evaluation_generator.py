@@ -1,11 +1,12 @@
-import os
 import json
-import time
-import httpx
-import asyncio
-import math
 from typing import Dict, Any, List
-from pydantic import BaseModel
+import logging
+from pydantic import BaseModel, ValidationError
+
+# New SDK Imports
+from google import genai
+from google.genai import types
+from google.genai.errors import APIError
 
 # NOTE: Importing core models from the existing schema file
 from app.schemas.interview_session import (
@@ -17,23 +18,44 @@ from app.schemas.interview_session import (
 )
 from app.core.config import settings
 
-# --- Internal LLM Output Wrapper (Required for service validation and return type) ---
+# --- Setup Logging ---
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - EVAL_GEN - %(message)s')
+
+# --- Internal LLM Output Wrapper (LLM is instructed *not* to calculate overall_scores) ---
+class EvaluationLLMOutput(BaseModel):
+    """The JSON object structure that the LLM is explicitly asked to return."""
+    per_question_feedback: List[DetailedEvaluationItem] 
+    session_summary: SessionSummary
+    next_steps: List[NextStepItem] 
+
+# --- Final Return Type (Includes Python-calculated scores) ---
 class EvaluationBatchResponse(BaseModel):
     """The single, comprehensive JSON object returned by the service, combining LLM output and backend calculation."""
     per_question_feedback: List[DetailedEvaluationItem] 
-    overall_scores: OverallScores # Calculated by the backend
+    overall_scores: OverallScores 
     session_summary: SessionSummary
     next_steps: List[NextStepItem] 
 
 
 # --- Configuration ---
 MODEL_NAME = "gemini-2.5-flash"
-API_URL_TEMPLATE = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL_NAME}:generateContent?key="
-API_KEY = settings.GEMINI_API_KEY
 
-# --- Detailed System Prompt and Rubric (FINAL ADJUSTMENTS) ---
+# --- Deferred Client Initialization ---
+global_client = None
+
+# --- SCORING WEIGHTS (Used by Python code for all overall score calculations) ---
+# Weights must sum to 1.0 (100%).
+SCORING_WEIGHTS = {
+    "cr_score": 0.40,
+    "st_score": 0.30,
+    "fl_score": 0.20,
+    "cp_score": 0.10,
+}
+
+
+# --- Detailed System Prompt and Rubric ---
 SYSTEM_PROMPT = """
-You are a highly analytical, unbiased interview evaluation engine. Your sole task is to assess a candidate's interview session against a precise BARS (Behaviorally Anchored Rating Scale) scoring rubric and provide comprehensive structured feedback.
+You are a professional and supportive AI interview coach. Your sole task is to assess an interview session against a precise BARS (Behaviorally Anchored Rating Scale) scoring rubric and provide comprehensive, structured, and **DIRECT second-person feedback.**
 
 INPUT: A list of N question and answer pairs (where N is between 1 and 10), including the quantitative speech metrics for each answer. These metrics (WPM, Silence Ratio, PPM) have been pre-calculated from the raw audio duration, word count, and pause data.
 OUTPUT: A single JSON object containing per-question scores/feedback, overall summaries, and next step recommendations.
@@ -41,94 +63,78 @@ OUTPUT: A single JSON object containing per-question scores/feedback, overall su
 #################### SCORING RUBRIC (BARS - 4 DIMENSIONS) ####################
 
 All scores MUST be a float between 0.0 and 10.0.
+Your task is only to provide the four component scores (CR, ST, FL, CP) and the evaluation text. The final overall score will be calculated by the backend system.
 
-1. CONTENT RELEVANCE (CR) - Measures how well the core answer matches the question's intent, **including the professionalism and tone of the delivery**.
-    - Score 0-3: The answer completely misses the point, contains major inaccuracies, or is nonsensical. Tone is highly unprofessional or negative.
-    - Score 4-6: The answer is generally related but lacks depth, contains minor inaccuracies, or addresses only a small part of the question. Tone is acceptable but lacks enthusiasm or polish.
-    - Score 7-10: The answer is highly accurate, directly addresses all components of the question, demonstrates deep knowledge, and is delivered with a clear, professional, and enthusiastic tone.
+1. CONTENT RELEVANCE (CR) - Measures how well the core answer matches the question's intent, **including the professionalism and positive tone of your delivery**.
+    - Score 0-3: Your answer completely misses the point, contains major inaccuracies, or is nonsensical. Your tone is highly unprofessional or negative.
+    - Score 4-6: Your answer is generally related but lacks depth, contains minor inaccuracies, or addresses only a small part of the question. Your tone is acceptable but lacks enthusiasm or polish.
+    - Score 7-10: Your answer is highly accurate, directly addresses all components of the question, demonstrates deep knowledge, and is delivered with a clear, professional, and enthusiastic tone.
 
 2. STRUCTURE (ST) - Measures clarity and coherence using the STAR method proxy, **including vocabulary choice and grammatical correctness**.
-    - Score 0-3: Rambling, disorganized, or abrupt; grammar/vocabulary is poor, severely damaging clarity.
-    - Score 4-6: Partial structure (e.g., provides Situation and Action, but misses Task or Result). Grammar is adequate but includes noticeable errors or weak vocabulary.
-    - Score 7-10: Clear, compelling narrative (STAR or logical flow) supported by sophisticated and correct grammar/vocabulary.
+    - Score 0-3: Your response is rambling, disorganized, or abrupt; grammar/vocabulary is poor, severely damaging clarity.
+    - Score 4-6: Your response uses partial structure (e.g., provides Situation and Action, but misses Task or Result). Your grammar is adequate but includes noticeable errors or weak vocabulary.
+    - Score 7-10: Your response demonstrates a clear, compelling narrative (STAR or logical flow) supported by sophisticated and correct grammar/vocabulary.
 
 3. FLUENCY & SPEED (FL) - Measures speech flow, pace, and conversational ease (simulated via transcript and quantitative metrics).
-    - USE METRIC: Words Per Minute (WPM) and Silence Ratio.
-    - Score 0-3: Very slow pace (e.g., < 80 WPM) or a high silence ratio (> 25%).
+    - **CRITICAL USE OF METRIC:** You MUST reference the Words Per Minute (WPM) and Silence Ratio directly when providing feedback in the evaluation text.
+    - Score 0-3: Very slow pace (e.g., < 80 WPM) or a high silence ratio (> 25%). Fluency is severely impaired by hesitations.
     - Score 4-6: Acceptable pace (e.g., 80-120 WPM) but still some non-verbal hesitation and notable pauses (15-25% silence).
     - Score 7-10: Smooth, conversational pace (e.g., 120-180 WPM), minimal filler words, and a low silence ratio (< 15%).
 
 4. CONFIDENCE PROXY (CP) - Measures consistency and self-assurance (simulated speech rate stability and pause frequency).
-    - USE METRIC: Pauses Per Minute (PPM).
-    - Score 0-5: The answer has a very high frequency of pauses (e.g., > 10 PPM), suggesting inconsistency or anxiety.
-    - Score 6-10: The answer shows a low frequency of pauses (e.g., < 8 PPM), indicating a controlled, measured, and consistent pace, conveying competence and self-assurance.
+    - **CRITICAL USE OF METRIC:** You MUST reference Pauses Per Minute (PPM) directly when providing feedback in the evaluation text.
+    - Score 0-5: Your answer has a very high frequency of pauses (e.g., > 10 PPM), suggesting inconsistency or anxiety.
+    - Score 6-10: Your answer shows a low frequency of pauses (e.g., < 8 PPM), indicating a controlled, measured, and consistent pace, conveying competence and self-assurance.
+
+#################### CRITICAL SCORING RULE: TEXT INPUT ####################
+IF the transcript input section contains the tag **| TYPE: TEXT INPUT |**, it means speech metrics are unavailable. In this case:
+1. You MUST assign FL (Fluency) and CP (Confidence Proxy) scores of **7.5** (neutral, maximum score).
+2. The 'evaluation_text' for that question MUST explicitly state that FL and CP were scored neutrally because the answer was typed, and focus all feedback only on CR and ST.
+############################################################################
+
 
 #################### OUTPUT REQUIREMENTS ####################
 
-1. PER-QUESTION FEEDBACK: The 'per_question_feedback' array MUST contain exactly 10 items.
-    - For the N completed questions, provide CR, ST, FL, and CP scores (0.0 to 10.0) and a concise 'evaluation_text'. The evaluation_text MUST include feedback on grammar, vocabulary, and professional tone when applicable.
+1. **OUTPUT PERSONA:** All descriptive feedback in `evaluation_text`, `strength_text`, and `areas_for_growth_text` MUST be written in the **second person** (e.g., "You demonstrated...", "Your structure was...", "We recommend you practice...").
+2. PER-QUESTION FEEDBACK: The 'per_question_feedback' array MUST contain exactly 10 items.
+    - For the N completed questions, provide CR, ST, FL, and CP scores (0.0 to 10.0) and a concise 'evaluation_text'. The evaluation_text MUST provide targeted feedback on all scored dimensions: **content quality, structure (grammar/vocabulary), speed (WPM/Fluency), and confidence (PPM/Pauses)**, adapting to the "TEXT INPUT" rule where necessary. **NOTE: For these completed questions, use 0.0 as a placeholder for the 'overall_score'.**
     - For any remaining questions (from N up to 9, where N < 10), you MUST insert a placeholder object at the end of the array with the following values:
-        - cr_score, st_score, fl_score, cp_score: 0.0
+        - cr_score, st_score, fl_score, cp_score, overall_score: 0.0
         - evaluation_text: "Question not answered by the candidate."
         - is_correct: false
-        - overall_score: 0.0
-2. SESSION SUMMARY: Provide separate 2-3 sentence summaries for 'strength_text' and 'areas_for_growth_text'. The analysis MUST be holistic, referencing patterns across ONLY the N COMPLETED QUESTIONS.
-3. NEXT STEPS: Provide EXACTLY 3 actionable 'NextStepItem' recommendations, based ONLY on the N COMPLETED QUESTIONS.
+    
+3. SESSION SUMMARY: Provide separate 2-3 sentence summaries for 'strength_text' and 'areas_for_growth_text'. The analysis MUST be holistic, referencing patterns across ONLY the N COMPLETED QUESTIONS.
+4. NEXT STEPS: Provide EXACTLY 3 actionable 'NextStepItem' recommendations, based ONLY on the N COMPLETED QUESTIONS.
 """
 
-def _get_pydantic_properties(model: BaseModel) -> Dict[str, Any]:
-    """Helper to extract properties and required fields from a Pydantic model for inline use."""
-    # Use by_alias=True to ensure we use cr_score, st_score, etc., in the API schema
-    schema = model.model_json_schema(by_alias=True)
-    
-    # The API expects properties to be defined directly without external definitions.
-    return {
-        "type": "OBJECT",
-        "properties": schema.get('properties', {}),
-        "required": schema.get('required', [])
-    }
-
-
-def get_evaluation_generation_schema() -> Dict[str, Any]:
+def _apply_weighted_per_question_scores(feedback_items: List[DetailedEvaluationItem]) -> List[DetailedEvaluationItem]:
     """
-    Manually constructs the comprehensive JSON response schema for the LLM, 
-    using the core models from the interview_session schema.
+    DETERMINISTIC FUNCTION: Calculates and sets the weighted overall score 
+    for each individual question based on SCORING_WEIGHTS.
     """
-    
-    # 1. Get inline schemas for all nested components
-    detailed_item_schema = _get_pydantic_properties(DetailedEvaluationItem)
-    session_summary_schema = _get_pydantic_properties(SessionSummary)
-    next_step_item_schema = _get_pydantic_properties(NextStepItem)
-
-    # 2. Construct the final, compliant response schema using inline definitions
-    schema_definition = {
-        "type": "OBJECT",
-        "properties": {
-            "per_question_feedback": {
-                "type": "ARRAY",
-                "description": "A list containing exactly 10 detailed feedback objects, padded with placeholders if N < 10.",
-                "items": detailed_item_schema
-            },
-            # overall_scores removed here, will be calculated later
-            "session_summary": session_summary_schema,
-            "next_steps": {
-                "type": "ARRAY",
-                "description": "Exactly 3 actionable next step recommendations.",
-                "items": next_step_item_schema
-            }
-        },
-        # Ensure the top-level required fields match the expected response (excluding overall_scores for AI output)
-        "required": ["per_question_feedback", "session_summary", "next_steps"]
-    }
-    
-    return schema_definition
+    for item in feedback_items:
+        # Use content_relevance_score > 0.0 as a reliable proxy for a completed question
+        if item.content_relevance_score > 0.0 or item.structure_score > 0.0: 
+            
+            weighted_score = (
+                item.content_relevance_score * SCORING_WEIGHTS["cr_score"] +
+                item.structure_score * SCORING_WEIGHTS["st_score"] +
+                item.fluency_score * SCORING_WEIGHTS["fl_score"] +
+                item.confidence_score * SCORING_WEIGHTS["cp_score"]
+            )
+            item.overall_score = round(weighted_score, 2)
+            
+    return feedback_items
 
 
 def _calculate_overall_scores(feedback_items: List[DetailedEvaluationItem]) -> OverallScores:
-    """Calculates the overall averages across all completed questions."""
+    """
+    Calculates the overall session averages for each dimension, and then 
+    calculates the final overall session score using the SCORING_WEIGHTS.
+    """
     
-    # Filter out placeholder items (overall_score 0.0 implies unanswered)
-    completed_items = [item for item in feedback_items if item.overall_score > 0.0]
+    # Filter out placeholder items 
+    completed_items = [item for item in feedback_items if item.content_relevance_score > 0.0]
     
     if not completed_items:
         return OverallScores(
@@ -141,21 +147,26 @@ def _calculate_overall_scores(feedback_items: List[DetailedEvaluationItem]) -> O
         
     num_completed = len(completed_items)
     
-    # Use the long-form field names for summation (populated via Pydantic aliases)
+    # 1. Sum and Average the Dimension Scores across all completed questions
     cr_sum = sum(item.content_relevance_score for item in completed_items)
     st_sum = sum(item.structure_score for item in completed_items)
     fl_sum = sum(item.fluency_score for item in completed_items)
-    cp_sum = sum(item.confidence_score for item in completed_items) # Note: Uses confidence_score field name
+    cp_sum = sum(item.confidence_score for item in completed_items) 
     
-    # Calculate averages for each dimension
     cr_avg = round(cr_sum / num_completed, 2)
     st_avg = round(st_sum / num_completed, 2)
     fl_avg = round(fl_sum / num_completed, 2)
     cp_avg = round(cp_sum / num_completed, 2)
     
-    # Calculate the overall score (average of the 4 dimension averages)
-    # Note: Using 10.0 scale, not 100
-    overall_score_final = round((cr_avg + st_avg + fl_avg + cp_avg) / 4.0, 2)
+    # 2. Calculate the overall SESSION score using the same SCORING_WEIGHTS
+    overall_score_final = (
+        cr_avg * SCORING_WEIGHTS["cr_score"] +
+        st_avg * SCORING_WEIGHTS["st_score"] +
+        fl_avg * SCORING_WEIGHTS["fl_score"] +
+        cp_avg * SCORING_WEIGHTS["cp_score"]
+    )
+    overall_score_final = round(overall_score_final, 2)
+
 
     return OverallScores(
         content_relevance_score=cr_avg,
@@ -168,42 +179,71 @@ def _calculate_overall_scores(feedback_items: List[DetailedEvaluationItem]) -> O
 
 async def generate_session_evaluation(qa_pairs: List[QuestionAnswerPair]) -> EvaluationBatchResponse:
     """
-    Calls the Gemini API to generate structured evaluation.
-    Calculates fluency/speed metrics and calculates the overall_scores in the backend.
+    Calls the Gemini API to generate structured evaluation using the native async SDK.
+    Applies custom weighted scoring in the backend, and calculates the session overall scores.
     """
-    if not API_KEY:
-        raise Exception("API Key is missing. Ensure settings.GEMINI_API_KEY is configured.")
+    global global_client 
     
-    # --- Metric Calculation (Remains the same) ---
+    # 1. Initialize the Native Async Client lazily (on first call)
+    if global_client is None:
+        try:
+            # Initialize the synchronous Client, then access the async interface via .aio
+            sync_client = genai.Client(api_key=settings.GEMINI_API_KEY)
+            global_client = sync_client.aio
+            logging.info("Gemini Native Async Client (.aio) successfully initialized for evaluation.")
+        except Exception as e:
+            logging.error(f"FATAL: Could not initialize Gemini client: {e}")
+            raise Exception("Gemini API Client initialization failed.")
+
+    if global_client is None:
+         raise Exception("Gemini API Client failed to initialize after attempt.")
+    
+    # --- Metric Calculation and Text/Voice Detection ---
     qa_text = "\n\n--- INTERVIEW TRANSCRIPT AND METRICS ---\n"
     
     for qa in qa_pairs:
-        total_pause_duration_seconds = qa.total_pause_duration_seconds
-        total_pause_count = qa.total_pause_count
-
-        word_count = qa.word_count
-        audio_duration = qa.audio_duration_seconds
-        # Calculate time spent speaking
-        speaking_time_seconds = audio_duration - total_pause_duration_seconds
+        # Check if the answer was likely typed (word count > 0 but no audio duration)
+        is_typed_response = (qa.audio_duration_seconds <= 0.1)
         
-        # Handle edge cases where metrics are zero or invalid
-        if audio_duration == 0 or speaking_time_seconds <= 0 or word_count == 0:
+        if is_typed_response:
+            # Signal to the LLM that this is a text input and metrics are irrelevant
             wpm = 0.0
-            silence_ratio = 100.0 if audio_duration > 0 else 0.0
+            silence_ratio = 0.0
             ppm = 0.0
+            metrics_string = "| METRICS | TYPE: TEXT INPUT | (FL and CP will be scored 10.0 per rule) |\n"
+            raw_data_string = ""
         else:
-            wpm = (word_count / speaking_time_seconds) * 60.0
-            silence_ratio = (total_pause_duration_seconds / audio_duration) * 100.0
-            ppm = (total_pause_count / audio_duration) * 60.0
+            # Standard metric calculation for spoken responses
+            total_pause_duration_seconds = qa.total_pause_duration_seconds
+            total_pause_count = qa.total_pause_count
+
+            word_count = qa.word_count
+            audio_duration = qa.audio_duration_seconds
             
-        metrics_string = (
-            f"| METRICS | WPM: {wpm:.1f} | Silence Ratio: {silence_ratio:.1f}% | PPM: {ppm:.1f} |\n"
-            f"| RAW DATA | Audio Duration: {audio_duration:.1f}s | Word Count: {word_count} | Pauses: {total_pause_count} | Pause Duration: {total_pause_duration_seconds:.1f}s |\n"
-        )
+            # Avoid division by zero, especially when total speaking time might be zero
+            speaking_time_seconds = audio_duration - total_pause_duration_seconds
+            speaking_time_seconds = max(speaking_time_seconds, 0.001) # Small epsilon
+
+            if word_count == 0:
+                 wpm = 0.0
+                 silence_ratio = 100.0 if audio_duration > 0 else 0.0
+                 ppm = 0.0
+            else:
+                 wpm = (word_count / speaking_time_seconds) * 60.0
+                 silence_ratio = (total_pause_duration_seconds / audio_duration) * 100.0 if audio_duration > 0 else 0.0
+                 ppm = (total_pause_count / audio_duration) * 60.0 if audio_duration > 0 else 0.0
+            
+            metrics_string = (
+                f"| METRICS | WPM: {wpm:.1f} | Silence Ratio: {silence_ratio:.1f}% | PPM: {ppm:.1f} |\n"
+            )
+            raw_data_string = (
+                 f"| RAW DATA | Audio Duration: {audio_duration:.1f}s | Word Count: {word_count} | Pauses: {total_pause_count} | Pause Duration: {total_pause_duration_seconds:.1f}s |\n"
+            )
         
         qa_text += f"Q{qa.question_order}: {qa.question_text}\n"
         qa_text += f"A{qa.question_order} (Transcript): {qa.answer_text}\n"
         qa_text += metrics_string
+        qa_text += raw_data_string
         qa_text += "\n"
         
     num_completed_questions = len(qa_pairs)
@@ -214,6 +254,7 @@ async def generate_session_evaluation(qa_pairs: List[QuestionAnswerPair]) -> Eva
     user_query = (
         f"Based on the following {num_completed_questions} Q&A pair(s) (out of 10 total), "
         f"and strictly using the quantitative metrics provided for FLUENCY and CONFIDENCE PROXY scoring, "
+        f"and adhering to the CRITICAL SCORING RULE for TEXT INPUT where applicable, "
         f"provide the full structured JSON evaluation. "
         f"Remember to evaluate only the {num_completed_questions} answers provided. "
         f"Then, you MUST add {num_unanswered_questions} placeholder item(s) to the end of the 'per_question_feedback' array, "
@@ -221,68 +262,69 @@ async def generate_session_evaluation(qa_pairs: List[QuestionAnswerPair]) -> Eva
         f"{qa_text}"
     )
     
-    response_schema = get_evaluation_generation_schema()
+    # 2. Define the generation configuration using SDK types
+    config = types.GenerateContentConfig(
+        system_instruction=SYSTEM_PROMPT,
+        response_mime_type="application/json",
+        # Pass the LLM output model class directly for schema definition
+        response_schema=EvaluationLLMOutput, 
+        temperature=0.5 
+    )
 
-    payload = {
-        "contents": [{"parts": [{"text": user_query}]}],
-        "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]},
-        "generationConfig": {
-            "responseMimeType": "application/json",
-            "responseSchema": response_schema,
-            "temperature": 0.5 
-        },
-    }
+    try:
+        # 3. Make the single, native asynchronous API call.
+        response = await global_client.models.generate_content(
+            model=MODEL_NAME,
+            contents=[user_query], 
+            config=config
+        )
 
-    headers = {'Content-Type': 'application/json'}
-    api_url = API_URL_TEMPLATE + API_KEY 
-    
-    max_retries = 5
-    for attempt in range(max_retries):
-        try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                response = await client.post(api_url, headers=headers, json=payload)
-                response.raise_for_status() 
-            
-            result = response.json()
-            
-            candidate = result.get('candidates', [{}])[0]
-            json_text = candidate.get('content', {}).get('parts', [{}])[0].get('text')
-            
-            if not json_text:
-                raise ValueError("Gemini returned empty or malformed text response.")
-            
-            if json_text.strip().startswith('```') and json_text.strip().endswith('```'):
-                json_text = json_text.strip().strip('`').lstrip('json').strip()
+        # 4. Response Parsing and Validation
+        
+        if not response.text:
+            raise ValueError("Gemini returned an empty text response.")
 
-            parsed_json = json.loads(json_text)
-            
-            # --- POST-PROCESSING: Calculate and Inject Overall Scores ---
-            
-            # 1. Parse the per-question feedback into Pydantic models for easy calculation
-            feedback_items_raw = parsed_json.get("per_question_feedback", [])
-            # Note: We must use the model_dump(by_alias=False) from the LLM response 
-            # for correct score field mapping when creating the DetailedEvaluationItem objects.
-            feedback_items = [DetailedEvaluationItem(**item) for item in feedback_items_raw] 
-            
-            # 2. Calculate the overall score object
-            overall_scores_obj = _calculate_overall_scores(feedback_items)
+        json_text = response.text.strip()
+        
+        # Clean up potential markdown code block surrounding the JSON
+        if json_text.strip().startswith('```') and json_text.strip().endswith('```'):
+            json_text = json_text.strip().strip('`').lstrip('json').strip()
 
-            # 3. Add the calculated overall scores back to the parsed JSON
-            # Use model_dump(by_alias=False) to ensure the keys match the final schema (e.g., content_relevance_score)
-            parsed_json['overall_scores'] = overall_scores_obj.model_dump(by_alias=False)
-            
-            # 4. Validate the *complete* response against the EvaluationBatchResponse model
-            validated_response = EvaluationBatchResponse(**parsed_json)
-            
-            return validated_response
+        parsed_json = json.loads(json_text)
+        
+        # Validate LLM output against the LLM-specific model
+        validated_llm_output = EvaluationLLMOutput(**parsed_json)
+        
+        # 5. POST-PROCESSING (Python Backend Calculations)
+        
+        # A. Parse the LLM's feedback into Pydantic models
+        feedback_items = validated_llm_output.per_question_feedback
+        
+        # B. CRUCIAL STEP: Overwrite the per-question overall_score with the weighted average
+        feedback_items = _apply_weighted_per_question_scores(feedback_items)
+        
+        # C. Calculate the overall session score object 
+        overall_scores_obj = _calculate_overall_scores(feedback_items)
 
-        except (httpx.RequestError, httpx.HTTPStatusError, ValueError, json.JSONDecodeError) as e:
-            if attempt < max_retries - 1:
-                wait_time = 2 ** attempt
-                await asyncio.sleep(wait_time)
-            else:
-                if isinstance(e, httpx.HTTPStatusError) and e.response.status_code == 400:
-                    print(f"\n--- FATAL 400 ERROR DETAIL ---")
-                    print(e.response.text) # Print the full API error detail
-                    print("------------------------------\n")
-                raise Exception(f"Failed to generate evaluation after {max_retries} attempts. Last Error: {e}")
+        # 6. Reconstruct the Final Response Model
+        
+        return EvaluationBatchResponse(
+            per_question_feedback=feedback_items,
+            overall_scores=overall_scores_obj,
+            session_summary=validated_llm_output.session_summary,
+            next_steps=validated_llm_output.next_steps
+        )
+
+    except APIError as e:
+        # Catches persistent API errors (400, 429, etc.) after internal retries fail.
+        logging.error(f"Gemini API Error (after retries): {e}")
+        if hasattr(e, 'response') and e.response is not None:
+             logging.error(f"Full response detail: {e.response.text}") 
+        raise Exception(f"Failed to generate evaluation due to persistent API error: {e}")
+    except (ValueError, json.JSONDecodeError, TypeError, ValidationError) as e:
+        # Catches JSON parsing or Pydantic validation errors
+        logging.error(f"Failed to parse AI response into structured JSON: {e}")
+        raise Exception(f"Failed to generate evaluation due to response parsing error: {e}")
+    except Exception as e:
+        logging.error(f"An unexpected error occurred: {e}")
+        raise Exception(f"An unexpected error occurred during generation: {e}")

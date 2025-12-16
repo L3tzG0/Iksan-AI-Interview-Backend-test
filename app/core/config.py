@@ -2,6 +2,7 @@ from typing import List, Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 import os
+from urllib.parse import urlparse
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "Iksan AI Interview Backend"
@@ -48,10 +49,43 @@ class Settings(BaseSettings):
 
     DEEPGRAM_API_KEY: str
     GEMINI_API_KEY: str
+    DB_PASSWORD: str
     
+    REDIS_URL: str
+
+    JOB_PROCESSING_INTERVAL_SECONDS: int = 7
+
     # Student Registration
     STUDENT_PASSWORD_SALT: str = "iksan_student_pwd_"
     
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
 
+
+    # --- Computed Redis Properties (Parses REDIS_URL) ---
+    @property
+    def redis_host(self) -> str:
+        """Parses the host from REDIS_URL."""
+        try:
+            url = urlparse(self.REDIS_URL)
+            return url.hostname or "localhost"
+        except Exception:
+            return "localhost"
+
+    @property
+    def redis_port(self) -> int:
+        """Parses the port from REDIS_URL."""
+        try:
+            url = urlparse(self.REDIS_URL)
+            return url.port or 6379
+        except Exception:
+            return 6379
+
+    @property
+    def redis_password(self) -> Optional[str]:
+        """Parses the password from REDIS_URL."""
+        try:
+            url = urlparse(self.REDIS_URL)
+            return url.password
+        except Exception:
+            return None
 settings = Settings()

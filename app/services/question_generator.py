@@ -1,27 +1,35 @@
 import os
 import json
-import time
-import httpx
-import asyncio
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
+import logging
 from pydantic import BaseModel
+from google import genai
+from google.genai import types
+from google.genai.errors import APIError
 
-# NOTE: Importing core models from the existing schema file
-from app.schemas.interview_session import GeneratedQuestion, QuestionGenerationRequest
-from app.core.config import settings
+from app.schemas.interview_session import GeneratedQuestion
+from app.core.config import settings # Assuming this provides a fully loaded API key
 
-# --- Internal LLM Output Wrapper (Required for schema validation) ---
-# This model represents the direct JSON output structure from Gemini's API
+
+# --- Setup Logging ---
+# You can set up logging here if needed, or rely on your worker's logging configuration.
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - Q_GEN - %(message)s')
+
+# --- Internal LLM Output Wrapper ---
 class QuestionGenerationResponse(BaseModel):
-    """The complete JSON structure expected from the Gemini API for Call 1."""
+    """The complete JSON structure expected from the Gemini API."""
     questions: List[GeneratedQuestion]
 
 # --- Configuration ---
 MODEL_NAME = "gemini-2.5-flash-preview-09-2025"
-API_URL_TEMPLATE = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL_NAME}:generateContent?key="
-API_KEY = settings.GEMINI_API_KEY 
 
-# --- Detailed System Prompt ---
+# --- Deferred Client Initialization ---
+# We use a global variable, but we initialize it to None
+# The initialization logic is now inside the function, where `settings.GEMINI_API_KEY` is safer to access.
+global_client = None
+
+
+# --- Detailed System Prompt (Unchanged) ---
 SYSTEM_PROMPT = """
 You are a highly analytical and experienced HR Manager conducting a preliminary interview screening. 
 Your task is to generate exactly 10 structured interview questions for the candidate based on their provided CV/introduction text, 
@@ -31,39 +39,16 @@ RULES FOR QUESTION GENERATION:
 1. Total Questions: Exactly 10 questions.
 2. Structure: 
     - Questions 1-5 MUST be general, behavioral, or soft-skill based (e.g., Vision/Goals, Organizational Adaptability, Creativity, Problem Solving). These should be broad to assess personality and fit.
-    - Questions 6-10 MUST be specific, highly personalized, and resume-based. These must reference specific projects, internships, technologies, or achievements explicitly mentioned in the candidate's CV, and should relate them to the specified target role and field.
-3. Flow: Questions must flow naturally, starting broad (Q1-Q5) and moving to detailed technical/experience probes (Q6-Q10).
+    - Questions 6-10 MUST be a deep dive into the candidate's experience. These questions MUST be specific, highly personalized, and resume-based. These must reference specific projects, internships, technologies, or achievements explicitly mentioned in the candidate's CV, and should relate them to the specified target role and field.
+3. Flow: Questions must flow naturally, starting broad (Q1-5) and moving to detailed technical/experience probes (Q6-10).
 4. Output: The response MUST be a single, valid JSON object matching the provided schema. The 'question_order' must be 1 to 10.
 """
 
 def get_question_generation_schema() -> Dict[str, Any]:
     """
-    Creates the response schema based on the internal QuestionGenerationResponse model, 
-    ensuring it is structured correctly for the Gemini API.
+    Creates the response schema dictionary from the Pydantic model and prints the debug output.
     """
-    # 1. Get the JSON schema for the GeneratedQuestion (the array item)
-    item_schema = GeneratedQuestion.model_json_schema()
-    
-    # Extract the properties needed for the 'items' part of the array
-    item_properties = item_schema.get('properties', {})
-    item_required = item_schema.get('required', [])
-
-    # 2. Construct the final, compliant response schema manually
-    schema_definition = {
-        "type": "OBJECT",
-        "properties": {
-            "questions": {
-                "type": "ARRAY",
-                "description": "A list containing exactly 10 interview questions.",
-                "items": {
-                    "type": "OBJECT",
-                    "properties": item_properties,
-                    "required": item_required
-                }
-            }
-        },
-        "required": ["questions"]
-    }
+    schema_definition = QuestionGenerationResponse.model_json_schema()
     
     print("\n--- DEBUG: Generated Schema Sent to Gemini API ---")
     print(json.dumps(schema_definition, indent=2))
@@ -72,72 +57,95 @@ def get_question_generation_schema() -> Dict[str, Any]:
     return schema_definition
 
 
-async def generate_interview_questions(cv_text: str, field: str, role: str) -> List[GeneratedQuestion]:
+async def generate_interview_questions(
+        cv_text: str,
+        field: str,
+        role: str,
+        reference_questions: Optional[List[str]] = None
+) -> List[GeneratedQuestion]:
     """
-    Calls the Gemini API to generate structured interview questions based on CV text, 
-    guided by the target field and role.
-    Implements exponential backoff for resilience.
+    Calls the Gemini API using the official SDK (AsyncClient) to generate 
+    structured interview questions.
     """
-    if not API_KEY:
-        raise Exception("API Key is missing. Ensure settings.GEMINI_API_KEY is configured.")
+    # Use the global declaration to modify the global variable
+    global global_client 
+    
+    # Initialize the client lazily (on first call)
+    if global_client is None:
+        try:
+            # Initialize the synchronous Client, then immediately access the 
+            # asynchronous interface via the .aio property. This gives us the 
+            # fully non-blocking client we need.
+            sync_client = genai.Client(api_key=settings.GEMINI_API_KEY)
+            global_client = sync_client.aio
+            
+            logging.info("Gemini Native Async Client (.aio) successfully initialized.")
+        except Exception as e:
+            logging.error(f"FATAL: Could not initialize Gemini client: {e}")
+            raise Exception("Gemini API Client initialization failed.")
 
-    # Get the correctly structured schema
-    response_schema = get_question_generation_schema()
+    if global_client is None:
+         raise Exception("Gemini API Client failed to initialize after attempt.")
 
-    # Incorporate field and role into the user query
+
+    # 1. Get and print the correctly structured schema (for debug)
+    get_question_generation_schema() 
+    
+    # 2. Incorporate RAG context into the User Query (Unchanged logic)
+    rag_context_text = ""
+    if reference_questions:
+        rag_context_joined = "\n- ".join(reference_questions)
+        rag_context_text = f"REFERENCE QUESTIONS (Use these for topic and style guidance, but do not repeat them exactly in your final output): - {rag_context_joined}"
+    
+    print(f"RAG Context Text:\n{rag_context_text}\n")
+    
+    # 3. Construct the final user query (Unchanged logic)
     user_query = (
         f"Generate the 10 questions for a candidate applying for the '{role}' role "
-        f"in the '{field}' industry. Use the following student background as context:\n\n---\n{cv_text}\n---"
+        f"in the '{field}' industry. Use the following student background as context:\n\n---\n{cv_text}\n---\n"
+        f"{rag_context_text}"
     )
-    
-    payload = {
-        "contents": [{"parts": [{"text": user_query}]}],
-        "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]},
-        "generationConfig": {
-            "responseMimeType": "application/json",
-            "responseSchema": response_schema,
-            "temperature": 0.7 
-        },
-    }
 
-    headers = {'Content-Type': 'application/json'}
-    api_url = API_URL_TEMPLATE + API_KEY 
-    
-    max_retries = 5
-    for attempt in range(max_retries):
-        try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.post(api_url, headers=headers, json=payload)
-                response.raise_for_status() 
-            
-            result = response.json()
-            
-            candidate = result.get('candidates', [{}])[0]
-            json_text = candidate.get('content', {}).get('parts', [{}])[0].get('text')
-            
-            if not json_text:
-                raise ValueError("Gemini returned empty or malformed text response.")
-            
-            # Sanitization for common LLM output formats
-            if json_text.strip().startswith('```') and json_text.strip().endswith('```'):
-                json_text = json_text.strip().strip('`').lstrip('json').strip()
-            
-            parsed_json = json.loads(json_text)
-            # Use QuestionGenerationResponse for validation
-            validated_response = QuestionGenerationResponse(**parsed_json)
-            
-            if len(validated_response.questions) != 10:
-                print(f"Warning: AI returned {len(validated_response.questions)} questions, expected 10.")
-                
-            return validated_response.questions
+    # 4. Define the generation configuration using SDK types
+    config = types.GenerateContentConfig(
+        system_instruction=SYSTEM_PROMPT,
+        response_mime_type="application/json",
+        response_schema=QuestionGenerationResponse, 
+        temperature=0.7 
+    )
 
-        except (httpx.RequestError, httpx.HTTPStatusError, ValueError, json.JSONDecodeError) as e:
-            if attempt < max_retries - 1:
-                wait_time = 2 ** attempt
-                await asyncio.sleep(wait_time)
-            else:
-                if isinstance(e, httpx.HTTPStatusError) and e.response.status_code == 400:
-                    print(f"\n--- FATAL 400 ERROR DETAIL ---")
-                    print(e.response.text)
-                    print("------------------------------\n")
-                raise Exception(f"Failed to generate questions after {max_retries} attempts. Last Error: {e}")
+    try:
+        # 5. Make the single, clean API call using the guaranteed-initialized client
+        response = await global_client.models.generate_content( # <-- using global_client
+            model=MODEL_NAME,
+            contents=[user_query], 
+            config=config
+        )
+
+        # 6. Response Parsing and Validation
+        if not response.text:
+            raise ValueError("Gemini returned an empty text response.")
+
+        json_text = response.text.strip()
+        
+        parsed_json = json.loads(json_text)
+        validated_response = QuestionGenerationResponse(**parsed_json)
+            
+        if len(validated_response.questions) != 10:
+            print(f"Warning: AI returned {len(validated_response.questions)} questions, expected 10.")
+            
+        return validated_response.questions
+
+    except APIError as e:
+        # Catches persistent API errors (e.g., 400 Bad Request) after internal retries fail.
+        logging.error(f"Gemini API Error (after retries): {e}")
+        if hasattr(e, 'response') and e.response is not None:
+             # Log the full response text if available for detailed error inspection
+             logging.error(f"Full response detail: {e.response.text}") 
+        raise Exception(f"Failed to generate questions due to persistent API error: {e}")
+    except (ValueError, json.JSONDecodeError) as e:
+        logging.error(f"Failed to parse AI response into structured JSON: {e}")
+        raise Exception(f"Failed to generate questions due to response parsing error: {e}")
+    except Exception as e:
+        logging.error(f"An unexpected error occurred: {e}")
+        raise Exception(f"An unexpected error occurred during generation: {e}")

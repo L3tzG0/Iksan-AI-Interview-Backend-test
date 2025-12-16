@@ -48,8 +48,14 @@ class SessionInitiateResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
-# ========== New Session History & Feedback Schemas ==========
+class SessionQueueResponse(BaseModel):
+    """Response schema for session submission queue confirmation."""
+    success: bool
+    message: str
+    session_id: int
+    
+    class Config:
+        from_attributes = True
 
 class SessionHistoryItem(BaseModel):
     """Single session history item for listing"""
@@ -109,6 +115,14 @@ class SessionFeedbackResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class SessionStatusResponse(BaseModel):
+    """Response schema for LLM-generated feedback"""
+    session_id: int
+    status: str
+    is_ready: bool
+
+    class Config:
+        from_attributes = True
 
 class SessionDetailResponse(BaseModel):
     """Detailed view of a specific session with all feedback"""
