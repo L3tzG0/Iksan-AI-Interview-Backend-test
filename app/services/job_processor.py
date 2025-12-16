@@ -17,7 +17,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - JobProcessor - %(m
 
 # Constants for retry logic
 MAX_JOB_RETRIES = 3
-INITIAL_BACKOFF_SECONDS = 5
+INITIAL_BACKOFF_SECONDS = 7
 
 
 async def process_interview_job(
