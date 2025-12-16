@@ -88,7 +88,7 @@ Your task is only to provide the four component scores (CR, ST, FL, CP) and the 
 
 #################### CRITICAL SCORING RULE: TEXT INPUT ####################
 IF the transcript input section contains the tag **| TYPE: TEXT INPUT |**, it means speech metrics are unavailable. In this case:
-1. You MUST assign FL (Fluency) and CP (Confidence Proxy) scores of **10.0** (neutral, maximum score).
+1. You MUST assign FL (Fluency) and CP (Confidence Proxy) scores of **7.5** (neutral, maximum score).
 2. The 'evaluation_text' for that question MUST explicitly state that FL and CP were scored neutrally because the answer was typed, and focus all feedback only on CR and ST.
 ############################################################################
 

@@ -40,7 +40,7 @@ async def process_interview_job(
         logging.info(f"Session {session_id}: Starting RAG query and LLM generation...")
         
         # 1. Update session status to 'generating'
-        session_service.update_session_status(session_id, status="generating")
+        await session_service.update_session_status(session_id, status="generating")
 
         generated_questions_list = None
         for attempt in range(MAX_JOB_RETRIES):
@@ -73,13 +73,13 @@ async def process_interview_job(
             raise Exception("Question generation failed after all retries.")
             
         # 4. Create detailed_feedbacks records
-        feedback_service.create_detailed_feedbacks_batch(
+        await feedback_service.create_detailed_feedbacks_batch(
             session_id=session_id,
             questions=generated_questions_list
         )
         
         # 5. Update final status
-        session_service.update_session_status(session_id, status="in_progress")
+        await session_service.update_session_status(session_id, status="in_progress")
         logging.info(f"Session {session_id}: Successfully processed and updated to in_progress.")
         
         return generated_questions_list
@@ -87,7 +87,7 @@ async def process_interview_job(
     except Exception as e:
         # If processing fails after all retries, mark the session as failed
         logging.error(f"Session {session_id}: Processing failed after all retries. Error: {e}")
-        session_service.update_session_status(session_id, status="failed")
+        await session_service.update_session_status(session_id, status="failed")
         return []
     
 
@@ -110,7 +110,7 @@ async def process_university_prep_job(
         logging.info(f"Session {session_id}: Starting University Prep RAG query and LLM generation...")
         
         # 1. Update session status to 'generating'
-        session_service.update_session_status(session_id, status="generating")
+        await session_service.update_session_status(session_id, status="generating")
 
         generated_questions_list = None
         for attempt in range(MAX_JOB_RETRIES):
@@ -143,13 +143,13 @@ async def process_university_prep_job(
             raise Exception("University Prep generation failed after all retries.")
             
         # 4. Create detailed_feedbacks records
-        feedback_service.create_detailed_feedbacks_batch(
+        await feedback_service.create_detailed_feedbacks_batch(
             session_id=session_id,
             questions=generated_questions_list
         )
         
         # 5. Update final status
-        session_service.update_session_status(session_id, status="in_progress")
+        await session_service.update_session_status(session_id, status="in_progress")
         logging.info(f"Session {session_id}: Successfully processed University Prep and updated to in_progress.")
         
         return generated_questions_list
@@ -157,7 +157,7 @@ async def process_university_prep_job(
     except Exception as e:
         # If processing fails after all retries, mark the session as failed
         logging.error(f"Session {session_id}: University Prep Processing failed after all retries. Error: {e}")
-        session_service.update_session_status(session_id, status="failed")
+        await session_service.update_session_status(session_id, status="failed")
         return []
     
 
@@ -182,7 +182,7 @@ async def process_evaluation_job(
         logging.info(f"Session {session_id}: Starting LLM evaluation...")
         
         # 1. Update session status to 'evaluating'
-        session_service.update_session_status(session_id, status="evaluating")
+        await session_service.update_session_status(session_id, status="evaluating")
 
         evaluation_result = None
         for attempt in range(MAX_JOB_RETRIES):
@@ -211,7 +211,7 @@ async def process_evaluation_job(
         # A. Update main session table with overall score
         overall_score_10 = round(evaluation_result.overall_scores.overall_score, 1)
 
-        session_service.update_session_status(
+        await session_service.update_session_status(
             session_id=session_id, 
             status="completed", # Final status on successful evaluation
             total_score=overall_score_10,
@@ -225,7 +225,7 @@ async def process_evaluation_job(
             strength_text=evaluation_result.session_summary.strength_text,
             areas_for_growth_text=evaluation_result.session_summary.areas_for_growth_text
         )
-        feedback_service.create_session_summary(summary=summary_data)
+        await feedback_service.create_session_summary(summary=summary_data)
         logging.info(f"Session {session_id}: Summary saved.")
 
         # C. Save next steps
@@ -238,7 +238,7 @@ async def process_evaluation_job(
             )
             for idx, ns in enumerate(evaluation_result.next_steps)
         ]
-        feedback_service.create_next_steps_batch(next_steps=next_step_creates)
+        await feedback_service.create_next_steps_batch(next_steps=next_step_creates)
         logging.info(f"Session {session_id}: Next steps saved.")
 
 
@@ -258,7 +258,7 @@ async def process_evaluation_job(
             combined_feedback_updates.append(update_data)
 
         # Send the updated list of dictionaries
-        feedback_service.update_detailed_feedbacks_batch(
+        await feedback_service.update_detailed_feedbacks_batch(
             session_id=session_id,
             feedback_updates=combined_feedback_updates 
         )
@@ -270,7 +270,7 @@ async def process_evaluation_job(
         # If processing fails after all retries, mark the session as failed
         logging.error(f"Session {session_id}: Evaluation processing failed after all retries. Error: {e}")
         # Ensure the session is marked as failed on error
-        session_service.update_session_status(
+        await session_service.update_session_status(
             session_id, 
             status="failed",
             completed_at=datetime.now()

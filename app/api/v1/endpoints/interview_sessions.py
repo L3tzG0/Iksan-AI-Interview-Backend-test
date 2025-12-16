@@ -219,8 +219,8 @@ async def submit_session_answers(
 @router.get("/status/{session_id}", response_model=SessionStatusResponse)
 async def get_session_status(
     session_id: Annotated[int, Path(description="The ID of the interview session")],
+    supabase: Annotated[AsyncClient, Depends(get_supabase)],
     current_user = Depends(get_current_user),
-    supabase: Client = Depends(get_supabase)
 ):
     """
     Allows the client to poll for the current status of a queued session.
@@ -515,12 +515,12 @@ async def initiate_interview_session(
 async def initiate_university_prep_session(
     request: Request,
     redis_conn: Annotated[redis.Redis, Depends(get_redis_connection)], # ADDED
+    supabase: Annotated[AsyncClient, Depends(get_supabase)],
     file: Optional[UploadFile] = File(None, description="Student Record/Transcript file (PDF, DOCX, TXT, MD)"),
     raw_text: Optional[str] = Form(None, description="Raw student record text content"),
     universities: str = Form(..., description="Comma-separated list of preferred universities (e.g., 'Stanford, MIT')"),
     departments: str = Form(..., description="Comma-separated list of preferred academic departments (e.g., 'Computer Science, Electrical Engineering')"),
-    current_user = Depends(require_role("student")),
-    supabase: Client = Depends(get_supabase)
+    current_user = Depends(require_role("student"))
 ):
     """
     Initiate new university preparation session. Saves input data, creates a session in 'pending' status, 
