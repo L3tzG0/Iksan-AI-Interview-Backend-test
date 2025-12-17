@@ -48,7 +48,7 @@ async def process_interview_job(
                 logging.info(f"Session {session_id}: Attempt {attempt + 1}/{MAX_JOB_RETRIES} to generate questions...")
                 
                 # 2. RAG Implementation
-                rag_context = await retrieve_questions_from_rag(cv_text=cv_text, k=5)
+                rag_context = await retrieve_questions_from_rag(cv_text=cv_text, q_type="job", k=5)
 
                 # 3. Generate interview questions using LLM (The slow step)
                 generated_questions_list = await generate_interview_questions(
@@ -118,7 +118,7 @@ async def process_university_prep_job(
                 logging.info(f"Session {session_id}: Attempt {attempt + 1}/{MAX_JOB_RETRIES} to generate university prep questions...")
                 
                 # 2. RAG Implementation
-                academic_context = await retrieve_questions_from_rag(cv_text=student_record_text, k=5)
+                academic_context = await retrieve_questions_from_rag(cv_text=student_record_text, q_type="uni", k=5)
 
                 # 3. Generate questions using LLM
                 generated_questions_list = await generate_university_prep_questions(
