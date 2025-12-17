@@ -64,7 +64,8 @@ async def get_my_sessions(
     current_user = Depends(get_current_user),
     skip: int = Query(default=0, ge=0, description="Number of records to skip"),
     limit: int = Query(default=20, ge=1, le=100, description="Maximum records to return"),
-    status_filter: Optional[str] = Query(default=None, description="Filter by status (completed, in_progress, failed)")
+    status_filter: Optional[str] = Query(default=None, description="Filter by status (completed, in_progress, failed)"),
+    interview_type: Optional[str] = Query(default=None, description="Filter by interview type (job, university)")
 ):
     """
     Get current student's interview session history based on token-derived ID.
@@ -75,6 +76,7 @@ async def get_my_sessions(
     - **skip**: Number of records to skip (default: 0)
     - **limit**: Max records to return (default: 20, max: 100)
     - **status_filter**: Filter by session status
+    - **interview_type**: Filter by interview type (job, university)
     
     Returns: Paginated list of session history
     """
@@ -96,7 +98,8 @@ async def get_my_sessions(
         student_id=student_id,
         skip=skip,
         limit=limit,
-        status_filter=status_filter
+        status_filter=status_filter,
+        interview_type=interview_type
     )
     
     # Transform to SessionHistoryItem format
@@ -121,13 +124,15 @@ async def get_sessions_with_students(
     role_context: RoleContext = Depends(require_role(["teacher", "admin"])),
     skip: int = Query(default=0, ge=0, description="Number of records to skip"),
     limit: int = Query(default=20, ge=1, le=100, description="Maximum records to return"),
-    status_filter: Optional[str] = Query(default=None, description="Filter by status (completed, in_progress, failed)")
+    status_filter: Optional[str] = Query(default=None, description="Filter by status (completed, in_progress, failed)"),
+    interview_type: Optional[str] = Query(default=None, description="Filter by interview type (job, university)")
 ):
     """
     Retrieve student interview session history
 
     - Admins: All students across the system.
     - Teachers: Only students within their school.
+    - Optional filters: status and interview_type (job, university)
     """
     session_service = InterviewSessionService(supabase)
 
@@ -145,7 +150,8 @@ async def get_sessions_with_students(
         skip=skip,
         limit=limit,
         status_filter=status_filter,
-        school_id=school_id
+        school_id=school_id,
+        interview_type=interview_type
     )
 
     shaped_sessions = [

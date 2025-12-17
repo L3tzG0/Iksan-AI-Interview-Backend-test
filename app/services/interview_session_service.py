@@ -36,12 +36,28 @@ SESSION_WITH_FEEDBACKS = """
     next_steps(id, next_step_order, title, description_text)
 """
 
+ALLOWED_SESSION_TYPES = {"job", "university"}
+
 
 class InterviewSessionService:
     """Service for handling interview session database operations"""
     
     def __init__(self, supabase: AsyncClient):
         self.supabase = supabase
+
+    @staticmethod
+    def _normalize_interview_type(interview_type: Optional[str]) -> Optional[str]:
+        """Lowercase and validate provided interview type."""
+        if interview_type is None:
+            return None
+
+        normalized = interview_type.lower()
+        if normalized not in ALLOWED_SESSION_TYPES:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid interview_type '{interview_type}'. Must be one of: {', '.join(sorted(ALLOWED_SESSION_TYPES))}."
+            )
+        return normalized
     
     async def create_session(self, student_id: int, status: str = "in_progress", session_type: str = "job") -> dict:
         """
@@ -229,7 +245,8 @@ class InterviewSessionService:
         student_id: int,
         skip: int = 0,
         limit: int = 20,
-        status_filter: Optional[str] = None
+        status_filter: Optional[str] = None,
+        interview_type: Optional[str] = None
     ) -> Tuple[List[dict], int]:
         """
         Get all sessions for a student with pagination.
@@ -239,17 +256,22 @@ class InterviewSessionService:
             skip: Number of records to skip
             limit: Maximum records to return
             status_filter: Filter by status (completed, in_progress, failed)
+            interview_type: Filter by interview type (job, university)
         
         Returns:
             Tuple of (list of sessions, total count)
         """
         try:
+            normalized_type = self._normalize_interview_type(interview_type)
+
             def build_query():
                 base_query = self.supabase.table('sessions').select(
                     SESSION_COLUMNS, count='exact'
                 ).eq('student_id', student_id)
                 if status_filter:
                     base_query = base_query.eq('status', status_filter)
+                if normalized_type:
+                    base_query = base_query.eq('type', normalized_type)
                 return base_query.order('created_at', desc=True)
 
             return await paginate_query(build_query, skip, limit)
@@ -303,7 +325,8 @@ class InterviewSessionService:
         skip: int = 0,
         limit: int = 20,
         status_filter: Optional[str] = None,
-        school_id: Optional[int] = None
+        school_id: Optional[int] = None,
+        interview_type: Optional[str] = None
     ) -> Tuple[List[dict], int]:
         """
         Get sessions with student context for admin/teacher views.
@@ -313,11 +336,14 @@ class InterviewSessionService:
             limit: Maximum records to return
             status_filter: Optional session status filter
             school_id: Optional school scoping (teachers)
+            interview_type: Optional interview type filter
 
         Returns:
             Tuple of (list of sessions, total count)
         """
         try:
+            normalized_type = self._normalize_interview_type(interview_type)
+
             def build_query():
                 base_query = self.supabase.table('sessions').select(
                     SESSION_COLUMNS_WITH_STUDENT_INFO,
@@ -327,6 +353,8 @@ class InterviewSessionService:
                     base_query = base_query.eq('status', status_filter)
                 if school_id is not None:
                     base_query = base_query.eq('students.school_id', school_id)
+                if normalized_type:
+                    base_query = base_query.eq('type', normalized_type)
                 return base_query.order('created_at', desc=True)
 
             return await paginate_query(build_query, skip, limit)
