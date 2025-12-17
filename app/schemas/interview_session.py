@@ -268,7 +268,6 @@ class DetailedEvaluationItem(BaseModel):
 
     class Config:
         # Allows accessing fields using both snake_case (Python) and alias (LLM output)
-        allow_population_by_field_name = True
         populate_by_name = True 
 
 class EvaluationBatchResponse(BaseModel):

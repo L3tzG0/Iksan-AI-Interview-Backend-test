@@ -15,7 +15,7 @@ USER_PROFILE_COLUMNS_WITH_ROLE = """
 USER_LIST_COLUMNS = """
     id, email, full_name, role_id, created_at, updated_at,
     roles(role_name),
-    students(student_id, stored_password, school_id)
+    students(student_id, stored_password, school_id, schools(school_name), majors(major_name))
 """
 
 # For fetching complete user with all details in a single query
@@ -215,9 +215,21 @@ class UserProfileService:
         student_data = self._first_relationship_record(payload.get("students")) if isinstance(payload, dict) else None
         password = None
         student_id = None
+        school_name = None
+        major_name = None
         if role_name == RoleName.STUDENT.value and isinstance(student_data, dict):
             password = student_data.get("stored_password")
             student_id = student_data.get("student_id")
+            
+            # Extract school name from nested schools object
+            schools_data = self._first_relationship_record(student_data.get("schools"))
+            if isinstance(schools_data, dict):
+                school_name = schools_data.get("school_name")
+            
+            # Extract major name from nested majors object
+            majors_data = self._first_relationship_record(student_data.get("majors"))
+            if isinstance(majors_data, dict):
+                major_name = majors_data.get("major_name")
 
         return {
             "id": payload.get("id"),
@@ -228,6 +240,8 @@ class UserProfileService:
             "updated_at": payload.get("updated_at"),
             "student_id": student_id if role_name == RoleName.STUDENT.value else None,
             "password": password if role_name == RoleName.STUDENT.value else None,
+            "school_name": school_name if role_name == RoleName.STUDENT.value else None,
+            "major_name": major_name if role_name == RoleName.STUDENT.value else None,
         }
 
     async def list_users(
