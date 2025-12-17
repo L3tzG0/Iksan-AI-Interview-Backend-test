@@ -16,3 +16,6 @@ This file tracks which database migrations have been successfully applied.
 | 002 | seed_reference_data | 2025-12-09 08:28:05 | brillian354@gmail.com |  |
 | 003 | student_registration | 2025-12-10 14:55:54 | brillian354@gmail.com |  |
 | 004 | fix_student_auth_trigger | 2025-12-10 15:20:02 | brillian354@gmail.com |  |
+| 005 | student_registration_performance | 2025-12-17 08:48:08 | brillian354@gmail.com |  |
+| 006 | student_registration_rpc_optimizations | 2025-12-17 08:48:10 | brillian354@gmail.com |  |
+| 007 | add_session_type_to_sessions | 2025-12-17 08:48:13 | brillian354@gmail.com |  |

@@ -71,6 +71,7 @@ erDiagram
         bigint id PK
         bigint student_id FK
         text status
+        text type "ENUM: job|university"
         timestamptz completed_at
         numeric total_score "NUMERIC(3,1); 0..10"
         timestamptz created_at
