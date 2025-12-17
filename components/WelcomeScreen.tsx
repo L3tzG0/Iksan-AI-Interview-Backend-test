@@ -16,6 +16,17 @@ const stats = [
   { label: '평균 준비 시간', value: '10분', sub: '세션당 권장 연습' },
 ];
 
+const industries = [
+  'IT/Software',
+  'Manufacturing/Production',
+  'Finance/Insurance',
+  'Healthcare/Bio',
+  'Education',
+  'Marketing/Advertising',
+  'Public/Non-Profit',
+  'Other',
+];
+
 const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewReport }) => {
   const [resumeText, setResumeText] = useState('');
   const [fileName, setFileName] = useState('');
@@ -24,8 +35,10 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
   const [intent, setIntent] = useState<StudentGoal | null>(null);
   const [universities, setUniversities] = useState<string[]>(['']);
   const [major, setMajor] = useState('');
+  const [workIndustry, setWorkIndustry] = useState('');
   const [workField, setWorkField] = useState('');
   const [perQuestionSeconds, setPerQuestionSeconds] = useState(60);
+  const hasHistory = Array.isArray(history) && history.length > 0;
 
   const handleIncomingFile = useCallback((file?: File) => {
     if (!file) return;
@@ -88,9 +101,11 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
     setIntent(goal);
     if (goal === 'university') {
       setWorkField('');
+      setWorkIndustry('');
       if (universities.length === 0) setUniversities(['']);
     } else {
       setMajor('');
+      setWorkIndustry('');
       setUniversities(['']);
     }
   };
@@ -117,6 +132,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
       intent,
       favoriteUniversities: intent === 'university' ? cleanUniversities : undefined,
       major: intent === 'university' ? major.trim() : undefined,
+      workIndustry: intent === 'work' ? workIndustry : undefined,
       workField: intent === 'work' ? workField.trim() : undefined,
       perQuestionSeconds,
     };
@@ -125,7 +141,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
 
   const hasBaseInput = !!fileData || !!resumeText.trim();
   const hasUniversityGoal = intent === 'university' && universities.some((u) => u.trim()) && !!major.trim();
-  const hasWorkGoal = intent === 'work' && !!workField.trim();
+  const hasWorkGoal = intent === 'work' && !!workField.trim() && !!workIndustry;
   const isStartDisabled = !hasBaseInput || !intent || (intent === 'university' ? !hasUniversityGoal : !hasWorkGoal);
 
   return (
@@ -258,6 +274,9 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
                     + Add
                   </button>
                 </div>
+                <p className="text-xs text-slate-600 rounded-[12px] border border-primary/20 bg-white/70 px-3 py-2">
+                  학생부를 기반으로, 면접에서 공유하려는 주요 경험(활동, 역량, 수상 등)이 담긴 자료를 업로드해주세요.
+                </p>
                 <div className="space-y-2">
                   {universities.map((uni, index) => (
                     <div key={index} className="flex items-center gap-2">
@@ -302,21 +321,40 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
             )}
 
             {intent === 'work' && (
-            <div className="rounded-[16px] border border-primary/30 bg-primary-lightest/60 p-4 space-y-2">
-                <p className="text-sm font-semibold text-slate-800">업무 분야</p>
-                <p className="text-xs text-slate-500">목표로 하는 분야나 직무를 알려주세요.</p>
+            <div className="rounded-[16px] border border-primary/30 bg-primary-lightest/60 p-4 space-y-3">
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-slate-800">관심 산업</p>
+                <p className="text-xs text-slate-500">희망하는 산업군을 선택하세요.</p>
+                <select
+                  value={workIndustry}
+                  onChange={(e) => setWorkIndustry(e.target.value)}
+                  className="w-full rounded-lg border bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-primary/30 outline-none border-slate-200 focus:border-primary"
+                >
+                  <option value="">산업을 선택하세요</option>
+                  {industries.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+                {intent === 'work' && !workIndustry && <p className="text-xs text-red-600">관심 산업을 선택해주세요.</p>}
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-slate-800">희망 직무/역할</p>
+                <p className="text-xs text-slate-500">구체적인 역할을 입력하면 맞춤형 질문을 생성해요.</p>
                 <input
                   type="text"
                   value={workField}
                   onChange={(e) => setWorkField(e.target.value)}
-                  placeholder="예: 프론트엔드 개발자, 데이터 분석가"
+                  placeholder="예: 프론트엔드 개발자, 생산관리, 데이터 분석"
                   className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-primary/30 outline-none ${
                     intent === 'work' && !workField.trim() ? 'border-red-300 focus:border-red-400' : 'border-slate-200 focus:border-primary'
                   }`}
                 />
                 {intent === 'work' && !workField.trim() && <p className="text-xs text-red-600">희망 직무를 입력해주세요.</p>}
               </div>
-            )}
+            </div>
+          )}
 
             <div className="rounded-[16px] border border-slate-200 bg-white/80 p-4 space-y-2">
               <p className="text-sm font-semibold text-slate-800">답변 시간 선택​</p>
@@ -345,7 +383,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
           </div>
         </div>
 
-        {history && history.length > 0 ? (
+        {hasHistory ? (
           <div className="bg-white/90 rounded-[24px] border border-white/80 shadow-soft p-6 flex flex-col animate-softFadeUp-delayed">
             <h2 className="text-lg font-bold text-slate-900 mb-1 flex items-center gap-2">
               <ClockIcon className="w-5 h-5 text-primary" />
@@ -353,7 +391,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
             </h2>
             <p className="text-xs text-slate-500 mb-4">지난 AI 면접 결과를 눌러 상세 피드백을 다시 확인해 보세요.</p>
             <div className="flex-1 overflow-auto divide-y divide-slate-100">
-              {history.map((item, index) => (
+              {history!.map((item, index) => (
                 <button
                   key={index}
                   onClick={() => onViewReport && onViewReport(item)}
@@ -376,13 +414,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
               ))}
             </div>
           </div>
-        ) : (
-          <div className="bg-white/80 rounded-[24px] border border-dashed border-primary-light p-6 flex flex-col items-center justify-center text-center text-slate-500">
-            <ClockIcon className="w-10 h-10 text-primary/70 mb-3" />
-            <p className="font-semibold text-slate-700 mb-2">아직 기록이 없어요</p>
-            <p className="text-xs text-slate-400">AI 코치와 첫 면접을 진행하면 이곳에 리포트가 쌓입니다.</p>
-          </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

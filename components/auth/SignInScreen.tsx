@@ -43,7 +43,7 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ onSignIn, onSwitchToSignUp,
     }
     setIsLoading(true);
     try {
-      const user = await signIn(loginId, password);
+      const user = await signIn(loginId, password, mode === 'student' ? 'student' : 'staff');
       onSignIn(user);
     } catch (e) {
       console.error(e);
@@ -62,7 +62,7 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ onSignIn, onSwitchToSignUp,
         <Input
           label={mode === 'student' ? '학생 ID' : '업무용 이메일'}
           type={mode === 'student' ? 'text' : 'email'}
-          placeholder={mode === 'student' ? '예: ABCEGR0001' : 'name@school.ac.kr'}
+          placeholder={mode === 'student' ? '예: 001000100001' : 'name@school.ac.kr'}
           value={loginId}
           onChange={(e) => handleLoginIdChange(e.target.value)}
           icon={<MailIcon className="w-5 h-5" />}
@@ -124,3 +124,4 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ onSignIn, onSwitchToSignUp,
 };
 
 export default SignInScreen;
+

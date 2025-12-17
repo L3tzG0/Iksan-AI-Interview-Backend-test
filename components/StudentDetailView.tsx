@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { getStudentDetails } from '../services/geminiService';
-import type { StudentDetail } from '../types';
+import { fetchAllSessions, fetchStudentSessionDetail, StudentSessionResponse } from '../services/studentService';
+import type { StudentDetail, StudentSession, StudentSessionDetail, InterviewReport } from '../types';
 import Spinner from './Spinner';
 import Card from './Card';
 import { ArrowLeftIcon } from './icons';
@@ -15,82 +15,84 @@ interface StudentDetailViewProps {
 const StudentDetailView: React.FC<StudentDetailViewProps> = ({ studentId, onBack }) => {
   const [student, setStudent] = useState<StudentDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [sessions, setSessions] = useState<StudentSession[]>([]);
+  const [isSessionsLoading, setIsSessionsLoading] = useState(false);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const [selectedSessionReport, setSelectedSessionReport] = useState<InterviewReport | null>(null);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [isSessionDetailLoading, setIsSessionDetailLoading] = useState(false);
+  const [sessionDetailError, setSessionDetailError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchData = async () => {
-      setIsLoading(true);
-      try {
-        const data = await getStudentDetails(studentId);
-        setStudent(data);
-      } catch (error) {
-        console.error(error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchData();
+    setStudent({
+      id: studentId,
+      name: '학생',
+      major: '',
+      schoolName: '',
+      grade: 0,
+      history: [],
+    });
+    setIsLoading(false);
   }, [studentId]);
 
-  const handleDownloadReport = useCallback(() => {
-    if (!student?.report) return;
+  useEffect(() => {
+    const loadSessions = async () => {
+      setIsSessionsLoading(true);
+      setSessionError(null);
+      try {
+        const data = await fetchAllSessions();
+        const normalized = (data as StudentSessionResponse[])
+          .filter((s) => String((s as any)?.student_id || (s as any)?.studentId || '') === String(studentId))
+          .map((s, idx) => ({
+            id: String((s as any).id || (s as any).session_id || idx + 1),
+            startedAt: s.startedAt || (s as any).started_at,
+            completedAt: s.completedAt || (s as any).completed_at,
+            totalScore: s.totalScore ?? (s as any).total_score,
+            status: s.status,
+            intent: (s.intent as any) || undefined,
+          }));
+        setSessions(normalized);
+      } catch (err: any) {
+        console.error('Failed to fetch sessions', err);
+        setSessionError(err?.message || 'Failed to load session history. Please try again.');
+        setSessions([]);
+      } finally {
+        setIsSessionsLoading(false);
+      }
+    };
+    loadSessions();
+  }, [studentId]);
 
-    const report = student.report;
-    const today = new Date().toLocaleDateString('ko-KR');
-    const detailed = report.detailedFeedback
-      .map(
-        (item, idx) =>
-          `<div style="margin-bottom:12px;"><strong>Q${idx + 1}. ${item.question}</strong><br/>A${idx + 1}: ${
-            item.answer || ''
-          }<br/><em>AI 평가:</em> ${item.evaluation}</div>`
-      )
-      .join('');
+  const handleViewSessionDetail = useCallback(
+    async (sessionId: string) => {
+      setIsSessionDetailLoading(true);
+      setSessionDetailError(null);
+      setSelectedSessionId(sessionId);
+      try {
+        const data: StudentSessionDetail = await fetchStudentSessionDetail(sessionId);
+        const report =
+          (data as any)?.report ||
+          (data as any)?.feedback ||
+          (data as any)?.session?.report ||
+          null;
+        if (report) {
+          setSelectedSessionReport(report as InterviewReport);
+        } else {
+          setSelectedSessionReport(null);
+          setSessionDetailError('이 세션에는 리포트 데이터가 없습니다.');
+        }
+      } catch (err: any) {
+        console.error('Failed to fetch session detail', err);
+        setSessionDetailError(err?.message || '세션 상세를 불러오지 못했습니다.');
+        setSelectedSessionReport(null);
+      } finally {
+        setIsSessionDetailLoading(false);
+      }
+    },
+    [studentId]
+  );
 
-    const nextSteps = report.nextSteps
-      .map((step, idx) => `<li><strong>Step ${idx + 1}:</strong> ${step.title} - ${step.description}</li>`)
-      .join('');
-
-    const html = `
-      <html>
-        <head>
-          <meta charset="UTF-8" />
-          <title>${student.name} - Interview Report</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 24px; color: #0f172a; }
-            h1, h2, h3 { margin: 0 0 8px 0; }
-            .section { margin-bottom: 18px; }
-            .badge { display: inline-block; padding: 4px 10px; border-radius: 12px; background: #ede9fe; color: #6d28d9; font-size: 12px; }
-            ul { padding-left: 18px; }
-          </style>
-        </head>
-        <body>
-          <h1>${student.name} (${student.grade}학년 · ${student.major})</h1>
-          <p style="color:#475569;font-size:12px;margin:4px 0 12px;">학교: ${student.schoolName || '-'} | 시험일: ${today}</p>
-          <div class="badge">총점 ${report.totalScore.toFixed(1)}/10</div>
-          <div class="section">
-            <h2>요약</h2>
-            <p><strong>강점:</strong> ${report.summary.strengths}</p>
-            <p><strong>개선 영역:</strong> ${report.summary.areasForGrowth}</p>
-          </div>
-          <div class="section">
-            <h2>상세 피드백</h2>
-            ${detailed}
-          </div>
-          <div class="section">
-            <h2>다음 단계</h2>
-            <ul>${nextSteps}</ul>
-          </div>
-        </body>
-      </html>
-    `;
-
-    const printWindow = window.open('', '_blank', 'width=900,height=1200');
-    if (printWindow) {
-      printWindow.document.write(html);
-      printWindow.document.close();
-      printWindow.focus();
-      printWindow.print();
-    }
-  }, [student]);
+  const handleDownloadReport = useCallback(() => {}, []);
 
   if (isLoading || !student) {
     return (
@@ -130,6 +132,85 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({ studentId, onBack
         <Card className="text-center py-12">
             <p className="text-slate-500 text-lg">아직 제출된 보고서가 없습니다.</p>
         </Card>
+      )}
+
+      <Card className="mt-8">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <p className="text-xs font-semibold text-primary-text uppercase tracking-[0.2em]">Session History</p>
+            <h3 className="text-xl font-bold text-slate-900">학생 세션 내역</h3>
+            <p className="text-sm text-slate-500">백엔드 데이터로 최신 면접 기록을 확인합니다.</p>
+          </div>
+          {isSessionsLoading && <Spinner />}
+        </div>
+        {sessionError && (
+          <div className="mb-4 text-sm text-amber-600 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+            {sessionError}
+          </div>
+        )}
+        {!isSessionsLoading && sessions.length === 0 && !sessionError && (
+          <p className="text-sm text-slate-500">최근 세션 기록이 없습니다.</p>
+        )}
+        {sessions.length > 0 && (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm text-left text-slate-700">
+              <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-200">
+                <tr>
+                  <th className="px-4 py-3 font-semibold">세션 ID</th>
+                  <th className="px-4 py-3 font-semibold">시작</th>
+                  <th className="px-4 py-3 font-semibold">종료</th>
+                  <th className="px-4 py-3 font-semibold text-center">점수</th>
+                  <th className="px-4 py-3 font-semibold text-center">상태</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {sessions.map((session) => (
+                  <tr key={session.id}>
+                    <td className="px-4 py-3 font-mono text-xs text-slate-900">{session.id}</td>
+                    <td className="px-4 py-3">{session.startedAt || '-'}</td>
+                    <td className="px-4 py-3">{session.completedAt || '-'}</td>
+                    <td className="px-4 py-3 text-center font-semibold">
+                      {typeof session.totalScore === 'number' ? session.totalScore : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">
+                        {session.status || 'unknown'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <Button
+                        variant="secondary"
+                        className="text-xs px-3 py-1 rounded-lg"
+                        onClick={() => handleViewSessionDetail(session.id)}
+                        isLoading={isSessionDetailLoading && selectedSessionId === session.id}
+                      >
+                        보기
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+      {selectedSessionReport && (
+        <Card className="mt-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <p className="text-xs font-semibold text-primary-text uppercase tracking-[0.2em]">Session Detail</p>
+              <h3 className="text-xl font-bold text-slate-900">선택한 세션 리포트</h3>
+              <p className="text-sm text-slate-500">세션 ID: {selectedSessionId || '-'}</p>
+            </div>
+            {isSessionDetailLoading && <Spinner />}
+          </div>
+          <InterviewReportView report={selectedSessionReport} />
+        </Card>
+      )}
+      {!selectedSessionReport && sessionDetailError && (
+        <div className="mt-4 text-sm text-amber-600 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+          {sessionDetailError}
+        </div>
       )}
     </div>
   );

@@ -5,14 +5,12 @@ import { LogOutIcon, ChevronDownIcon, GraduationCapIcon, HomeIcon, SparklesIcon,
 interface NavbarProps {
   user: User;
   onLogout: () => void;
-  onToggleRole: () => void;
   currentPath: string;
   onNavigate?: (path: string) => void;
   hasResults?: boolean;
-  onOpenAddStudent?: () => void;
 }
 
-const Navbar: React.FC<NavbarProps> = ({ user, onLogout, onToggleRole, currentPath, onNavigate, hasResults, onOpenAddStudent }) => {
+const Navbar: React.FC<NavbarProps> = ({ user, onLogout, currentPath, onNavigate, hasResults }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -41,7 +39,9 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, onToggleRole, currentPa
   }, [user.role, hasResults]);
 
   const isNavActive = (path: string) => {
-    if (path === '/teacher/dashboard' && currentPath.startsWith('/teacher/students')) return true;
+    if (path === '/teacher/dashboard' && (currentPath.startsWith('/teacher/students') || currentPath.startsWith('/teacher/dashboard'))) {
+      return true;
+    }
     return currentPath === path;
   };
 
@@ -79,15 +79,6 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, onToggleRole, currentPa
           </div>
 
           <div className="flex items-center gap-4">
-            {(user.role === 'teacher' || user.role === 'admin') && onOpenAddStudent && (
-              <button
-                type="button"
-                onClick={onOpenAddStudent}
-                className="hidden sm:inline-flex items-center gap-2 px-3 py-2 rounded-full text-sm font-semibold bg-primary text-white shadow-soft hover:bg-primary-dark transition-colors"
-              >
-                학생 계정 발급
-              </button>
-            )}
             {(user.role === 'teacher' || user.role === 'admin') && user.schoolName && (
               <span className="hidden lg:flex items-center gap-2 text-sm text-slate-500 font-semibold bg-white px-3 py-1.5 rounded-full border border-slate-100 shadow-inner shadow-white/40">
                 <UsersIcon className="w-4 h-4 text-primary" />
@@ -122,17 +113,31 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, onToggleRole, currentPa
                       </p>
                       <p className="text-xs text-slate-400 mt-1 truncate">{user.email}</p>
                     </div>
-                    {user.role !== 'admin' && (
+                    {(user.role === 'teacher' || user.role === 'admin') && (
                       <div className="py-1">
                         <button
                           onClick={() => {
-                            onToggleRole();
+                            onNavigate && onNavigate('/student/home');
                             setIsMenuOpen(false);
                           }}
-                          className="w-full text-left px-4 py-3 text-sm text-slate-700 hover:bg-primary-lightest/60 flex items-center gap-2 font-semibold"
+                          className={`w-full text-left px-4 py-3 text-sm hover:bg-primary-lightest/60 flex items-center gap-2 font-semibold ${
+                            currentPath.startsWith('/student') ? 'text-primary' : 'text-slate-700'
+                          }`}
                         >
-                          <GraduationCapIcon className="w-4 h-4 text-slate-500" />
-                          {user.role === 'student' ? '교사 모드로 보기' : '학생 모드로 보기'}
+                          <SparklesIcon className="w-4 h-4 text-primary" />
+                          학생 페이지로 이동
+                        </button>
+                        <button
+                          onClick={() => {
+                            onNavigate && onNavigate('/teacher/dashboard');
+                            setIsMenuOpen(false);
+                          }}
+                          className={`w-full text-left px-4 py-3 text-sm hover:bg-primary-lightest/60 flex items-center gap-2 font-semibold ${
+                            currentPath.startsWith('/teacher') ? 'text-primary' : 'text-slate-700'
+                          }`}
+                        >
+                          <HomeIcon className="w-4 h-4 text-primary" />
+                          교사 페이지로 이동
                         </button>
                       </div>
                     )}

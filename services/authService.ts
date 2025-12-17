@@ -1,4 +1,6 @@
 import { User, School } from '../types';
+import { fetchSchools as fetchSchoolsApi } from './studentService';
+import { jwtDecode } from 'jwt-decode';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'https://iksan-ai-interview-backend-production.up.railway.app';
 const TOKEN_KEY = 'auth_token';
@@ -27,39 +29,86 @@ export const clearStoredToken = () => {
   }
 };
 
-export const getSchools = async (): Promise<School[]> => {
-  // Placeholder until backend exposes schools
-  return [];
+export const apiLogout = async () => {
+  const token = getStoredToken();
+  if (!token) return;
+  await fetch(`${API_BASE}/api/v1/auth/logout`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  }).catch(() => {
+    // ignore network/logout errors
+  });
+  clearStoredToken();
+};
+
+export const getSchools = async (page = 1, pageSize = 20): Promise<School[]> => {
+  const res = await fetchSchoolsApi(page, pageSize);
+  return res.data;
 };
 
 const buildUserFromResponse = (data: any, fallbackEmail: string): User => {
   const token = data?.token || data?.access_token || data?.accessToken;
   const profile = data?.user || data?.profile || data?.data || data || {};
-  const rawRole = profile.role || profile?.data?.role || profile?.user_metadata?.role;
-  const normalizedRole = typeof rawRole === 'string' ? rawRole.toLowerCase() : '';
+
+  let decoded: any = {};
+  try {
+    if (token) decoded = jwtDecode(token);
+  } catch {
+    decoded = {};
+  }
+  const metadata = decoded?.user_metadata || decoded?.app_metadata || profile?.user_metadata || {};
+
+  const roleId = data?.role_id ?? profile?.role_id ?? metadata.role_id ?? decoded.role_id;
+  const rawRole =
+    data?.role_name ||
+    profile?.role_name ||
+    metadata.role ||
+    decoded?.role ||
+    decoded?.user_role ||
+    decoded?.data?.role ||
+    profile.role ||
+    profile?.data?.role ||
+    profile?.user_metadata?.role;
+
+  let normalizedRole = typeof rawRole === 'string' ? rawRole.toLowerCase() : '';
+  if (!normalizedRole) {
+    if (roleId === 1) normalizedRole = 'admin';
+    else if (roleId === 2) normalizedRole = 'teacher';
+    else if (roleId === 3) normalizedRole = 'student';
+  }
   const role: User['role'] =
     normalizedRole.includes('admin')
       ? 'admin'
       : normalizedRole.includes('teacher')
       ? 'teacher'
-      : normalizedRole
-      ? 'student'
       : 'student';
+
+  const name = data?.full_name || profile?.full_name || metadata.full_name || profile.name || fallbackEmail.split('@')[0];
+  const email = profile.email || data?.email || fallbackEmail;
+  const studentId = data?.student_id || profile?.student_id || metadata.student_id;
+
+  const schoolName = data?.school_name ?? profile.schoolName ?? profile.school ?? metadata.schoolName ?? '';
+  const grade = data?.grade_level ?? profile.grade ?? metadata.grade;
+  const major = data?.major_name ?? profile.major ?? metadata.major ?? '';
+
   return {
-    id: profile.id || profile.userId || `temp-${Date.now()}`,
-    name: profile.name || fallbackEmail.split('@')[0],
-    email: profile.email || fallbackEmail,
+    id: studentId || data?.user_id || profile.id || profile.userId || `temp-${Date.now()}`,
+    name,
+    email,
     role,
-    schoolName: profile.schoolName || profile.school || '',
-    grade: profile.grade,
-    major: profile.major,
+    schoolName,
+    grade,
+    major,
     authToken: token,
   };
 };
 
-export const signIn = async (loginId: string, password: string): Promise<User> => {
-  const attemptLogin = async (body: Record<string, string>) => {
-    const response = await fetch(`${API_BASE}/api/v1/auth/login`, {
+export const signIn = async (loginId: string, password: string, mode: 'student' | 'staff' = 'student'): Promise<User> => {
+  const attemptLogin = async (url: string, body: Record<string, string>) => {
+    const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -72,13 +121,12 @@ export const signIn = async (loginId: string, password: string): Promise<User> =
   };
 
   let data: any;
-  try {
-    // Default: treat as email login
-    data = await attemptLogin({ email: loginId, password });
-  } catch (err) {
-    // Fallback: student ID login (if backend supports student_id)
-    if (loginId.includes('@')) throw err;
-    data = await attemptLogin({ student_id: loginId, password });
+  if (mode === 'student') {
+    // Dedicated student login endpoint
+    data = await attemptLogin(`${API_BASE}/api/v1/auth/student-login`, { student_id: loginId, password });
+  } else {
+    // Staff/admin/teacher login (email only)
+    data = await attemptLogin(`${API_BASE}/api/v1/auth/login`, { email: loginId, password });
   }
 
   const user = buildUserFromResponse(data, loginId);

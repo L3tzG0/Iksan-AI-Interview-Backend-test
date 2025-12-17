@@ -10,7 +10,7 @@ export default defineConfig(({ mode }) => {
             port: 3000,
             host: '0.0.0.0',
             allowedHosts: [
-                'screenshots-filme-met-boxing.trycloudflare.com',
+                'antibodies-trainer-phillips-sullivan.trycloudflare.com',
                 'pansy-unsevere-lester.ngrok-free.dev',
                 'seen-several-end-dts.trycloudflare.com',
                 'bumpy-camels-feel.loca.lt', // allow localtunnel domain

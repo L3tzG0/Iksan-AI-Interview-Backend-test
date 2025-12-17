@@ -1,50 +1,3 @@
-// Fix: Added type definitions for the Web Speech API to resolve TypeScript errors about SpeechRecognition.
-// Manually define types for the Web Speech API as they are not standard in all TS lib files.
-interface SpeechRecognitionAlternative {
-  transcript: string;
-  confidence: number;
-}
-
-interface SpeechRecognitionResult {
-  isFinal: boolean;
-  [index: number]: SpeechRecognitionAlternative;
-  length: number;
-}
-
-interface SpeechRecognitionResultList {
-  [index: number]: SpeechRecognitionResult;
-  length: number;
-}
-
-interface SpeechRecognitionEvent extends Event {
-  results: SpeechRecognitionResultList;
-  resultIndex: number;
-}
-
-interface SpeechRecognitionErrorEvent extends Event {
-  error: string;
-}
-
-interface SpeechRecognition extends EventTarget {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  start(): void;
-  stop(): void;
-  onstart: (() => void) | null;
-  onend: (() => void) | null;
-  onerror: ((event: SpeechRecognitionErrorEvent) => void) | null;
-  onresult: ((event: SpeechRecognitionEvent) => void) | null;
-}
-
-// Extend the Window interface
-declare global {
-  interface Window {
-    SpeechRecognition?: new () => SpeechRecognition;
-    webkitSpeechRecognition?: new () => SpeechRecognition;
-  }
-}
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import type { Question, Answer } from '../types';
 import Card from './Card';
@@ -52,6 +5,7 @@ import Button from './ui/Button';
 import { LightbulbIcon, ClockIcon } from './icons';
 import VoiceAnswerArea from './interview/VoiceAnswerArea';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { createLiveSttSocket } from '../services/sttService';
 
 interface InterviewSessionProps {
   questions: Question[];
@@ -78,6 +32,13 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
   const [showExitModal, setShowExitModal] = useState(false);
   const [micDevices, setMicDevices] = useState<{ deviceId: string; label: string }[]>([]);
   const [selectedMicId, setSelectedMicId] = useState<string | undefined>(undefined);
+  const [sttSummary, setSttSummary] = useState<{
+    finalTranscript?: string;
+    audioDurationSeconds?: number;
+    wordCount?: number;
+    totalPauseDurationSeconds?: number;
+    totalPauseCount?: number;
+  } | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
   const [drafts, setDrafts] = useState<Record<number, { text: string; audioUrl?: string }>>(() => {
@@ -90,8 +51,9 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
     }
   });
 
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
-  const finalTranscriptRef = useRef('');
+  const sttSocketRef = useRef<WebSocket | null>(null);
+  const sttFinalTranscriptRef = useRef('');
+  const sttInterimRef = useRef('');
   const isRecordingRef = useRef(isRecording);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -229,6 +191,76 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
     }
   }, []);
 
+  const closeSttSocket = useCallback(() => {
+    if (sttSocketRef.current) {
+      try {
+        sttSocketRef.current.close();
+      } catch {
+        // ignore close errors
+      }
+      sttSocketRef.current = null;
+    }
+  }, []);
+
+  const sendCloseSignal = useCallback(() => {
+    if (sttSocketRef.current && sttSocketRef.current.readyState === WebSocket.OPEN) {
+      sttSocketRef.current.send(JSON.stringify({ type: 'CLOSE_SIGNAL' }));
+    }
+  }, []);
+
+  const connectSttSocket = useCallback(async () => {
+    return new Promise<void>((resolve, reject) => {
+      try {
+        const socket = createLiveSttSocket();
+        sttSocketRef.current = socket;
+        socket.onopen = () => resolve();
+        socket.onerror = (e) => {
+          console.error('STT socket error', e);
+          reject(new Error('?? ??? ????.'));
+        };
+        socket.onclose = () => {
+          sttSocketRef.current = null;
+        };
+        socket.onmessage = (event) => {
+          if (typeof event.data !== 'string') return;
+          try {
+            const payload = JSON.parse(event.data);
+            if (payload.type === 'FINAL_SUMMARY') {
+              setSttSummary({
+                finalTranscript: payload.final_transcript,
+                audioDurationSeconds: payload.audio_duration_seconds,
+                wordCount: payload.word_count,
+                totalPauseDurationSeconds: payload.total_pause_duration_seconds,
+                totalPauseCount: payload.total_pause_count,
+              });
+              sttFinalTranscriptRef.current = payload.final_transcript || sttFinalTranscriptRef.current;
+              setCurrentAnswer(payload.final_transcript || sttFinalTranscriptRef.current);
+              return;
+            }
+            if (payload.transcript) {
+              if (payload.is_final) {
+                sttFinalTranscriptRef.current = `${sttFinalTranscriptRef.current} ${payload.transcript}`.trim();
+                sttInterimRef.current = '';
+              } else {
+                sttInterimRef.current = payload.transcript;
+              }
+              const combined = `${sttFinalTranscriptRef.current} ${sttInterimRef.current}`.trim();
+              setCurrentAnswer(combined);
+              const question = questions[currentQuestionIndex];
+              if (question) {
+                updateDraft(question.id, { text: combined });
+              }
+            }
+          } catch {
+            // ignore parse errors
+          }
+        };
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }, [currentQuestionIndex, questions, updateDraft]);
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -238,10 +270,11 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
   const stopCurrentRecording = useCallback(() => {
     if (isRecordingRef.current) {
       setIsRecording(false);
-      recognitionRef.current?.stop();
       stopAudioRecording();
+      sendCloseSignal();
+      closeSttSocket();
     }
-  }, [stopAudioRecording]);
+  }, [closeSttSocket, sendCloseSignal, stopAudioRecording]);
 
   // Stop any active recording when unmounting or leaving the page
   useEffect(() => {
@@ -292,6 +325,9 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           audioChunksRef.current.push(event.data);
+          if (sttSocketRef.current && sttSocketRef.current.readyState === WebSocket.OPEN) {
+            sttSocketRef.current.send(event.data);
+          }
         }
       };
       recorder.onstop = () => {
@@ -303,29 +339,30 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
           updateDraft(question.id, { audioUrl: url, text: currentAnswer });
         }
         stream.getTracks().forEach((track) => track.stop());
+        sendCloseSignal();
       };
-      recorder.start();
+      recorder.start(800);
       mediaRecorderRef.current = recorder;
     } catch (err) {
       setMicPermission('denied');
-      setInlineError('마이크 권한이 필요합니다. 브라우저 설정을 확인해주세요.');
+      setInlineError('??? ??? ?????. ???? ??? ??????.');
       setIsRecording(false);
       console.error('Microphone access denied or failed', err);
     }
-  }, [currentAnswer, currentQuestionIndex, questions, updateDraft]);
+  }, [currentAnswer, currentQuestionIndex, questions, sendCloseSignal, updateDraft]);
 
-  const handleNext = useCallback((options?: { allowEmpty?: boolean; skipReason?: string }) => {
+    const handleNext = useCallback((options?: { allowEmpty?: boolean; skipReason?: string }) => {
     const question = questions[currentQuestionIndex];
     if (!question) return;
 
     stopCurrentRecording();
-    const trimmed = currentAnswer.trim();
-    if (!options?.allowEmpty && !trimmed) {
+    const finalText = (sttSummary?.finalTranscript || currentAnswer).trim();
+    if (!options?.allowEmpty && !finalText) {
       setInlineError('답변이 비어 있어요. 최소 한 문장을 작성해 주세요.');
       return;
     }
 
-    const answerText = trimmed || options?.skipReason || '이 질문을 건너뛰겠습니다.';
+    const answerText = finalText || options?.skipReason || '이 질문은 건너뛸게요.';
     setInlineError(null);
     setTimeExceeded(false);
 
@@ -333,6 +370,12 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
       questionId: question.id,
       text: answerText,
       audioUrl: recordedAudioUrl || drafts[question.id]?.audioUrl,
+      questionOrder: currentQuestionIndex + 1,
+      questionText: question.text,
+      audioDurationSeconds: sttSummary?.audioDurationSeconds,
+      wordCount: sttSummary?.wordCount,
+      totalPauseDurationSeconds: sttSummary?.totalPauseDurationSeconds,
+      totalPauseCount: sttSummary?.totalPauseCount,
     };
     const updatedAnswers = [...answers, newAnswer];
     setAnswers(updatedAnswers);
@@ -344,7 +387,8 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
       setTimeLeft(perQuestionSeconds);
       setIsTimerPaused(false);
     }
-  }, [answers, currentAnswer, currentQuestionIndex, drafts, onFinish, questions, recordedAudioUrl, stopCurrentRecording]);
+  }, [answers, currentAnswer, currentQuestionIndex, drafts, onFinish, perQuestionSeconds, questions, recordedAudioUrl, sttSummary, stopCurrentRecording]);
+
 
   useEffect(() => {
     setTimeLeft(perQuestionSeconds);
@@ -372,77 +416,26 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
   }, [timeLeft, isTimerPaused, currentAnswer, handleNext]);
 
   useEffect(() => {
-    const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognitionAPI) {
-      setIsSpeechSupported(false);
-      return;
-    }
-
-    const recognition = new SpeechRecognitionAPI();
-    recognitionRef.current = recognition;
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = 'ko-KR';
-
-    recognition.onresult = (event) => {
-      let interimTranscript = '';
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
-        const result = event.results[i];
-        if (result.isFinal) {
-          finalTranscriptRef.current += result[0].transcript;
-        } else {
-          interimTranscript += result[0].transcript;
-        }
-      }
-      const fullTranscript = (finalTranscriptRef.current + ' ' + interimTranscript).trim();
-      setCurrentAnswer(fullTranscript);
-      updateDraft(currentQuestion.id, { text: fullTranscript });
-    };
-
-    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-      if (event.error === 'no-speech') return;
-      console.error('Speech recognition error:', event.error);
-      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-        setIsSpeechSupported(false);
-        setIsRecording(false);
-      }
-    };
-
-    recognition.onend = () => {
-      if (isRecordingRef.current) {
-        try {
-          recognition.start();
-        } catch (e) {
-          console.error('Recognition restart failed', e);
-        }
-      }
-    };
-
     return () => {
       isRecordingRef.current = false;
-      if (recognitionRef.current) {
-        recognitionRef.current.onend = null;
-        recognitionRef.current.onerror = null;
-        recognitionRef.current.onresult = null;
-        recognitionRef.current.stop();
-      }
+      closeSttSocket();
       stopAudioRecording();
     };
-  }, [stopAudioRecording]);
+  }, [closeSttSocket, stopAudioRecording]);
 
-  const toggleRecording = () => {
-    const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognitionAPI) {
-      setIsSpeechSupported(false);
-      return;
-    }
+  const toggleRecording = async () => {
     if (micPermission === 'denied') {
-      setInlineError('마이크 권한이 필요합니다. 브라우저 설정에서 허용해 주세요.');
+      setInlineError('??? ??? ?????. ???? ???? ??? ???.');
       return;
     }
     if (micPermission === 'unknown') {
-      requestMicPermission().catch(() => setInlineError('마이크 권한 요청에 실패했습니다.'));
-      return;
+      try {
+        const ok = await requestMicPermission();
+        if (!ok) return;
+      } catch {
+        setInlineError('??? ?? ??? ??????.');
+        return;
+      }
     }
 
     const newIsRecording = !isRecording;
@@ -450,12 +443,22 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
     setInlineError(null);
 
     if (newIsRecording) {
-      finalTranscriptRef.current = '';
-      recognitionRef.current?.start();
-      startAudioRecording().catch((err) => console.error('Audio recording failed', err));
+      sttFinalTranscriptRef.current = '';
+      sttInterimRef.current = '';
+      setSttSummary(null);
+      try {
+        await connectSttSocket();
+        await startAudioRecording();
+      } catch (err) {
+        console.error('Audio/STT start failed', err);
+        setInlineError('?? ??? ??? ?? ??????.');
+        setIsRecording(false);
+        closeSttSocket();
+      }
     } else {
-      recognitionRef.current?.stop();
       stopAudioRecording();
+      sendCloseSignal();
+      closeSttSocket();
     }
   };
 
@@ -465,8 +468,9 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
     const draft = drafts[question.id];
     const text = draft?.text || '';
     setCurrentAnswer(text);
-    finalTranscriptRef.current = text;
+    sttFinalTranscriptRef.current = text;
     setRecordedAudioUrl(draft?.audioUrl || null);
+    setSttSummary(null);
     setInlineError(null);
     setIsTimerPaused(false);
     stopCurrentRecording();
@@ -497,8 +501,9 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
 
   const handleRetryAnswer = () => {
     setCurrentAnswer('');
-    finalTranscriptRef.current = '';
+    sttFinalTranscriptRef.current = '';
     setRecordedAudioUrl(null);
+    setSttSummary(null);
     setInlineError(null);
     stopCurrentRecording();
   };
@@ -691,3 +696,5 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
 };
 
   export default InterviewSession;
+
+

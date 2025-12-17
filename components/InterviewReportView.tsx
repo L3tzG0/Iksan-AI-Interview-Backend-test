@@ -8,9 +8,10 @@ interface InterviewReportViewProps {
   report: InterviewReport;
 }
 
-const createChips = (paragraph: string) => {
+const createChips = (paragraph?: string | null) => {
+  if (!paragraph) return [];
   return paragraph
-    .split(/[\n•\-]/)
+    .split(/[\n\u0007\-]/)
     .map((item) => item.trim())
     .filter(Boolean)
     .slice(0, 4);
@@ -29,7 +30,7 @@ const RadarChart: React.FC<{ scores: { contentRelevance: number; structure: numb
   }, []);
 
   const axes = [
-    { label: '내용 적합도', key: 'contentRelevance', angle: 0, anchor: 'middle', baseline: 'auto' },
+    { label: '내용 연관성', key: 'contentRelevance', angle: 0, anchor: 'middle', baseline: 'auto' },
     { label: '구조 (STAR)', key: 'structure', angle: Math.PI / 2, anchor: 'start', baseline: 'middle' },
     { label: '유창성', key: 'fluency', angle: Math.PI, anchor: 'middle', baseline: 'hanging' },
     { label: '자신감', key: 'confidence', angle: (3 * Math.PI) / 2, anchor: 'end', baseline: 'middle' },
@@ -108,15 +109,50 @@ const RadarChart: React.FC<{ scores: { contentRelevance: number; structure: numb
 };
 
 const InterviewReportView: React.FC<InterviewReportViewProps> = ({ report }) => {
-  const strengthChips = useMemo(() => createChips(report.summary.strengths), [report.summary.strengths]);
-  const weaknessChips = useMemo(() => createChips(report.summary.areasForGrowth), [report.summary.areasForGrowth]);
+  const detailedFeedback = report.detailedFeedback || [];
+  const scores = useMemo(() => {
+    if (report.scores) return report.scores;
+    if (!detailedFeedback.length) {
+      return { contentRelevance: 0, structure: 0, fluency: 0, confidence: 0 };
+    }
+    const avg = (key: string) =>
+      detailedFeedback.reduce((sum, item: any) => sum + (item?.[key] || 0), 0) / detailedFeedback.length || 0;
+    return {
+      contentRelevance: avg('content_relevance_score'),
+      structure: avg('structure_score'),
+      fluency: avg('fluency_score'),
+      confidence: avg('confidence_score'),
+    };
+  }, [report.scores, detailedFeedback]);
+
+  const totalScore = useMemo(() => {
+    if (typeof report.overallScore === 'number') return report.overallScore;
+    if (typeof report.totalScore === 'number') return report.totalScore;
+    const vals = [scores.contentRelevance, scores.structure, scores.fluency, scores.confidence];
+    return vals.reduce((a, b) => a + b, 0) / (vals.length || 1);
+  }, [report.overallScore, report.totalScore, scores]);
+
+  const strengthText = report.strengthSummary || report.summary?.strengths || '';
+  const weaknessText = report.areasForGrowth || report.summary?.areasForGrowth || '';
+  const strengthChips = useMemo(() => createChips(strengthText), [strengthText]);
+  const weaknessChips = useMemo(() => createChips(weaknessText), [weaknessText]);
   const jumpTargets = useMemo(
-    () => report.detailedFeedback.map((_, idx) => ({ label: `Q${idx + 1}`, id: `question-${idx + 1}` })),
-    [report.detailedFeedback]
+    () => detailedFeedback.map((_, idx) => ({ label: `Q${idx + 1}`, id: `question-${idx + 1}` })),
+    [detailedFeedback]
   );
 
+  const nextSteps = useMemo(() => {
+    if (Array.isArray(report.nextStepsDetailed) && report.nextStepsDetailed.length) return report.nextStepsDetailed;
+    if (Array.isArray(report.nextSteps) && report.nextSteps.length) {
+      return report.nextSteps.map((step) =>
+        typeof step === 'string' ? { title: step, description: step } : { title: step.title, description: step.description }
+      );
+    }
+    return [] as { title: string; description: string }[];
+  }, [report.nextSteps, report.nextStepsDetailed]);
+
   const categoryMeta = [
-    { key: 'contentRelevance', label: '내용 적합도', icon: FileTextIcon, accent: 'text-indigo-600', bg: 'bg-indigo-50' },
+    { key: 'contentRelevance', label: '내용 연관성', icon: FileTextIcon, accent: 'text-indigo-600', bg: 'bg-indigo-50' },
     { key: 'structure', label: '구조/STAR', icon: BrainIcon, accent: 'text-purple-600', bg: 'bg-purple-50' },
     { key: 'fluency', label: '유창성', icon: MicIcon, accent: 'text-pink-600', bg: 'bg-pink-50' },
     { key: 'confidence', label: '자신감', icon: ShieldIcon, accent: 'text-emerald-600', bg: 'bg-emerald-50' },
@@ -128,13 +164,13 @@ const InterviewReportView: React.FC<InterviewReportViewProps> = ({ report }) => 
         <Card className="lg:col-span-1 text-center flex flex-col gap-6">
           <div>
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-[0.25em]">TOTAL</p>
-            <div className="text-6xl font-bold text-primary mt-2">{report.totalScore.toFixed(1)}<span className="text-2xl text-slate-400 font-normal">/10</span></div>
-            <p className="text-xs text-slate-500 mt-2">AI 평가 지표(40 / 30 / 20 / 10%) 반영</p>
+            <div className="text-6xl font-bold text-primary mt-2">{totalScore.toFixed(1)}<span className="text-2xl text-slate-400 font-normal">/10</span></div>
+            <p className="text-xs text-slate-500 mt-2">AI 평가(40 / 30 / 20 / 10%) 기반</p>
           </div>
           <div className="grid gap-3">
             {categoryMeta.map((category) => {
               const Icon = category.icon;
-              const score = report.scores[category.key];
+              const score = scores[category.key];
               return (
                 <div key={category.key} className="flex items-center justify-between rounded-[14px] border border-slate-100 px-4 py-3 bg-white/90 shadow-inner shadow-white/60">
                   <div className="flex items-center gap-3">
@@ -143,7 +179,7 @@ const InterviewReportView: React.FC<InterviewReportViewProps> = ({ report }) => 
                     </span>
                     <span className="font-semibold text-slate-700">{category.label}</span>
                   </div>
-                  <span className="font-bold text-slate-900">{score}</span>
+                  <span className="font-bold text-slate-900">{score.toFixed(1)}</span>
                 </div>
               );
             })}
@@ -151,15 +187,15 @@ const InterviewReportView: React.FC<InterviewReportViewProps> = ({ report }) => 
         </Card>
 
         <Card className="lg:col-span-2">
-          <h3 className="text-sm text-slate-500 font-semibold uppercase tracking-widest text-center mb-4">세부 지표</h3>
-          <RadarChart scores={report.scores} />
+          <h3 className="text-sm text-slate-500 font-semibold uppercase tracking-widest text-center mb-4">점수 레이더</h3>
+          <RadarChart scores={scores} />
         </Card>
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
         <Card className="bg-green-50/60 border border-green-200/60">
           <h3 className="font-bold text-xl mb-3 text-green-700 flex items-center gap-2">
-            <CheckCircleIcon className="w-5 h-5" /> 강점 포인트
+            <CheckCircleIcon className="w-5 h-5" /> 강점 요약
           </h3>
           <div className="flex flex-wrap gap-2 mb-3">
             {strengthChips.map((chip, index) => (
@@ -168,12 +204,11 @@ const InterviewReportView: React.FC<InterviewReportViewProps> = ({ report }) => 
               </span>
             ))}
           </div>
-          <p className="text-slate-600 leading-relaxed">{report.summary.strengths}</p>
+          <p className="text-slate-600 leading-relaxed">{strengthText || '강점 요약이 없습니다.'}</p>
         </Card>
         <Card className="bg-primary-lightest/70 border border-primary-light">
           <h3 className="font-bold text-xl mb-3 text-primary flex items-center gap-2">
-            <AlertTriangleIcon className="w-5 h-5" />
-            보완이 필요한 점
+            <AlertTriangleIcon className="w-5 h-5" /> 개선 영역
           </h3>
           <div className="flex flex-wrap gap-2 mb-3">
             {weaknessChips.map((chip, index) => (
@@ -182,13 +217,13 @@ const InterviewReportView: React.FC<InterviewReportViewProps> = ({ report }) => 
               </span>
             ))}
           </div>
-          <p className="text-slate-600 leading-relaxed">{report.summary.areasForGrowth}</p>
+          <p className="text-slate-600 leading-relaxed">{weaknessText || '개선 영역 요약이 없습니다.'}</p>
         </Card>
       </div>
 
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-          <h2 className="text-2xl font-bold text-slate-800">질문별 상세 피드백</h2>
+          <h2 className="text-2xl font-bold text-slate-800">문항별 피드백</h2>
           <div className="flex flex-wrap gap-2">
             {jumpTargets.map((target) => (
               <button
@@ -205,48 +240,58 @@ const InterviewReportView: React.FC<InterviewReportViewProps> = ({ report }) => 
           </div>
         </div>
         <div className="space-y-4">
-          {report.detailedFeedback.map((item, index) => (
-            <details
-              key={index}
-              id={`question-${index + 1}`}
-              className={`group rounded-[18px] border transition-all ${
-                item.isCorrect ? 'bg-green-50 border-green-200' : 'bg-white border-slate-200 shadow-sm'
-              }`}
-            >
-              <summary className="cursor-pointer list-none px-6 py-4 flex items-center gap-3">
-                <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${item.isCorrect ? 'bg-green-200 text-green-800' : 'bg-primary-light text-primary'}`}>
-                  Q{index + 1}
-                </div>
-                <div className="flex flex-col gap-1">
-                  <p className="font-semibold text-slate-800 text-base">{item.question}</p>
-                  <p className="text-xs text-slate-500">학생 답변 요약 보기</p>
-                </div>
-              </summary>
-              <div className="px-6 pb-6 space-y-3">
-                <div className="bg-white/60 p-4 rounded-[14px] border border-slate-200">
-                  <p className="text-xs font-bold uppercase text-slate-500 mb-1">학생 답변</p>
-                  <p className="text-slate-700 italic">"{item.answer}"</p>
-                </div>
-                <div className={`p-4 rounded-[14px] ${item.isCorrect ? 'bg-green-100/50' : 'bg-primary-lightest'}`}>
-                  <div className="flex justify-between items-center mb-2">
-                    <h4 className={`font-bold text-sm flex items-center gap-2 ${item.isCorrect ? 'text-green-800' : 'text-primary'}`}>
-                      <BrainIcon className="w-4 h-4" />
-                      AI 코칭 요약
-                    </h4>
-                    <span className="font-bold text-sm bg-white px-2 py-1 rounded shadow-sm">점수: {item.score}/10</span>
+          {detailedFeedback.map((item: any, index) => {
+            const questionText = item.question || item.question_text || `Q${index + 1}`;
+            const answerText = item.answer || item.answer_text || '';
+            const evaluation = item.evaluation || item.feedback || '';
+            const isCorrect = item.is_correct ?? item.isCorrect ?? null;
+            const score = item.overall_score ?? item.score ?? item.content_relevance_score ?? null;
+            return (
+              <details
+                key={index}
+                id={`question-${index + 1}`}
+                className={`group rounded-[18px] border transition-all ${
+                  isCorrect ? 'bg-green-50 border-green-200' : 'bg-white border-slate-200 shadow-sm'
+                }`}
+              >
+                <summary className="cursor-pointer list-none px-6 py-4 flex items-center gap-3">
+                  <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${
+                    isCorrect ? 'bg-green-200 text-green-800' : 'bg-primary-light text-primary'
+                  }`}>
+                    Q{index + 1}
                   </div>
-                  <p className="text-sm text-slate-700 leading-relaxed">{item.evaluation}</p>
+                  <div className="flex flex-col gap-1">
+                    <p className="font-semibold text-slate-800 text-base">{questionText}</p>
+                    <p className="text-xs text-slate-500">문항별 평가</p>
+                  </div>
+                </summary>
+                <div className="px-6 pb-6 space-y-3">
+                  <div className="bg-white/60 p-4 rounded-[14px] border border-slate-200">
+                    <p className="text-xs font-bold uppercase text-slate-500 mb-1">내 답변</p>
+                    <p className="text-slate-700 italic">"{answerText || '답변이 제공되지 않았습니다.'}"</p>
+                  </div>
+                  <div className={`p-4 rounded-[14px] ${isCorrect ? 'bg-green-100/50' : 'bg-primary-lightest'}`}>
+                    <div className="flex justify-between items-center mb-2">
+                      <h4 className={`font-bold text-sm flex items-center gap-2 ${isCorrect ? 'text-green-800' : 'text-primary'}`}>
+                        <BrainIcon className="w-4 h-4" />
+                        AI 피드백
+                      </h4>
+                      {score !== null && <span className="font-bold text-sm bg-white px-2 py-1 rounded shadow-sm">점수: {score}</span>}
+                    </div>
+                    <p className="text-sm text-slate-700 leading-relaxed">{evaluation || '피드백이 제공되지 않았습니다.'}</p>
+                  </div>
                 </div>
-              </div>
-            </details>
-          ))}
+              </details>
+            );
+          })}
+          {detailedFeedback.length === 0 && <p className="text-sm text-slate-500">문항별 피드백이 아직 없습니다.</p>}
         </div>
       </Card>
 
       <Card>
-        <h2 className="text-2xl font-bold mb-4 text-slate-800">학습 추천 단계</h2>
+        <h2 className="text-2xl font-bold mb-4 text-slate-800">다음 단계</h2>
         <div className="space-y-4">
-          {report.nextSteps.map((step, index) => (
+          {nextSteps.map((step, index) => (
             <div key={index} className="flex gap-4 items-start bg-white/80 border border-slate-100 rounded-[16px] p-4">
               <div className="bg-primary-light text-primary font-bold rounded-full w-8 h-8 flex items-center justify-center flex-shrink-0 mt-1">
                 {index + 1}
@@ -257,6 +302,7 @@ const InterviewReportView: React.FC<InterviewReportViewProps> = ({ report }) => 
               </div>
             </div>
           ))}
+          {nextSteps.length === 0 && <p className="text-sm text-slate-500">다음 단계 제안이 없습니다.</p>}
         </div>
       </Card>
     </div>

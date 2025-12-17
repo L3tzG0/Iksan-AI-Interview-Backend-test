@@ -1,4 +1,5 @@
 import { getStoredToken } from './authService';
+import type { School, Major, User, ClassRoom } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'https://iksan-ai-interview-backend-production.up.railway.app';
 
@@ -56,7 +57,7 @@ const parseBulkErrorMessage = (data: any, fallback: string) => {
 export const bulkCreateStudents = async (file: File): Promise<BulkCreateResult> => {
   const formData = new FormData();
   formData.append('file', file);
-  const response = await fetch(`${API_BASE}/api/v1/student/bulk-create`, {
+  const response = await fetch(`${API_BASE}/api/v1/students/bulk-create`, {
     method: 'POST',
     headers: {
       ...authHeaders(),
@@ -97,5 +98,359 @@ export const bulkCreateStudents = async (file: File): Promise<BulkCreateResult> 
     created,
     failed,
     errors,
+  };
+};
+
+export interface StudentSessionResponse {
+  id: string;
+  started_at?: string;
+  startedAt?: string;
+  completed_at?: string;
+  completedAt?: string;
+  total_score?: number;
+  totalScore?: number;
+  status?: string;
+  intent?: string;
+  student_id?: string;
+  studentId?: string;
+}
+
+export const fetchStudentSessions = async () => {
+  const response = await fetch(`${API_BASE}/api/v1/sessions/`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(),
+    },
+  });
+
+  let data: StudentSessionResponse[] = [];
+  try {
+    data = await response.json();
+  } catch {
+    // keep data empty
+  }
+
+  if (!response.ok) {
+    const msg = typeof data === 'string' ? data : (data as any)?.message || (data as any)?.error;
+    throw new Error(msg || '학생 세션 내역을 불러오지 못했습니다.');
+  }
+
+  return Array.isArray(data) ? data : [];
+};
+
+export const fetchAllSessions = async () => {
+  const response = await fetch(`${API_BASE}/api/v1/sessions/all`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(),
+    },
+  });
+
+  let data: StudentSessionResponse[] = [];
+  try {
+    data = await response.json();
+  } catch {
+    // keep data empty
+  }
+
+  if (!response.ok) {
+    const msg = typeof data === 'string' ? data : (data as any)?.message || (data as any)?.error;
+    throw new Error(msg || '세션 내역을 불러오지 못했습니다.');
+  }
+
+  return Array.isArray(data) ? data : [];
+};
+
+export const fetchStudentSessionDetail = async (sessionId: string) => {
+  const response = await fetch(`${API_BASE}/api/v1/sessions/${sessionId}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(),
+    },
+  });
+
+  let data: any = null;
+  try {
+    data = await response.json();
+  } catch {
+    // ignore JSON parse issues; fall back to null
+  }
+
+  if (!response.ok) {
+    const msg = typeof data === 'string' ? data : data?.message || data?.error;
+    throw new Error(msg || '세션 상세를 불러오지 못했습니다.');
+  }
+
+  return data;
+};
+
+export interface PaginatedSchools {
+  data: School[];
+  total?: number;
+  page?: number;
+  pageSize?: number;
+}
+
+export const fetchSchools = async (page = 1, pageSize = 20): Promise<PaginatedSchools> => {
+  const response = await fetch(`${API_BASE}/api/v1/schools?page=${page}&page_size=${pageSize}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(),
+    },
+  });
+
+  let data: any = null;
+  try {
+    data = await response.json();
+  } catch {
+    // ignore parsing errors
+  }
+
+  if (!response.ok) {
+    const msg = typeof data === 'string' ? data : data?.message || data?.error;
+    throw new Error(msg || '학교 목록을 불러오지 못했습니다.');
+  }
+
+  const schools = data?.data || data?.schools || data || [];
+  const total = data?.total ?? data?.total_count ?? data?.count;
+  const normalized: School[] = Array.isArray(schools)
+    ? schools.map((s: any) => ({
+        id: String(s.id ?? s.school_id ?? s.uuid ?? s.code ?? ''),
+        name: s.name ?? s.school_name ?? s.title ?? '',
+      }))
+    : [];
+
+  return {
+    data: normalized,
+    total,
+    page: data?.page ?? page,
+    pageSize: data?.page_size ?? pageSize,
+  };
+};
+
+export interface PaginatedMajors {
+  data: Major[];
+  total?: number;
+  page?: number;
+  pageSize?: number;
+}
+
+export const fetchMajors = async (page = 1, pageSize = 20): Promise<PaginatedMajors> => {
+  const response = await fetch(`${API_BASE}/api/v1/majors?page=${page}&page_size=${pageSize}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(),
+    },
+  });
+
+  let data: any = null;
+  try {
+    data = await response.json();
+  } catch {
+    // ignore parse errors
+  }
+
+  if (!response.ok) {
+    const msg = typeof data === 'string' ? data : data?.message || data?.error;
+    throw new Error(msg || '전공 목록을 불러오지 못했습니다.');
+  }
+
+  const majors = data?.data || data?.majors || data || [];
+  const total = data?.total ?? data?.total_count ?? data?.count;
+  const normalized: Major[] = Array.isArray(majors)
+    ? majors.map((m: any) => ({
+        id: String(m.id ?? m.major_id ?? m.uuid ?? m.code ?? ''),
+        name: m.name ?? m.major_name ?? m.title ?? '',
+        schoolId: m.school_id || m.schoolId,
+        schoolName: m.school_name || m.schoolName,
+      }))
+    : [];
+
+  return {
+    data: normalized,
+    total,
+    page: data?.page ?? page,
+    pageSize: data?.page_size ?? pageSize,
+  };
+};
+
+export interface PaginatedUsers {
+  data: User[];
+  total?: number;
+  page?: number;
+  pageSize?: number;
+}
+
+export const fetchUsers = async ({
+  page = 1,
+  pageSize = 20,
+  role,
+  schoolId,
+  search,
+}: {
+  page?: number;
+  pageSize?: number;
+  role?: User['role'] | 'all';
+  schoolId?: string;
+  search?: string;
+} = {}): Promise<PaginatedUsers> => {
+  const params = new URLSearchParams();
+  params.set('page', String(page));
+  params.set('page_size', String(pageSize));
+  if (role && role !== 'all') params.set('role', role);
+  if (schoolId) params.set('school_id', schoolId);
+  if (search) params.set('search', search);
+
+  const response = await fetch(`${API_BASE}/api/v1/users?${params.toString()}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(),
+    },
+  });
+
+  let data: any = null;
+  try {
+    data = await response.json();
+  } catch {
+    // ignore parse errors
+  }
+
+  if (!response.ok) {
+    const msg = typeof data === 'string' ? data : data?.message || data?.error;
+    throw new Error(msg || '사용자 목록을 불러오지 못했습니다.');
+  }
+
+  const users = data?.data || data?.users || data || [];
+  const total = data?.total ?? data?.total_count ?? data?.count;
+
+  const normalized: User[] = Array.isArray(users)
+    ? users.map((u: any) => ({
+        id: u.id || u.user_id || u.uuid || '',
+        name: u.name || u.full_name || u.display_name || '',
+        email: u.email || '',
+        role: (u.role || u.role_name || u.user_role || 'student').toLowerCase(),
+        schoolName: u.school_name || u.school || '',
+        grade: u.grade_level ?? u.grade,
+        major: u.major_name || u.major || '',
+        authToken: undefined,
+      })) as User[]
+    : [];
+
+  return {
+    data: normalized,
+    total,
+    page: data?.page ?? page,
+    pageSize: data?.page_size ?? pageSize,
+  };
+};
+
+export interface PaginatedClasses {
+  data: ClassRoom[];
+  total?: number;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface CreateClassPayload {
+  name: string;
+  grade_level?: number;
+  school_id?: string;
+  school_name?: string;
+}
+
+export const fetchClasses = async ({
+  page = 1,
+  pageSize = 20,
+  schoolId,
+  gradeLevel,
+  search,
+}: {
+  page?: number;
+  pageSize?: number;
+  schoolId?: string;
+  gradeLevel?: number;
+  search?: string;
+} = {}): Promise<PaginatedClasses> => {
+  const params = new URLSearchParams();
+  params.set('page', String(page));
+  params.set('page_size', String(pageSize));
+  if (schoolId) params.set('school_id', schoolId);
+  if (typeof gradeLevel === 'number') params.set('grade_level', String(gradeLevel));
+  if (search) params.set('search', search);
+
+  const response = await fetch(`${API_BASE}/api/v1/classes?${params.toString()}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(),
+    },
+  });
+
+  let data: any = null;
+  try {
+    data = await response.json();
+  } catch {
+    // ignore parse errors
+  }
+
+  if (!response.ok) {
+    const msg = typeof data === 'string' ? data : data?.message || data?.error;
+    throw new Error(msg || '학급 목록을 불러오지 못했습니다.');
+  }
+
+  const classes = data?.data || data?.classes || data || [];
+  const total = data?.total ?? data?.total_count ?? data?.count;
+  const normalized: ClassRoom[] = Array.isArray(classes)
+    ? classes.map((c: any) => ({
+        id: String(c.id ?? c.class_id ?? c.uuid ?? ''),
+        name: c.name ?? c.class_name ?? '',
+        gradeLevel: c.grade_level ?? c.grade,
+        schoolId: c.school_id || c.schoolId,
+        schoolName: c.school_name || c.schoolName,
+      }))
+    : [];
+
+  return {
+    data: normalized,
+    total,
+    page: data?.page ?? page,
+    pageSize: data?.page_size ?? pageSize,
+  };
+};
+
+export const createClass = async (payload: CreateClassPayload): Promise<ClassRoom> => {
+  const response = await fetch(`${API_BASE}/api/v1/classes`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  let data: any = null;
+  try {
+    data = await response.json();
+  } catch {
+    // ignore parse errors
+  }
+
+  if (!response.ok) {
+    const msg = typeof data === 'string' ? data : data?.message || data?.error;
+    throw new Error(msg || '학급을 생성하지 못했습니다.');
+  }
+
+  return {
+    id: String(data?.id ?? data?.class_id ?? ''),
+    name: data?.name ?? data?.class_name ?? '',
+    gradeLevel: data?.grade_level ?? data?.grade,
+    schoolId: data?.school_id,
+    schoolName: data?.school_name,
   };
 };
