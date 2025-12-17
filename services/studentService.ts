@@ -54,15 +54,16 @@ const parseBulkErrorMessage = (data: any, fallback: string) => {
   return data.message || data.error || data.detail || fallback;
 };
 
-export const bulkCreateStudents = async (file: File): Promise<BulkCreateResult> => {
-  const formData = new FormData();
-  formData.append('file', file);
+export type BulkCreateStudentInput = CreateStudentPayload;
+
+export const bulkCreateStudents = async (students: BulkCreateStudentInput[]): Promise<BulkCreateResult> => {
   const response = await fetch(`${API_BASE}/api/v1/students/bulk-create`, {
     method: 'POST',
     headers: {
+      'Content-Type': 'application/json',
       ...authHeaders(),
     },
-    body: formData,
+    body: JSON.stringify({ students }),
   });
 
   let data: any = null;

@@ -4,7 +4,6 @@ import type { StudentSummary, StudentGoal, User, GeneratedStudentAccount } from 
 import Card from './Card';
 import Button from './ui/Button';
 import { FilterIcon, SortIcon, SearchIcon, ChartIcon } from './icons';
-import templateCsv from '../bulk_template.csv?url';
 import { useToast } from './ui/Toast';
 import { bulkCreateStudents, type BulkRowError } from '../services/studentService';
 
@@ -18,6 +17,8 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser, onSele
   const { tab } = useParams<{ tab?: string }>();
   const tabFromRoute: 'completed' | 'manage' = tab === '2' ? 'manage' : 'completed';
 
+  const templateCsvContent =
+    '\ufeff이름,학교,학년,전공,반\n김학생,스프링필드고등학교,2,컴퓨터공학,A1\n박학생,리버데일고등학교,3,경영학,B2';
   const [students, setStudents] = useState<StudentSummary[]>([]);
   const [activeTab, setActiveTab] = useState<'completed' | 'manage'>(tabFromRoute);
   const [sortOption, setSortOption] = useState<'recent' | 'score' | 'growth'>('recent');
@@ -56,10 +57,13 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser, onSele
 
   const triggerCsvPicker = () => fileInputRef.current?.click();
   const downloadTemplate = () => {
+    const blob = new Blob([templateCsvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.href = templateCsv;
+    link.href = url;
     link.download = 'student_bulk_template.csv';
     link.click();
+    URL.revokeObjectURL(url);
   };
 
   const generateStudentId = (school: string, major: string) => {
@@ -497,7 +501,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser, onSele
                   <p className="text-xs text-slate-500 mb-3">여러 학생을 한 번에 등록합니다.</p>
                   <div className="flex items-center gap-2 flex-wrap">
                     <Button variant="secondary" onClick={downloadTemplate} className="text-sm">
-                      Template Download
+                      CSV 템플릿 다운로드
                     </Button>
                     <input
                       ref={fileInputRef}

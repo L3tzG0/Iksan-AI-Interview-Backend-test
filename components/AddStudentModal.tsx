@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useRef } from 'react';
 import Button from './ui/Button';
 import ProgressBar from './ui/ProgressBar';
-import { createStudent, bulkCreateStudents, type BulkRowError } from '../services/studentService';
+import { createStudent, bulkCreateStudents, type BulkRowError, type BulkCreateStudentInput } from '../services/studentService';
 import { useToast } from './ui/Toast';
 
 interface AddStudentModalProps {
@@ -35,6 +35,7 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClose, defa
   const [isBulkSaving, setIsBulkSaving] = useState(false);
   const [bulkMessage, setBulkMessage] = useState<string | null>(null);
   const [bulkErrors, setBulkErrors] = useState<BulkRowError[]>([]);
+  const [parsedStudents, setParsedStudents] = useState<BulkCreateStudentInput[]>([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { addToast } = useToast();
 
@@ -58,8 +59,11 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClose, defa
         class_name: classLabel.trim() || undefined,
         grade_level: gradeYear,
       });
-      const studentId = res.studentId || res.student_id || res.id || `${normalizeCode(school, 'SCH')}${normalizeCode(major, 'GEN')}${Math.floor(Math.random() * 9000 + 1000)}`;
-      const pw = res.tempPassword || res.password || `PW${Math.floor(Math.random() * 9000 + 1000)}`;
+      const studentId = res.studentId || res.student_id || res.id;
+      const pw = res.tempPassword || res.password;
+      if (!studentId || !pw) {
+        throw new Error('서버에서 학생 ID/PW가 반환되지 않았습니다.');
+      }
       setGeneratedId(studentId);
       setTempPassword(pw);
       addToast('ID/PW가 생성되었습니다.', 'success');
@@ -83,6 +87,7 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClose, defa
     setCsvSummary(null);
     setCsvError(null);
     setSelectedCsv(null);
+    setParsedStudents([]);
     setBulkMessage(null);
     setBulkErrors([]);
   };
@@ -95,6 +100,7 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClose, defa
     setCsvSummary(null);
     setBulkMessage(null);
     setBulkErrors([]);
+    setParsedStudents([]);
     const reader = new FileReader();
     reader.onload = () => {
       const text = String(reader.result || '');
@@ -107,11 +113,22 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClose, defa
         return;
       }
       let valid = 0;
+      const students: BulkCreateStudentInput[] = [];
       lines.forEach((line) => {
         const cols = line.split(',').map((c) => c.trim());
-        if (cols.length >= 4 && ['1', '2', '3'].includes(cols[2])) valid += 1;
+        if (cols.length >= 4 && ['1', '2', '3'].includes(cols[2])) {
+          valid += 1;
+          students.push({
+            full_name: cols[0],
+            school_name: cols[1],
+            grade_level: Number(cols[2]),
+            major_name: cols[3],
+            class_name: cols[4] || undefined,
+          });
+        }
       });
       setCsvSummary({ total: lines.length, valid });
+      setParsedStudents(students);
       if (valid === 0) setCsvError('형식: 이름, 학교, 학년(1/2/3), 전공, 반(선택)');
     };
     reader.onerror = () => setCsvError('CSV를 읽지 못했습니다.');
@@ -121,15 +138,18 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClose, defa
   const triggerCsv = () => fileInputRef.current?.click();
 
   const handleBulkUpload = async () => {
-    if (!selectedCsv) return;
+    if (!selectedCsv || !parsedStudents.length) {
+      setCsvError('유효한 학생 정보가 없습니다.');
+      return;
+    }
     setIsBulkSaving(true);
     setBulkMessage(null);
     setCsvError(null);
     setBulkErrors([]);
     try {
-      const res = await bulkCreateStudents(selectedCsv);
-      const total = res?.total || csvSummary?.total || 0;
-      const created = res?.created || csvSummary?.valid || 0;
+      const res = await bulkCreateStudents(parsedStudents);
+      const total = res?.total || parsedStudents.length || csvSummary?.total || 0;
+      const created = res?.created || parsedStudents.length || csvSummary?.valid || 0;
       const failed = res?.failed ?? Math.max(total - created, 0);
       setBulkMessage(`업로드 결과: ${created}/${total} 추가, 실패 ${failed}`);
       if (res?.errors?.length) {
