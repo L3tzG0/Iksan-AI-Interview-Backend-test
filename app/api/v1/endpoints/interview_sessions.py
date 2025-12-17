@@ -113,7 +113,7 @@ async def get_my_sessions(
     return JSONResponse(content=jsonable_encoder(response.dict()))
 
 
-@router.get("/all", response_model=SessionListForAdminsResponse)
+@router.get("/all", response_model=SessionListForAdminsResponse, summary="Retrieve student interview session history")
 @limiter.limit(settings.RATE_LIMIT_DEFAULT)
 async def get_sessions_with_students(
     request: Request,
@@ -124,7 +124,7 @@ async def get_sessions_with_students(
     status_filter: Optional[str] = Query(default=None, description="Filter by status (completed, in_progress, failed)")
 ):
     """
-    List interview sessions across students.
+    Retrieve student interview session history
 
     - Admins: All students across the system.
     - Teachers: Only students within their school.
