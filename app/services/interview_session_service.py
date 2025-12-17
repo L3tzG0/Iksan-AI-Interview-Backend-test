@@ -16,7 +16,7 @@ SESSION_COLUMNS_WITH_DETAILS = """
     )
 """
 SESSION_COLUMNS_WITH_STUDENT_INFO = """
-    id, status, total_score, completed_at, created_at,
+    id, status, type, total_score, completed_at, created_at,
     students!inner(
         id, student_id, school_id,
         user_profiles(full_name),
@@ -343,6 +343,7 @@ class InterviewSessionService:
             {
                 "id": session["id"],
                 "status": session["status"],
+                "interview_type": session.get("type"),
                 "total_score": session.get("total_score"),
                 "completed_at": session.get("completed_at"),
                 "created_at": session["created_at"]
@@ -394,6 +395,7 @@ class InterviewSessionService:
 
         return {
             "session_id": session.get("id"),
+            "interview_type": session.get("type"),
             "student_name": profile.get("full_name") if isinstance(profile, dict) else None,
             "student_identifier": student.get("student_id") if isinstance(student, dict) else None,
             "school_name": school.get("school_name") if include_school and isinstance(school, dict) else None,

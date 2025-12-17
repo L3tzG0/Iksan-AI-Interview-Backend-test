@@ -61,6 +61,7 @@ class SessionHistoryItem(BaseModel):
     """Single session history item for listing"""
     id: int
     status: str
+    interview_type: Optional[str] = None
     total_score: Optional[float] = None
     completed_at: Optional[FlexibleDateTime] = None
     created_at: FlexibleDateTime
@@ -81,6 +82,7 @@ class SessionHistoryResponse(BaseModel):
 class SessionWithStudentInfo(BaseModel):
     """Admin/teacher view of sessions with student context."""
     session_id: int
+    interview_type: Optional[str] = None
     student_name: Optional[str]
     student_identifier: Optional[str]
     school_name: Optional[str] = None
