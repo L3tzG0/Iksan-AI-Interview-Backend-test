@@ -31,7 +31,9 @@ from app.schemas.interview_session import (
     SessionQueueResponse,
     SessionHistoryItem,
     SessionHistoryResponse,
+    SessionListForAdminsResponse,
     SessionSubmitRequest,
+    SessionWithStudentInfo,
     SessionFeedbackResponse,
     SessionDetailResponse,
     FeedbackDetail,
@@ -106,6 +108,58 @@ async def get_my_sessions(
     
     response = SessionHistoryResponse(
         sessions=session_items,
+        total_count=total
+    )
+    return JSONResponse(content=jsonable_encoder(response.dict()))
+
+
+@router.get("/all", response_model=SessionListForAdminsResponse)
+@limiter.limit(settings.RATE_LIMIT_DEFAULT)
+async def get_sessions_with_students(
+    request: Request,
+    supabase: Annotated[AsyncClient, Depends(get_supabase)],
+    role_context: RoleContext = Depends(require_role(["teacher", "admin"])),
+    skip: int = Query(default=0, ge=0, description="Number of records to skip"),
+    limit: int = Query(default=20, ge=1, le=100, description="Maximum records to return"),
+    status_filter: Optional[str] = Query(default=None, description="Filter by status (completed, in_progress, failed)")
+):
+    """
+    List interview sessions across students.
+
+    - Admins: All students across the system.
+    - Teachers: Only students within their school.
+    """
+    session_service = InterviewSessionService(supabase)
+
+    school_id: Optional[int] = None
+    if role_context.role_name == "teacher":
+        teacher_response = await supabase.table("teachers").select("school_id").eq("user_id", str(role_context.user.id)).single().execute()
+        school_id = teacher_response.data.get("school_id") if teacher_response and teacher_response.data else None
+        if not school_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Teacher is not associated with a school"
+            )
+
+    sessions, total = await session_service.get_sessions_with_student_info(
+        skip=skip,
+        limit=limit,
+        status_filter=status_filter,
+        school_id=school_id
+    )
+
+    shaped_sessions = [
+        SessionWithStudentInfo.model_construct(
+            **session_service.shape_session_with_student_info(
+                session,
+                include_school=(role_context.role_name == "admin")
+            )
+        )
+        for session in sessions
+    ]
+
+    response = SessionListForAdminsResponse(
+        sessions=shaped_sessions,
         total_count=total
     )
     return JSONResponse(content=jsonable_encoder(response.dict()))

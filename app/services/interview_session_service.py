@@ -15,6 +15,16 @@ SESSION_COLUMNS_WITH_DETAILS = """
         majors(id, major_name)
     )
 """
+SESSION_COLUMNS_WITH_STUDENT_INFO = """
+    id, status, total_score, completed_at, created_at,
+    students!inner(
+        id, student_id, school_id,
+        user_profiles(full_name),
+        schools(id, school_name),
+        majors(id, major_name),
+        classes(id, class_name, grade_level)
+    )
+"""
 SESSION_WITH_FEEDBACKS = """
     id, student_id, status, type, total_score, completed_at, created_at,
     detailed_feedbacks(
@@ -288,6 +298,44 @@ class InterviewSessionService:
                 detail=f"Failed to fetch sessions: {str(e)}"
             )
 
+    async def get_sessions_with_student_info(
+        self,
+        skip: int = 0,
+        limit: int = 20,
+        status_filter: Optional[str] = None,
+        school_id: Optional[int] = None
+    ) -> Tuple[List[dict], int]:
+        """
+        Get sessions with student context for admin/teacher views.
+
+        Args:
+            skip: Number of records to skip
+            limit: Maximum records to return
+            status_filter: Optional session status filter
+            school_id: Optional school scoping (teachers)
+
+        Returns:
+            Tuple of (list of sessions, total count)
+        """
+        try:
+            def build_query():
+                base_query = self.supabase.table('sessions').select(
+                    SESSION_COLUMNS_WITH_STUDENT_INFO,
+                    count='exact'
+                )
+                if status_filter:
+                    base_query = base_query.eq('status', status_filter)
+                if school_id is not None:
+                    base_query = base_query.eq('students.school_id', school_id)
+                return base_query.order('created_at', desc=True)
+
+            return await paginate_query(build_query, skip, limit)
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to fetch sessions with student info: {str(e)}"
+            )
+
     @staticmethod
     def build_history_payloads(sessions: List[dict]) -> List[dict]:
         """Create lightweight session payloads for history responses without validation overhead."""
@@ -317,3 +365,43 @@ class InterviewSessionService:
                 normalized.append(record)
 
         return sorted(normalized, key=itemgetter(key))
+
+    @staticmethod
+    def shape_session_with_student_info(session: dict, include_school: bool = False) -> dict:
+        """Map raw session record to admin/teacher response shape."""
+        student = session.get("students") if isinstance(session, dict) else None
+        if isinstance(student, list):
+            student = student[0] if student else None
+
+        profile = None
+        school = None
+        major = None
+        class_info = None
+        if isinstance(student, dict):
+            profile = student.get("user_profiles")
+            school = student.get("schools")
+            major = student.get("majors")
+            class_info = student.get("classes")
+
+        if isinstance(profile, list):
+            profile = profile[0] if profile else None
+        if isinstance(school, list):
+            school = school[0] if school else None
+        if isinstance(major, list):
+            major = major[0] if major else None
+        if isinstance(class_info, list):
+            class_info = class_info[0] if class_info else None
+
+        return {
+            "session_id": session.get("id"),
+            "student_name": profile.get("full_name") if isinstance(profile, dict) else None,
+            "student_identifier": student.get("student_id") if isinstance(student, dict) else None,
+            "school_name": school.get("school_name") if include_school and isinstance(school, dict) else None,
+            "major_name": major.get("major_name") if isinstance(major, dict) else None,
+            "class_name": class_info.get("class_name") if isinstance(class_info, dict) else None,
+            "grade_level": class_info.get("grade_level") if isinstance(class_info, dict) else None,
+            "total_score": session.get("total_score"),
+            "status": session.get("status"),
+            "completed_at": session.get("completed_at"),
+            "created_at": session.get("created_at"),
+        }

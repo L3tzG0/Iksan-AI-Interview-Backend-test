@@ -78,6 +78,32 @@ class SessionHistoryResponse(BaseModel):
         from_attributes = True
 
 
+class SessionWithStudentInfo(BaseModel):
+    """Admin/teacher view of sessions with student context."""
+    session_id: int
+    student_name: Optional[str]
+    student_identifier: Optional[str]
+    school_name: Optional[str] = None
+    major_name: Optional[str] = None
+    class_name: Optional[str] = None
+    grade_level: Optional[int] = None
+    total_score: Optional[float] = None
+    status: str
+    completed_at: Optional[FlexibleDateTime] = None
+    created_at: FlexibleDateTime
+
+    class Config:
+        from_attributes = True
+
+
+class SessionListForAdminsResponse(BaseModel):
+    sessions: List[SessionWithStudentInfo]
+    total_count: int
+
+    class Config:
+        from_attributes = True
+
+
 class QnAItem(BaseModel):
     """Single Q&A item in the conversation history"""
     question: str
