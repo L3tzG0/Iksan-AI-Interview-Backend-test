@@ -6,9 +6,9 @@ from fastapi import HTTPException, status
 from app.utils.pagination import paginate_query
 
 # Explicit columns to select for sessions (avoiding SELECT *)
-SESSION_COLUMNS = "id, student_id, status, total_score, completed_at, created_at"
+SESSION_COLUMNS = "id, student_id, status, type, total_score, completed_at, created_at"
 SESSION_COLUMNS_WITH_DETAILS = """
-    id, student_id, status, total_score, completed_at, created_at,
+    id, student_id, status, type, total_score, completed_at, created_at,
     students(id, user_id, school_id, major_id,
         user_profiles(id, full_name, email),
         schools(id, school_name),
@@ -16,7 +16,7 @@ SESSION_COLUMNS_WITH_DETAILS = """
     )
 """
 SESSION_WITH_FEEDBACKS = """
-    id, student_id, status, total_score, completed_at, created_at,
+    id, student_id, status, type, total_score, completed_at, created_at,
     detailed_feedbacks(
         id, question_order, question_text, answer_text, evaluation_text,
         is_correct, content_relevance_score, structure_score, 
@@ -33,13 +33,14 @@ class InterviewSessionService:
     def __init__(self, supabase: AsyncClient):
         self.supabase = supabase
     
-    async def create_session(self, student_id: int, status: str = "in_progress") -> dict:
+    async def create_session(self, student_id: int, status: str = "in_progress", session_type: str = "job") -> dict:
         """
         Create new interview session
         
         Args:
             student_id: ID of the student
             status: Initial status (default: "in_progress")
+            session_type: Session type (job or university)
         
         Returns:
             dict: Created session record
@@ -48,9 +49,17 @@ class InterviewSessionService:
             HTTPException: If creation fails
         """
         try:
+            allowed_types = {"job", "university"}
+            if session_type not in allowed_types:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid session type '{session_type}'. Must be one of: {', '.join(sorted(allowed_types))}."
+                )
+
             session_data = {
                 "student_id": student_id,
-                "status": status
+                "status": status,
+                "type": session_type
             }
             
             response = await self.supabase.table('sessions').insert(session_data).execute()

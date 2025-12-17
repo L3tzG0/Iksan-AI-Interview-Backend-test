@@ -345,6 +345,7 @@ async def get_session_detail(
         session_id=session["id"],
         student_id=session["student_id"],
         status=session["status"],
+        interview_type=session.get("type"),
         total_score=session.get("total_score"),
         created_at=session["created_at"],
         completed_at=session.get("completed_at"),
@@ -415,7 +416,11 @@ async def initiate_interview_session(
         
         # Step 2: Create session
         # NOTE: Status is set to "pending" instead of the synchronous "in_progress"
-        session = await session_service.create_session(student_id=student_id, status="pending")
+        session = await session_service.create_session(
+            student_id=student_id,
+            status="pending",
+            session_type="job"
+        )
         session_id = session['id']
         assert session_id is not None, "Session ID must be set after creation"
         
@@ -562,7 +567,11 @@ async def initiate_university_prep_session(
         student_id = student_details.get("id")
         
         # Step 2: Create session with initial 'pending' status (CHANGED from "in_progress")
-        session = await session_service.create_session(student_id=student_id, status="pending")
+        session = await session_service.create_session(
+            student_id=student_id,
+            status="pending",
+            session_type="university"
+        )
         session_id = session['id']
         assert session_id is not None, "Session ID must be set after creation"
         

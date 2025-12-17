@@ -130,6 +130,7 @@ class SessionDetailResponse(BaseModel):
     session_id: int
     student_id: int
     status: str
+    interview_type: Optional[str] = None
     total_score: Optional[float] = None
     created_at: FlexibleDateTime
     completed_at: Optional[FlexibleDateTime] = None
