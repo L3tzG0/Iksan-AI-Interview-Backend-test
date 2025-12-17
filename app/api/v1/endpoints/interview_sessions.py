@@ -43,7 +43,7 @@ from app.schemas.interview_session import (
 )
 from app.schemas.pagination import PaginatedResponse, create_paginated_response
 from app.services.document_service import DocumentService
-from app.services.interview_session_service import InterviewSessionService
+from app.services.interview_session_service import InterviewSessionService, CalculatedAverages
 from app.services.text_extraction_service import TextExtractionService
 from app.services.feedback_service import FeedbackService
 from app.services.user_service import UserProfileService
@@ -275,6 +275,7 @@ async def submit_session_answers(
             detail=f"Failed to queue session evaluation job. Session marked as failed. Error: {error_detail}"
         )
 
+
 # --- ASYNCHRONOUS FLOW - STEP 2: STATUS CHECK (Polling) ---
 @router.get("/status/{session_id}", response_model=SessionStatusResponse)
 async def get_session_status(
@@ -405,6 +406,16 @@ async def get_session_detail(
         # Admins can view any session
         pass
     
+    # --- CALCULATE DIMENSION AVERAGES (NEW LOGIC) ---
+    raw_feedbacks = session.get("detailed_feedbacks", [])
+    
+    if raw_feedbacks:
+        # Calculate the dimension averages using the service logic
+        calculated_averages: CalculatedAverages = session_service.calculate_session_dimension_averages(raw_feedbacks)
+    else:
+        calculated_averages = CalculatedAverages(0.0, 0.0, 0.0, 0.0)
+    
+
     # Transform detailed_feedbacks from database format
     sorted_feedbacks = session_service.normalize_ordered_records(
         session.get("detailed_feedbacks"),
@@ -458,6 +469,10 @@ async def get_session_detail(
         status=session["status"],
         interview_type=session.get("type"),
         total_score=session.get("total_score"),
+        avg_cr=calculated_averages.avg_cr,
+        avg_st=calculated_averages.avg_st,
+        avg_fl=calculated_averages.avg_fl,
+        avg_cp=calculated_averages.avg_cp,
         created_at=session["created_at"],
         completed_at=session.get("completed_at"),
         overall_score=session.get("total_score"),

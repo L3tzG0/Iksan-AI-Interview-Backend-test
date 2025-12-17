@@ -1,9 +1,16 @@
 from datetime import datetime
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, NamedTuple, Dict, Any
 from operator import itemgetter
 from supabase import AsyncClient
 from fastapi import HTTPException, status
 from app.utils.pagination import paginate_query
+
+class CalculatedAverages(NamedTuple):
+    """The four calculated dimension averages for a session."""
+    avg_cr: float
+    avg_st: float
+    avg_fl: float
+    avg_cp: float
 
 # Explicit columns to select for sessions (avoiding SELECT *)
 SESSION_COLUMNS = "id, student_id, status, type, total_score, completed_at, created_at"
@@ -435,3 +442,66 @@ class InterviewSessionService:
             "completed_at": session.get("completed_at"),
             "created_at": session.get("created_at"),
         }
+
+    @staticmethod
+    def _safe_average(scores: List[float], num_total_graded_items: int) -> float:
+        """Safely calculates the average, returning 0.0 if the denominator is zero."""
+        if num_total_graded_items == 0:
+            return 0.0
+        return round(sum(scores) / num_total_graded_items, 1)
+
+
+    @staticmethod
+    def calculate_session_dimension_averages(feedbacks: List[Dict[str, Any]]) -> CalculatedAverages:
+        """
+        Calculates the four individual dimension averages based on the 'answer_text' presence rule.
+        
+        CR/ST are averaged over ALL answered questions.
+        FL/CP are averaged over ODD answered questions.
+        A question is answered if 'answer_text' is not empty.
+        
+        Args:
+            feedbacks: List of detailed feedback dictionaries from the database.
+            
+        Returns:
+            CalculatedAverages: A named tuple containing the four averaged scores.
+        """
+        cr_scores: List[float] = []
+        st_scores: List[float] = []
+        fl_scores_odd: List[float] = []
+        cp_scores_odd: List[float] = []
+        answered_questions_count = 0
+        answered_odd_questions_count = 0
+
+        for fb in feedbacks:
+            q_order = fb.get("question_order", 0)
+            answer_text = fb.get("answer_text")
+
+            # Check if the question was answered (non-empty answer_text)
+            is_answered = bool(answer_text and str(answer_text).strip())
+
+            if is_answered:
+                answered_questions_count += 1
+                
+                # CR and ST metrics are included for all answered questions
+                # Defaulting to 0.0 if score is missing/None
+                cr_scores.append(fb.get("content_relevance_score") or 0.0)
+                st_scores.append(fb.get("structure_score") or 0.0)
+                
+                # Check for odd question for FL and CP
+                if q_order % 2 != 0:
+                    answered_odd_questions_count += 1
+                    fl_scores_odd.append(fb.get("fluency_score") or 0.0)
+                    cp_scores_odd.append(fb.get("confidence_score") or 0.0)
+
+        # --- Calculate Averages ---
+        
+        # CR and ST Averages (Denominator: answered_questions_count)
+        avg_cr = InterviewSessionService._safe_average(cr_scores, answered_questions_count)
+        avg_st = InterviewSessionService._safe_average(st_scores, answered_questions_count)
+        
+        # FL and CP Averages (Denominator: answered_odd_questions_count)
+        avg_fl = InterviewSessionService._safe_average(fl_scores_odd, answered_odd_questions_count)
+        avg_cp = InterviewSessionService._safe_average(cp_scores_odd, answered_odd_questions_count)
+
+        return CalculatedAverages(avg_cr, avg_st, avg_fl, avg_cp)

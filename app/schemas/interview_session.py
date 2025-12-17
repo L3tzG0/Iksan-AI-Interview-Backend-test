@@ -163,6 +163,10 @@ class SessionDetailResponse(BaseModel):
     created_at: FlexibleDateTime
     completed_at: Optional[FlexibleDateTime] = None
     overall_score: Optional[float] = None
+    avg_cr: float = Field(default=0.0, description="Average Content Relevance score.")
+    avg_st: float = Field(default=0.0, description="Average Structure score.")
+    avg_fl: float = Field(default=0.0, description="Average Fluency score (Odd Qs only).")
+    avg_cp: float = Field(default=0.0, description="Average Confidence Proxy score (Odd Qs only).")
     strength_summary: Optional[str] = None
     areas_for_growth: Optional[str] = None
     detailed_feedback: Optional[List[FeedbackDetail]] = None
