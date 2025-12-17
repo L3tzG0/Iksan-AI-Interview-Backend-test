@@ -274,7 +274,7 @@ async def submit_session_answers(
 async def get_session_status(
     session_id: Annotated[int, Path(description="The ID of the interview session")],
     supabase: Annotated[AsyncClient, Depends(get_supabase)],
-    current_user = Depends(get_current_user),
+    role_context: RoleContext = Depends(require_role(["student", "teacher", "admin"]))
 ):
     """
     Allows the client to poll for the current status of a queued session.
@@ -282,16 +282,43 @@ async def get_session_status(
     user_service = UserProfileService(supabase)
     session_service = InterviewSessionService(supabase)
     
-    # 1. Fetch and validate session state & ownership
+    # 1. Fetch session
     session = await session_service.get_session(session_id)
-    
-    student_details = await user_service.get_student_details(current_user.id)
-    student_id = student_details.get("id")
-    if session.get("student_id") != student_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, 
-            detail="You are not authorized to submit to this session."
-        )
+    if not session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+
+    # 2. Role-aware authorization
+    if role_context.role_name == "student":
+        student_details = await user_service.get_student_details(role_context.user.id)
+        if not student_details:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Current user is not associated with a student record"
+            )
+        if session.get("student_id") != student_details.get("id"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not authorized to view this session."
+            )
+    elif role_context.role_name == "teacher":
+        teacher_response = await supabase.table("teachers").select("school_id").eq("user_id", str(role_context.user.id)).single().execute()
+        teacher_school_id = teacher_response.data.get("school_id") if teacher_response and teacher_response.data else None
+        if not teacher_school_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Teacher is not associated with a school"
+            )
+
+        student_response = await supabase.table("students").select("school_id").eq("id", session.get("student_id")).single().execute()
+        student_school_id = student_response.data.get("school_id") if student_response and student_response.data else None
+        if not student_school_id or student_school_id != teacher_school_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not authorized to view this session."
+            )
+    else:
+        # Admins are allowed to view any session
+        pass
     
     status_message = session.get('status')
     
@@ -307,7 +334,7 @@ async def get_session_detail(
     request: Request,
     session_id: int,
     supabase: Annotated[AsyncClient, Depends(get_supabase)],
-    current_user = Depends(get_current_user)
+    role_context: RoleContext = Depends(require_role(["student", "teacher", "admin"]))
 ):
     """
     Get detailed view of a student's specific session with feedbacks.
@@ -340,13 +367,37 @@ async def get_session_detail(
             detail=f"Session is still processing. Current status: {current_status}. Please continue polling the /status/{session_id} endpoint."
         )
     
-    # Verify current user owns this session (get student details)
-    student_details = await user_service.get_student_details(current_user.id)
-    if student_details and student_details.get("id") != session.get("student_id"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can only view your own sessions"
-        )
+    # Verify access based on role
+    if role_context.role_name == "student":
+        student_details = await user_service.get_student_details(role_context.user.id)
+        if not student_details:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Current user is not associated with a student record"
+            )
+        if student_details.get("id") != session.get("student_id"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only view your own sessions"
+            )
+    elif role_context.role_name == "teacher":
+        teacher_response = await supabase.table("teachers").select("school_id").eq("user_id", str(role_context.user.id)).single().execute()
+        teacher_school_id = teacher_response.data.get("school_id") if teacher_response and teacher_response.data else None
+        if not teacher_school_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Teacher is not associated with a school"
+            )
+        student_response = await supabase.table("students").select("school_id").eq("id", session.get("student_id")).single().execute()
+        student_school_id = student_response.data.get("school_id") if student_response and student_response.data else None
+        if not student_school_id or student_school_id != teacher_school_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not authorized to view this session"
+            )
+    else:
+        # Admins can view any session
+        pass
     
     # Transform detailed_feedbacks from database format
     sorted_feedbacks = session_service.normalize_ordered_records(
