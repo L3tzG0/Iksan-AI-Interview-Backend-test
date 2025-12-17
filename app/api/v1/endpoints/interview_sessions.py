@@ -612,11 +612,11 @@ async def initiate_interview_session(
         return JSONResponse(content=jsonable_encoder(response.dict()))
         
     except HTTPException:
-        _rollback_session_creation(session_service, session_id)
+        await _rollback_session_creation(session_service, session_id)
         raise
         
     except Exception as e:
-        _rollback_session_creation(session_service, session_id)
+        await _rollback_session_creation(session_service, session_id)
         raise HTTPException(
             status_code=500,
             detail=f"Failed to queue interview session: {str(e)}"

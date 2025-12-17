@@ -45,11 +45,19 @@ global_client = None
 
 # --- SCORING WEIGHTS (Used by Python code for all overall score calculations) ---
 # Weights must sum to 1.0 (100%).
-SCORING_WEIGHTS = {
+ODD_Q_WEIGHTS = {
     "cr_score": 0.40,
     "st_score": 0.30,
     "fl_score": 0.20,
     "cp_score": 0.10,
+}
+
+# Weights for EVEN questions (2, 4, 6, 8, 10) - CR and ST only
+EVEN_Q_WEIGHTS = {
+    "cr_score": 0.50,
+    "st_score": 0.50,
+    "fl_score": 0.00,
+    "cp_score": 0.00,
 }
 
 
@@ -59,7 +67,7 @@ You are a highly experienced and professional AI interview coach and **Recruitme
 
 **CRITICAL INITIAL TASK:** Based on the content and nature of the questions and answers provided, you MUST first deduce the candidate's target job role archetype (e.g., Sales, Software Engineer, Accountant, Project Manager). Use this deduction for Guideline 1.
 
-INPUT: A list of N question and answer pairs (where N is between 1 and 10), including the quantitative speech metrics for each answer.
+INPUT: A list of N question and answer pairs (where N is between 1 and 10), including the quantitative speech metrics for each answer. Each input item is explicitly flagged as requiring either full 4-dimension scoring, or only 2-dimension scoring (CR/ST).
 OUTPUT: A single JSON object containing per-question scores/feedback, overall summaries, and next step recommendations.
 
 #################### CRITICAL GUIDELINES FROM RECRUITMENT EXPERTS ####################
@@ -78,7 +86,7 @@ You MUST strictly adhere to these 5 professional feedback guidelines in your eva
 #################### SCORING RUBRIC (BARS - 4 DIMENSIONS) ####################
 
 All scores MUST be a float between 0.0 and 10.0.
-Your task is only to provide the four component scores (CR, ST, FL, CP) and the evaluation text. The final overall score will be calculated by the backend system.
+Your task is only to provide the four component scores (CR, ST, FL, CP) and the evaluation text. The final overall score will be calculated by the backend system using parity-based weights.
 
 1. CONTENT RELEVANCE (CR) - Measures how well the core answer matches the question's intent, **the quality of the technical/methodological process demonstrated (Guideline 2),** and the answer's alignment with the deduced job role archetype **(Guideline 1).**
     - Score 0-3: Your answer completely misses the point, contains major inaccuracies, or is nonsensical. Your tone is highly unprofessional or negative.
@@ -91,20 +99,21 @@ Your task is only to provide the four component scores (CR, ST, FL, CP) and the 
     - Score 7-10: Your response demonstrates a clear, compelling narrative (STAR or logical flow) supported by sophisticated and correct grammar/vocabulary. **The evaluation_text MUST fulfill Guideline 4 (Perfectionism).**
 
 3. FLUENCY & SPEED (FL) - Measures speech flow, pace, and conversational ease (simulated via transcript and quantitative metrics). **Feedback MUST apply Guideline 5 (Real-World Context).**
-    - **CRITICAL USE OF METRIC:** You MUST analyze the WPM and Silence Ratio metrics to score FL, but the **evaluation_text MUST NOT quote the numerical values.** Express the result qualitatively (e.g., "Your pace was smooth," or "Your silence ratio was too high").
-    - Score 0-3: Very slow pace or a high silence ratio. Fluency is severely impaired by hesitations.
-    - Score 4-6: Acceptable pace but still some non-verbal hesitation and notable pauses.
-    - Score 7-10: Smooth, conversational pace, minimal filler words, and a low silence ratio.
-
+    - Score 0-10 based on WPM and Silence Ratio metrics.
+    
 4. CONFIDENCE PROXY (CP) - Measures consistency and self-assurance (simulated speech rate stability and pause frequency). **Feedback MUST apply Guideline 5 (Real-World Context).**
-    - **CRITICAL USE OF METRIC:** You MUST analyze the PPM metric to score CP, but the **evaluation_text MUST NOT quote the numerical PPM value.** Express the result qualitatively (e.g., "Your pacing was controlled," or "The high frequency of pauses indicated anxiety").
-    - Score 0-5: Your answer has a very high frequency of pauses, suggesting inconsistency or anxiety.
-    - Score 6-10: Your answer shows a low frequency of pauses, indicating a controlled, measured, and consistent pace, conveying competence and self-assurance.
+    - Score 0-10 based on PPM metric.
 
-#################### CRITICAL SCORING RULE: TEXT INPUT ####################
-IF the transcript input section contains the tag **| TYPE: TEXT INPUT |**, it means speech metrics are unavailable. In this case:
-1. You MUST assign FL (Fluency) and CP (Confidence Proxy) scores of **7.5** (neutral score).
-2. The 'evaluation_text' for that question MUST explicitly state that FL and CP were scored neutrally because the answer was typed, and focus all feedback only on CR and ST.
+#################### CRITICAL SCORING RULES ####################
+
+A. ODD QUESTIONS (1, 3, 5, 7, 9): FULL 4-DIMENSION ASSESSMENT
+   - You MUST score all 4 dimensions (CR, ST, FL, CP) based on the full rubric and provided metrics. The evaluation_text MUST provide targeted feedback on all 4 dimensions.
+
+B. EVEN QUESTIONS (2, 4, 6, 8, 10): 2-DIMENSION ASSESSMENT (CR/ST ONLY)
+   - You MUST score CR and ST based on the rubric.
+   - You MUST assign FL and CP scores of **0.0**. (Note: These scores are zero-weighted in the individual overall score calculation, and IGNORED in the session-wide FL/CP average calculation by the backend).
+   - The 'evaluation_text' MUST explicitly state that only CR and ST were assessed, and that FL/CP were not graded.
+   - You MUST provide feedback ONLY on CR and ST, ignoring fluency/confidence metrics.
 ############################################################################
 
 
@@ -112,7 +121,7 @@ IF the transcript input section contains the tag **| TYPE: TEXT INPUT |**, it me
 
 1. **OUTPUT PERSONA:** All descriptive feedback in `evaluation_text`, `strength_text`, and `areas_for_growth_text` MUST be written in the **second person** (e.g., "You demonstrated...", "Your structure was...", "We recommend you practice...").
 2. PER-QUESTION FEEDBACK: The 'per_question_feedback' array MUST contain exactly 10 items.
-    - For the N completed questions, provide CR, ST, FL, and CP scores (0.0 to 10.0). The evaluation_text MUST provide targeted feedback on all scored dimensions, and **adhere to the 5 Critical Guidelines above, without quoting numerical metrics.** **NOTE: For these completed questions, use 0.0 as a placeholder for the 'overall_score'.**
+    - For the N completed questions, provide CR, ST, FL, and CP scores (0.0 to 10.0). The evaluation_text MUST provide targeted feedback on all scored dimensions **relevant to the question type**, and **adhere to the 5 Critical Guidelines above, without quoting numerical metrics.** **NOTE: For these completed questions, use 0.0 as a placeholder for the 'overall_score'.**
     - For any remaining questions (from N up to 9, where N < 10), you MUST insert a placeholder object at the end of the array with the following values:
         - cr_score, st_score, fl_score, cp_score, overall_score: 0.0
         - evaluation_text: "Question not answered by the candidate."
@@ -122,20 +131,33 @@ IF the transcript input section contains the tag **| TYPE: TEXT INPUT |**, it me
 4. NEXT STEPS: Provide EXACTLY 3 actionable 'NextStepItem' recommendations, based ONLY on the N COMPLETED QUESTIONS.
 """
 
+def _get_weights_for_question(q_num: int) -> Dict[str, float]:
+    """Determines the weighting scheme based on question parity (1-based index)."""
+    if q_num % 2 == 1:
+        return ODD_Q_WEIGHTS
+    else:
+        return EVEN_Q_WEIGHTS
+
 def _apply_weighted_per_question_scores(feedback_items: List[DetailedEvaluationItem]) -> List[DetailedEvaluationItem]:
     """
     DETERMINISTIC FUNCTION: Calculates and sets the weighted overall score 
-    for each individual question based on SCORING_WEIGHTS.
+    for each individual question based on the question's parity.
     """
     for item in feedback_items:
-        # Use content_relevance_score > 0.0 as a reliable proxy for a completed question
+        q_num = item.question_order
+        
+        # Determine weights based on question parity
+        weights = _get_weights_for_question(q_num)
+        
+        # Apply the calculation only if it's a completed question
         if item.content_relevance_score > 0.0 or item.structure_score > 0.0: 
             
+            # Use content_relevance_score > 0.0 as a reliable proxy for a completed question
             weighted_score = (
-                item.content_relevance_score * SCORING_WEIGHTS["cr_score"] +
-                item.structure_score * SCORING_WEIGHTS["st_score"] +
-                item.fluency_score * SCORING_WEIGHTS["fl_score"] +
-                item.confidence_score * SCORING_WEIGHTS["cp_score"]
+                item.content_relevance_score * weights["cr_score"] +
+                item.structure_score * weights["st_score"] +
+                item.fluency_score * weights["fl_score"] +
+                item.confidence_score * weights["cp_score"]
             )
             item.overall_score = round(weighted_score, 2)
             
@@ -144,14 +166,39 @@ def _apply_weighted_per_question_scores(feedback_items: List[DetailedEvaluationI
 
 def _calculate_overall_scores(feedback_items: List[DetailedEvaluationItem]) -> OverallScores:
     """
-    Calculates the overall session averages for each dimension, and then 
-    calculates the final overall session score using the SCORING_WEIGHTS.
+    Calculates the overall session averages for each dimension.
+    
+    CRITICAL: Iterates over the full list and uses item.question_order to correctly 
+    filter FL/CP averages to ODD questions only.
     """
     
-    # Filter out placeholder items 
-    completed_items = [item for item in feedback_items if item.content_relevance_score > 0.0]
+    # 1. Collect all completed items and scores by iterating over the 10-item list
+    completed_items = []
+    cr_scores = []
+    st_scores = []
+    fl_scores_graded = [] # Only scores from ODD questions
+    cp_scores_graded = [] # Only scores from ODD questions
     
-    if not completed_items:
+    for item in feedback_items:
+        q_num = item.question_order
+        
+        # Check if the question was answered (CR or ST score is > 0.0)
+        is_answered = item.content_relevance_score > 0.0 or item.structure_score > 0.0
+        
+        if is_answered:
+            completed_items.append(item)
+            
+            # CR and ST are always graded for answered questions
+            cr_scores.append(item.content_relevance_score)
+            st_scores.append(item.structure_score)
+            
+            # FL and CP are only graded for ODD questions
+            if q_num % 2 == 1:
+                fl_scores_graded.append(item.fluency_score)
+                cp_scores_graded.append(item.confidence_score)
+    
+    num_completed = len(completed_items)
+    if num_completed == 0:
         return OverallScores(
             content_relevance_score=0.0,
             structure_score=0.0,
@@ -160,26 +207,26 @@ def _calculate_overall_scores(feedback_items: List[DetailedEvaluationItem]) -> O
             overall_score=0.0
         )
         
-    num_completed = len(completed_items)
+    # Function to safely calculate average
+    def safe_average(scores: List[float], num_total_graded_items: int) -> float:
+        if num_total_graded_items == 0:
+            return 0.0
+        return round(sum(scores) / num_total_graded_items, 2)
     
-    # 1. Sum and Average the Dimension Scores across all completed questions
-    cr_sum = sum(item.content_relevance_score for item in completed_items)
-    st_sum = sum(item.structure_score for item in completed_items)
-    fl_sum = sum(item.fluency_score for item in completed_items)
-    cp_sum = sum(item.confidence_score for item in completed_items) 
+    # --- 2. Calculate Raw Dimension Averages ---
     
-    cr_avg = round(cr_sum / num_completed, 2)
-    st_avg = round(st_sum / num_completed, 2)
-    fl_avg = round(fl_sum / num_completed, 2)
-    cp_avg = round(cp_sum / num_completed, 2)
+    num_graded_fl_cp = len(fl_scores_graded)
     
-    # 2. Calculate the overall SESSION score using the same SCORING_WEIGHTS
-    overall_score_final = (
-        cr_avg * SCORING_WEIGHTS["cr_score"] +
-        st_avg * SCORING_WEIGHTS["st_score"] +
-        fl_avg * SCORING_WEIGHTS["fl_score"] +
-        cp_avg * SCORING_WEIGHTS["cp_score"]
-    )
+    cr_avg = safe_average(cr_scores, num_completed)
+    st_avg = safe_average(st_scores, num_completed)
+    fl_avg = safe_average(fl_scores_graded, num_graded_fl_cp)
+    cp_avg = safe_average(cp_scores_graded, num_graded_fl_cp)
+    
+    # --- 3. Calculate the Final Overall SESSION Score ---
+    
+    # This averages the individual question overall scores, which were already 
+    # correctly weighted in _apply_weighted_per_question_scores.
+    overall_score_final = sum(item.overall_score for item in completed_items) / num_completed
     overall_score_final = round(overall_score_final, 2)
 
 
@@ -190,7 +237,6 @@ def _calculate_overall_scores(feedback_items: List[DetailedEvaluationItem]) -> O
         confidence_proxy_score=cp_avg,
         overall_score=overall_score_final
     )
-
 
 async def generate_session_evaluation(qa_pairs: List[QuestionAnswerPair]) -> EvaluationBatchResponse:
     """
@@ -217,46 +263,63 @@ async def generate_session_evaluation(qa_pairs: List[QuestionAnswerPair]) -> Eva
     qa_text = "\n\n--- INTERVIEW TRANSCRIPT AND METRICS ---\n"
     
     for qa in qa_pairs:
-        # Check if the answer was likely typed (word count > 0 but no audio duration)
+        # Use the explicit question_order field from the answered item, not the list index.
+        q_num = qa.question_order 
+        
+        # Check if the answer was likely typed (audio duration <= 0.1s is the proxy for no meaningful audio)
         is_typed_response = (qa.audio_duration_seconds <= 0.1)
         
-        if is_typed_response:
-            # Signal to the LLM that this is a text input and metrics are irrelevant
-            wpm = 0.0
-            silence_ratio = 0.0
-            ppm = 0.0
-            metrics_string = "| METRICS | TYPE: TEXT INPUT | (FL and CP will be scored 10.0 per rule) |\n"
+        # Default values
+        word_count = qa.word_count
+        audio_duration = qa.audio_duration_seconds
+
+        # --- Dynamic Metric String Construction based on Parity and Input Type ---
+        if q_num % 2 == 0:
+            # EVEN Question (2, 4, 6, 8, 10): FL and CP MUST be 0.0 per rubric.
+            wpm, silence_ratio, ppm = 0.0, 0.0, 0.0
+            grading_tag = f"| GRADING RULE: CR/ST ONLY (FL and CP MUST be 0.0) |"
+            metrics_string = "| METRICS | TYPE: EVEN QUESTION | (FL and CP MUST be 0.0 in output) |\n"
+            raw_data_string = ""
+        elif is_typed_response:
+            # ODD Question, but TEXT INPUT: Full assessment required, but metrics are zeroed safely.
+            wpm, silence_ratio, ppm = 0.0, 0.0, 0.0
+            
+            # Full assessment required (FL/CP are scored by LLM). 
+            # The prompt now explicitly forces the LLM to use 7.5 for FL/CP.
+            grading_tag = "| GRADING RULE: FULL 4-DIMENSION ASSESSMENT (CR, ST, FL, CP) |"
+            metrics_string = "| METRICS | TYPE: TEXT INPUT | (LLM MUST score FL and CP as 7.5) |\n" 
             raw_data_string = ""
         else:
-            # Standard metric calculation for spoken responses
+            # ODD Question, SPOKEN INPUT: Use standard metric calculation
             total_pause_duration_seconds = qa.total_pause_duration_seconds
             total_pause_count = qa.total_pause_count
 
-            word_count = qa.word_count
-            audio_duration = qa.audio_duration_seconds
-            
-            # Avoid division by zero, especially when total speaking time might be zero
+            # Avoid division by zero
             speaking_time_seconds = audio_duration - total_pause_duration_seconds
             speaking_time_seconds = max(speaking_time_seconds, 0.001) # Small epsilon
 
             if word_count == 0:
-                 wpm = 0.0
-                 silence_ratio = 100.0 if audio_duration > 0 else 0.0
-                 ppm = 0.0
+                wpm = 0.0
+                silence_ratio = 100.0 if audio_duration > 0 else 0.0
+                ppm = 0.0
             else:
-                 wpm = (word_count / speaking_time_seconds) * 60.0
-                 silence_ratio = (total_pause_duration_seconds / audio_duration) * 100.0 if audio_duration > 0 else 0.0
-                 ppm = (total_pause_count / audio_duration) * 60.0 if audio_duration > 0 else 0.0
+                wpm = (word_count / speaking_time_seconds) * 60.0
+                silence_ratio = (total_pause_duration_seconds / audio_duration) * 100.0 if audio_duration > 0 else 0.0
+                ppm = (total_pause_count / audio_duration) * 60.0 if audio_duration > 0 else 0.0
             
+            # Full assessment
+            grading_tag = "| GRADING RULE: FULL 4-DIMENSION ASSESSMENT (CR, ST, FL, CP) |"
             metrics_string = (
                 f"| METRICS | WPM: {wpm:.1f} | Silence Ratio: {silence_ratio:.1f}% | PPM: {ppm:.1f} |\n"
             )
             raw_data_string = (
-                 f"| RAW DATA | Audio Duration: {audio_duration:.1f}s | Word Count: {word_count} | Pauses: {total_pause_count} | Pause Duration: {total_pause_duration_seconds:.1f}s |\n"
+                f"| RAW DATA | Audio Duration: {audio_duration:.1f}s | Word Count: {word_count} | Pauses: {total_pause_count} | Pause Duration: {total_pause_duration_seconds:.1f}s |\n"
             )
+
         
-        qa_text += f"Q{qa.question_order}: {qa.question_text}\n"
-        qa_text += f"A{qa.question_order} (Transcript): {qa.answer_text}\n"
+        qa_text += f"Q{q_num}: {qa.question_text}\n"
+        qa_text += f"A{q_num} (Transcript): {qa.answer_text}\n"
+        qa_text += grading_tag
         qa_text += metrics_string
         qa_text += raw_data_string
         qa_text += "\n"
