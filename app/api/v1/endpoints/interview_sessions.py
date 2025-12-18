@@ -123,7 +123,8 @@ async def get_sessions_with_students(
     supabase: Annotated[AsyncClient, Depends(get_supabase)],
     role_context: RoleContext = Depends(require_role(["teacher", "admin"])),
     skip: int = Query(default=0, ge=0, description="Number of records to skip"),
-    limit: int = Query(default=20, ge=1, le=100, description="Maximum records to return")
+    limit: int = Query(default=20, ge=1, le=100, description="Maximum records to return"),
+    interview_type: Optional[str] = Query(default=None, description="Filter by interview type (job, university)")
 ):
     """
     Retrieve the latest non-failed session for each student.
@@ -132,6 +133,7 @@ async def get_sessions_with_students(
     - Teachers: Latest session from students within their school only.
     - Excludes failed sessions automatically.
     - Returns one session per student (the most recent one).
+    - Optional filter by interview_type applies before grouping.
     """
     session_service = InterviewSessionService(supabase)
 
@@ -148,7 +150,8 @@ async def get_sessions_with_students(
     sessions, total = await session_service.get_latest_sessions_per_student(
         skip=skip,
         limit=limit,
-        school_id=school_id
+        school_id=school_id,
+        interview_type=interview_type
     )
 
     shaped_sessions = [

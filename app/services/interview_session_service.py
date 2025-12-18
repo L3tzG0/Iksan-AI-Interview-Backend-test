@@ -375,7 +375,8 @@ class InterviewSessionService:
         self,
         skip: int = 0,
         limit: int = 20,
-        school_id: Optional[int] = None
+        school_id: Optional[int] = None,
+        interview_type: Optional[str] = None
     ) -> Tuple[List[dict], int]:
         """
         Get the latest non-failed session for each student.
@@ -384,11 +385,14 @@ class InterviewSessionService:
             skip: Number of records to skip (applied after grouping)
             limit: Maximum records to return
             school_id: Optional school scoping (for teachers)
+            interview_type: Optional interview type filter (job, university)
         
         Returns:
             Tuple of (list of latest sessions per student, total count)
         """
         try:
+            normalized_type = self._normalize_interview_type(interview_type)
+            
             # Build base query
             base_query = self.supabase.table('sessions').select(
                 SESSION_COLUMNS_WITH_STUDENT_INFO,
@@ -398,6 +402,10 @@ class InterviewSessionService:
             # Apply school filter if provided
             if school_id is not None:
                 base_query = base_query.eq('students.school_id', school_id)
+            
+            # Apply interview type filter if provided
+            if normalized_type:
+                base_query = base_query.eq('type', normalized_type)
             
             # Fetch all sessions (we'll filter to latest per student in Python)
             response = await base_query.execute()
