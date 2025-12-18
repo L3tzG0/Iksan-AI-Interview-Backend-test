@@ -474,7 +474,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
     setInlineError(null);
     setIsTimerPaused(false);
     stopCurrentRecording();
-  }, [currentQuestionIndex, drafts, questions, stopCurrentRecording]);
+  }, [currentQuestionIndex, questions, stopCurrentRecording]);
 
   useEffect(() => {
     const question = questions[currentQuestionIndex];
@@ -521,9 +521,9 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
   ];
 
   return (
-    <div className="flex flex-col items-center justify-start min-h-[calc(100vh-10rem)] animate-fadeIn pt-6">
+    <div className="flex flex-col justify-start items-center pt-6 min-h-[calc(100vh-10rem)] animate-fadeIn">
       {isTimerVisible && !isTimerInView && (
-        <div className="fixed bottom-4 right-2 sm:top-20 sm:bottom-auto sm:right-4 z-50 pb-[env(safe-area-inset-bottom)]">
+        <div className="sm:top-20 right-2 sm:right-4 bottom-4 sm:bottom-auto z-50 fixed pb-[env(safe-area-inset-bottom)]">
           <div
             className={`backdrop-blur bg-white/90 border shadow-[0_12px_30px_rgba(103,0,230,0.15)] rounded-2xl px-3 py-2 sm:px-4 sm:py-3 flex items-center gap-3 sm:gap-4 transition-opacity duration-200 ${
               isLowTime ? 'border-red-300 animate-pulse' : 'border-primary/30'
@@ -531,7 +531,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
           >
             <ClockIcon className={`w-5 h-5 sm:w-6 sm:h-6 ${isLowTime ? 'text-red-600' : 'text-primary'}`} />
             <div>
-              <p className="text-[11px] sm:text-xs font-semibold text-slate-500 uppercase tracking-widest">남은 시간</p>
+              <p className="font-semibold text-[11px] text-slate-500 sm:text-xs uppercase tracking-widest">남은 시간</p>
               <p className={`text-lg sm:text-xl font-bold ${timeLeft <= 10 ? 'text-red-600' : isLowTime ? 'text-amber-600' : 'text-slate-800'}`}>
                 {formatTime(timeLeft)}
               </p>
@@ -539,19 +539,19 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
           </div>
         </div>
       )}
-      <div className="w-full max-w-5xl space-y-8">
-        <section className="relative overflow-hidden rounded-[28px] bg-gradient-to-r from-primary-lightest via-white to-primary-lightest border border-white/70 shadow-soft p-6 sm:p-8">
-          <div className="hero-blob hero-blob--primary -right-10 -top-10"></div>
-          <div className="hero-blob hero-blob--secondary -left-14 bottom-0"></div>
-          <div className="relative z-10 space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="space-y-8 w-full max-w-5xl">
+        <section className="relative bg-gradient-to-r from-primary-lightest via-white to-primary-lightest shadow-soft p-6 sm:p-8 border border-white/70 rounded-[28px] overflow-hidden">
+          <div className="-top-10 -right-10 hero-blob hero-blob--primary"></div>
+          <div className="bottom-0 -left-14 hero-blob hero-blob--secondary"></div>
+          <div className="z-10 relative space-y-4">
+            <div className="flex flex-wrap justify-between items-center gap-4">
               <div>
-                <p className="text-xs font-semibold text-primary-text uppercase tracking-[0.25em] mb-1">AI 면접 진행</p>
-                <div className="flex items-center gap-4 flex-wrap">
-                  <span className="text-sm text-slate-500 font-semibold">
+                <p className="mb-1 font-semibold text-primary-text text-xs uppercase tracking-[0.25em]">AI 면접 진행</p>
+                <div className="flex flex-wrap items-center gap-4">
+                  <span className="font-semibold text-slate-500 text-sm">
                     질문 {currentQuestionIndex + 1} / {questions.length}
                   </span>
-                  <span className="text-xs font-semibold text-primary bg-primary-lightest px-3 py-1 rounded-full">{currentStepLabel}</span>
+                  <span className="bg-primary-lightest px-3 py-1 rounded-full font-semibold text-primary text-xs">{currentStepLabel}</span>
                   <span
                     className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
                       isResumeBased ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
@@ -561,57 +561,57 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
                   </span>
                 </div>
               </div>
-              <div className="flex flex-col items-end gap-2 text-primary font-bold text-2xl">
+              <div className="flex flex-col items-end gap-2 font-bold text-primary text-2xl">
                 {isTimerVisible ? (
                   <div className="flex items-center gap-2" ref={inlineTimerRef}>
                     <ClockIcon className={`w-6 h-6 ${isLowTime ? 'text-red-600' : ''}`} />
                     <span className={isLowTime ? 'text-red-600' : ''}>{formatTime(timeLeft)}</span>
                   </div>
                 ) : (
-                  <span className="text-xs text-slate-500 font-semibold">타이머가 숨겨져 있어요</span>
+                  <span className="font-semibold text-slate-500 text-xs">타이머가 숨겨져 있어요</span>
                 )}
-                <div className="flex items-center gap-2 text-xs font-semibold">
+                <div className="flex items-center gap-2 font-semibold text-xs">
                   <button
                     type="button"
                     onClick={() => setIsTimerPaused((prev) => !prev)}
-                    className="px-3 py-1 rounded-full bg-white border border-slate-200 text-slate-600 hover:border-primary"
+                    className="bg-white px-3 py-1 border border-slate-200 hover:border-primary rounded-full text-slate-600"
                   >
                     {isTimerPaused ? '재개' : '일시정지'}
                   </button>
                   <button
                     type="button"
                     onClick={() => setIsTimerVisible((prev) => !prev)}
-                    className="px-3 py-1 rounded-full bg-white border border-slate-200 text-slate-600 hover:border-primary"
+                    className="bg-white px-3 py-1 border border-slate-200 hover:border-primary rounded-full text-slate-600"
                   >
                     {isTimerVisible ? '타이머 숨기기' : '타이머 보이기'}
                   </button>
                 </div>
               </div>
             </div>
-            <div className="w-full h-3 bg-white/70 rounded-full overflow-hidden shadow-inner shadow-white/60">
+            <div className="bg-white/70 shadow-inner shadow-white/60 rounded-full w-full h-3 overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-primary via-primary-medium to-primary-dark rounded-full transition-all duration-500 animate-progressGlow"
+                className="bg-gradient-to-r from-primary via-primary-medium to-primary-dark rounded-full h-full transition-all animate-progressGlow duration-500"
                 style={{ width: `${progressPercentage}%` }}
               ></div>
             </div>
-            <p className="text-xs text-slate-500 font-semibold">{progressLabel}</p>
+            <p className="font-semibold text-slate-500 text-xs">{progressLabel}</p>
           </div>
         </section>
 
         <Card>
-          <p className="text-sm text-slate-500 mb-4 font-semibold tracking-wider uppercase flex items-center gap-2">
+          <p className="flex items-center gap-2 mb-4 font-semibold text-slate-500 text-sm uppercase tracking-wider">
             <LightbulbIcon className="w-4 h-4 text-primary" />
             AI 질문
           </p>
-          <h2 className="text-2xl font-bold text-slate-800 leading-tight">{currentQuestion.text}</h2>
-          <p className="text-xs text-slate-500 mt-2">각 답변은 1~2분 안에 핵심만 정리해 주세요. 긴장되면 잠시 멈추고 다시 이어도 괜찮아요.</p>
+          <h2 className="font-bold text-slate-800 text-2xl leading-tight">{currentQuestion.text}</h2>
+          <p className="mt-2 text-slate-500 text-xs">각 답변은 1~2분 안에 핵심만 정리해 주세요. 긴장되면 잠시 멈추고 다시 이어도 괜찮아요.</p>
         </Card>
 
         <Card>
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
-            <p className="text-slate-600 font-medium">A. 답변</p>
-            <div className="text-xs bg-yellow-100 text-yellow-800 px-3 py-1.5 rounded-full flex items-center">
-              <LightbulbIcon className="w-4 h-4 mr-1.5" />
+          <div className="flex md:flex-row flex-col justify-between md:items-center gap-3 mb-4">
+            <p className="font-medium text-slate-600">A. 답변</p>
+            <div className="flex items-center bg-yellow-100 px-3 py-1.5 rounded-full text-yellow-800 text-xs">
+              <LightbulbIcon className="mr-1.5 w-4 h-4" />
               <span>TIP: 핵심 경험을 2~3문장으로 요약한 다음 세부 내용을 덧붙여요.</span>
             </div>
           </div>
@@ -631,31 +631,31 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
             isRequestingMic={isRequestingMic}
           />
 
-          <div className="mt-8 space-y-4">
-            <div className="flex flex-wrap justify-end gap-3 items-center">
-              <span className="text-xs text-slate-500">모든 질문에 답변하지 않아도 필요하면 건너뛸 수 있습니다.</span>
-              <Button onClick={handleSkipQuestion} variant="secondary" className="px-6 bg-white text-slate-700 border border-slate-200 hover:border-primary">
+          <div className="space-y-4 mt-8">
+            <div className="flex flex-wrap justify-end items-center gap-3">
+              <span className="text-slate-500 text-xs">모든 질문에 답변하지 않아도 필요하면 건너뛸 수 있습니다.</span>
+              <Button onClick={handleSkipQuestion} variant="secondary" className="bg-white px-6 border border-slate-200 hover:border-primary text-slate-700">
                 건너뛰기
               </Button>
               <Button onClick={() => handleNext()} className="px-8">
                 {isLastQuestion ? '연습 마치고 결과 보기' : '다음 질문'}
               </Button>
             </div>
-            {inlineError && <p className="text-sm text-red-600 font-semibold text-right">{inlineError}</p>}
+            {inlineError && <p className="font-semibold text-red-600 text-sm text-right">{inlineError}</p>}
           </div>
         </Card>
 
         <Card>
-          <p className="text-sm text-slate-500 mb-3 font-semibold tracking-wider uppercase flex items-center gap-2">
+          <p className="flex items-center gap-2 mb-3 font-semibold text-slate-500 text-sm uppercase tracking-wider">
             <LightbulbIcon className="w-4 h-4 text-primary" />
             답변 팁
           </p>
-          <div className="grid md:grid-cols-3 gap-4 w-full">
+          <div className="gap-4 grid md:grid-cols-3 w-full">
             {quickTips.map((tip, index) => (
-              <div key={tip.title} className="rounded-[16px] border border-primary-lightest/80 bg-white/90 p-4 shadow-soft">
-                <p className="text-xs uppercase text-slate-400 font-semibold mb-1">TIP {index + 1}</p>
+              <div key={tip.title} className="bg-white/90 shadow-soft p-4 border border-primary-lightest/80 rounded-[16px]">
+                <p className="mb-1 font-semibold text-slate-400 text-xs uppercase">TIP {index + 1}</p>
                 <p className="font-semibold text-slate-800">{tip.title}</p>
-                <p className="text-xs text-slate-500 mt-1 leading-relaxed">{tip.description}</p>
+                <p className="mt-1 text-slate-500 text-xs leading-relaxed">{tip.description}</p>
               </div>
             ))}
           </div>
@@ -663,10 +663,10 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
       </div>
 
       {showExitModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm px-4">
-          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl border border-slate-200 p-6 space-y-4 animate-softFadeUp">
-            <h3 className="text-lg font-bold text-slate-900">면접을 종료하시겠습니까?</h3>
-            <p className="text-sm text-slate-600">진행 중인 답변이 사라질 수 있습니다. 저장 후 나가거나 계속 진행을 선택하세요.</p>
+        <div className="z-50 fixed inset-0 flex justify-center items-center bg-slate-900/50 backdrop-blur-sm px-4">
+          <div className="space-y-4 bg-white shadow-2xl p-6 border border-slate-200 rounded-2xl w-full max-w-md animate-softFadeUp">
+            <h3 className="font-bold text-slate-900 text-lg">면접을 종료하시겠습니까?</h3>
+            <p className="text-slate-600 text-sm">진행 중인 답변이 사라질 수 있습니다. 저장 후 나가거나 계속 진행을 선택하세요.</p>
             <div className="flex flex-wrap justify-end gap-2">
               <Button
                 type="button"
@@ -674,7 +674,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
                 onClick={() => {
                   setShowExitModal(false);
                 }}
-                className="bg-white text-slate-700 border border-slate-200"
+                className="bg-white border border-slate-200 text-slate-700"
               >
                 계속 진행
               </Button>
