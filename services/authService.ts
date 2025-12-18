@@ -21,6 +21,16 @@ export const getStoredToken = () => {
   }
 };
 
+export const getTokenExpiry = (token?: string): number | undefined => {
+  if (!token) return undefined;
+  try {
+    const decoded: any = jwtDecode(token);
+    return typeof decoded?.exp === 'number' ? decoded.exp : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 export const clearStoredToken = () => {
   try {
     sessionStorage.removeItem(TOKEN_KEY);
