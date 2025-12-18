@@ -23,10 +23,25 @@ export const initiateSession = async (input: InterviewStartPayload): Promise<Ini
   const token = getStoredToken();
   const formData = new FormData();
 
-  const field = input.workField || input.major || input.workIndustry || 'General';
-  const role = input.workField || input.major || 'Candidate';
-  formData.append('field', field);
-  formData.append('role', role);
+  if (input.intent === 'university') {
+    const universities = (input.favoriteUniversities || [])
+      .map((u) => u.trim())
+      .filter(Boolean)
+      .join(', ');
+    const departments = input.major?.trim();
+
+    if (universities) {
+      formData.append('universities', universities);
+    }
+    if (departments) {
+      formData.append('departments', departments);
+    }
+  } else {
+    const field = input.workField || input.major || input.workIndustry || 'General';
+    const role = input.workField || input.major || 'Candidate';
+    formData.append('field', field);
+    formData.append('role', role);
+  }
 
   if (input.fileData?.data && input.fileData?.mimeType) {
     try {
