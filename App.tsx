@@ -11,7 +11,7 @@ import SignUpScreen from './components/auth/SignUpScreen';
 import Navbar from './components/layout/Navbar';
 import AddStudentModal from './components/AddStudentModal';
 import { InterviewReport, Question, Answer, User, InterviewStartPayload } from './types';
-import { fetchStudentSessions } from './services/studentService';
+import { fetchStudentSessionsForStudentRole } from './services/studentService';
 import { initiateSession, submitSessionAnswers, fetchSessionStatus, fetchSessionDetail } from './services/sessionService';
 import { GraduationCapIcon } from './components/icons';
 import { clearStoredToken, fetchProfile } from './services/authService';
@@ -92,7 +92,7 @@ const App: React.FC = () => {
     const fetchHistory = async () => {
       if (isAuthenticated && currentUser?.role === 'student') {
         try {
-          const sessions = await fetchStudentSessions();
+          const sessions = await fetchStudentSessionsForStudentRole();
           setStudentHistory([]);
         } catch {
           setStudentHistory([]);

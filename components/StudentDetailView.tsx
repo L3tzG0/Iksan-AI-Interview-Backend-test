@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { fetchAllSessions, fetchStudentSessionDetail, StudentSessionResponse } from '../services/studentService';
+import { fetchAllSessionsForTeacherAndAdminRole, fetchStudentSessionDetail, StudentSessionResponse } from '../services/studentService';
 import type { StudentDetail, StudentSession, StudentSessionDetail, InterviewReport } from '../types';
 import Spinner from './Spinner';
 import Card from './Card';
@@ -40,7 +40,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({ studentId, onBack
       setIsSessionsLoading(true);
       setSessionError(null);
       try {
-        const data = await fetchAllSessions();
+        const data = await fetchAllSessionsForTeacherAndAdminRole();
         const normalized = (data as StudentSessionResponse[])
           .filter((s) => String((s as any)?.student_id || (s as any)?.studentId || '') === String(studentId))
           .map((s, idx) => ({
@@ -96,30 +96,30 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({ studentId, onBack
 
   if (isLoading || !student) {
     return (
-      <div className="container mx-auto animate-pulse space-y-6 pb-12">
-        <div className="h-6 w-32 bg-slate-200 rounded-full"></div>
-        <div className="h-10 w-40 bg-slate-200 rounded-full"></div>
-        <div className="h-56 bg-white border border-slate-100 rounded-[20px] shadow-soft"></div>
+      <div className="space-y-6 mx-auto pb-12 animate-pulse container">
+        <div className="bg-slate-200 rounded-full w-32 h-6"></div>
+        <div className="bg-slate-200 rounded-full w-40 h-10"></div>
+        <div className="bg-white shadow-soft border border-slate-100 rounded-[20px] h-56"></div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto animate-fadeIn pb-12">
+    <div className="mx-auto pb-12 animate-fadeIn container">
         <div className="flex items-center gap-4 mb-6">
-            <button onClick={onBack} className="flex items-center gap-2 text-sm text-slate-500 hover:text-primary transition-colors font-medium">
+            <button onClick={onBack} className="flex items-center gap-2 font-medium text-slate-500 hover:text-primary text-sm transition-colors">
                 <ArrowLeftIcon className="w-4 h-4"/>
                 대시보드로 돌아가기
             </button>
         </div>
-      <div className="flex items-baseline justify-between mb-6">
+      <div className="flex justify-between items-baseline mb-6">
         <div>
-            <h1 className="text-3xl font-bold text-slate-800">{student.name}</h1>
-            <p className="text-lg text-primary font-medium">{student.grade}학년 · {student.major}</p>
+            <h1 className="font-bold text-slate-800 text-3xl">{student.name}</h1>
+            <p className="font-medium text-primary text-lg">{student.grade}학년 · {student.major}</p>
         </div>
         {student.report && (
           <div className="flex gap-2">
-            <Button onClick={handleDownloadReport} variant="secondary" className="px-4 py-2 rounded-[12px] shadow-soft">
+            <Button onClick={handleDownloadReport} variant="secondary" className="shadow-soft px-4 py-2 rounded-[12px]">
               PDF로 다운로드
             </Button>
           </div>
@@ -129,32 +129,32 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({ studentId, onBack
       {student.report ? (
         <InterviewReportView report={student.report} />
       ) : (
-        <Card className="text-center py-12">
+        <Card className="py-12 text-center">
             <p className="text-slate-500 text-lg">아직 제출된 보고서가 없습니다.</p>
         </Card>
       )}
 
       <Card className="mt-8">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex justify-between items-center mb-4">
           <div>
-            <p className="text-xs font-semibold text-primary-text uppercase tracking-[0.2em]">Session History</p>
-            <h3 className="text-xl font-bold text-slate-900">학생 세션 내역</h3>
-            <p className="text-sm text-slate-500">백엔드 데이터로 최신 면접 기록을 확인합니다.</p>
+            <p className="font-semibold text-primary-text text-xs uppercase tracking-[0.2em]">Session History</p>
+            <h3 className="font-bold text-slate-900 text-xl">학생 세션 내역</h3>
+            <p className="text-slate-500 text-sm">백엔드 데이터로 최신 면접 기록을 확인합니다.</p>
           </div>
           {isSessionsLoading && <Spinner />}
         </div>
         {sessionError && (
-          <div className="mb-4 text-sm text-amber-600 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+          <div className="bg-amber-50 mb-4 px-3 py-2 border border-amber-100 rounded-xl text-amber-600 text-sm">
             {sessionError}
           </div>
         )}
         {!isSessionsLoading && sessions.length === 0 && !sessionError && (
-          <p className="text-sm text-slate-500">최근 세션 기록이 없습니다.</p>
+          <p className="text-slate-500 text-sm">최근 세션 기록이 없습니다.</p>
         )}
         {sessions.length > 0 && (
           <div className="overflow-x-auto">
-            <table className="min-w-full text-sm text-left text-slate-700">
-              <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-200">
+            <table className="min-w-full text-slate-700 text-sm text-left">
+              <thead className="bg-slate-50 border-slate-200 border-b text-slate-500 text-xs uppercase">
                 <tr>
                   <th className="px-4 py-3 font-semibold">세션 ID</th>
                   <th className="px-4 py-3 font-semibold">시작</th>
@@ -166,21 +166,21 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({ studentId, onBack
               <tbody className="divide-y divide-slate-100">
                 {sessions.map((session) => (
                   <tr key={session.id}>
-                    <td className="px-4 py-3 font-mono text-xs text-slate-900">{session.id}</td>
+                    <td className="px-4 py-3 font-mono text-slate-900 text-xs">{session.id}</td>
                     <td className="px-4 py-3">{session.startedAt || '-'}</td>
                     <td className="px-4 py-3">{session.completedAt || '-'}</td>
-                    <td className="px-4 py-3 text-center font-semibold">
+                    <td className="px-4 py-3 font-semibold text-center">
                       {typeof session.totalScore === 'number' ? session.totalScore : '-'}
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">
+                      <span className="inline-flex items-center bg-slate-100 px-3 py-1 rounded-full font-semibold text-slate-700 text-xs">
                         {session.status || 'unknown'}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-center">
                       <Button
                         variant="secondary"
-                        className="text-xs px-3 py-1 rounded-lg"
+                        className="px-3 py-1 rounded-lg text-xs"
                         onClick={() => handleViewSessionDetail(session.id)}
                         isLoading={isSessionDetailLoading && selectedSessionId === session.id}
                       >
@@ -196,11 +196,11 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({ studentId, onBack
       </Card>
       {selectedSessionReport && (
         <Card className="mt-6">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex justify-between items-center mb-4">
             <div>
-              <p className="text-xs font-semibold text-primary-text uppercase tracking-[0.2em]">Session Detail</p>
-              <h3 className="text-xl font-bold text-slate-900">선택한 세션 리포트</h3>
-              <p className="text-sm text-slate-500">세션 ID: {selectedSessionId || '-'}</p>
+              <p className="font-semibold text-primary-text text-xs uppercase tracking-[0.2em]">Session Detail</p>
+              <h3 className="font-bold text-slate-900 text-xl">선택한 세션 리포트</h3>
+              <p className="text-slate-500 text-sm">세션 ID: {selectedSessionId || '-'}</p>
             </div>
             {isSessionDetailLoading && <Spinner />}
           </div>
@@ -208,7 +208,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({ studentId, onBack
         </Card>
       )}
       {!selectedSessionReport && sessionDetailError && (
-        <div className="mt-4 text-sm text-amber-600 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+        <div className="bg-amber-50 mt-4 px-3 py-2 border border-amber-100 rounded-xl text-amber-600 text-sm">
           {sessionDetailError}
         </div>
       )}

@@ -152,7 +152,7 @@ export interface StudentSessionResponse {
   studentId?: string;
 }
 
-export const fetchStudentSessions = async () => {
+export const fetchStudentSessionsForStudentRole = async () => {
   const response = await fetch(`${API_BASE}/api/v1/sessions/`, {
     method: 'GET',
     headers: {
@@ -176,7 +176,7 @@ export const fetchStudentSessions = async () => {
   return Array.isArray(data) ? data : [];
 };
 
-export const fetchAllSessions = async () => {
+export const fetchAllSessionsForTeacherAndAdminRole = async () => {
   const response = await fetch(`${API_BASE}/api/v1/sessions/all`, {
     method: 'GET',
     headers: {
