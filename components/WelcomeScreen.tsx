@@ -17,14 +17,14 @@ const stats = [
 ];
 
 const industries = [
-  'IT/Software',
-  'Manufacturing/Production',
-  'Finance/Insurance',
-  'Healthcare/Bio',
-  'Education',
-  'Marketing/Advertising',
-  'Public/Non-Profit',
-  'Other',
+  'IT/소프트웨어',
+  '제조/생산',
+  '금융/보험',
+  '헬스케어/바이오',
+  '교육',
+  '마케팅/광고',
+  '공공/비영리',
+  '기타',
 ];
 
 const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewReport }) => {
@@ -176,7 +176,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
         </div>
       </section>
 
-      <div className="w-full mx-auto max-w-5xl grid lg:grid-cols-[3fr_2fr] gap-8">
+      <div className={`w-full mx-auto max-w-5xl grid gap-8 ${hasHistory ? 'lg:grid-cols-[3fr_2fr]' : 'lg:grid-cols-1'}`}>
         <div className="bg-white/95 rounded-[24px] shadow-elice border border-white/70 p-6 sm:p-8 animate-softFadeUp">
           <div className="flex items-center justify-between mb-6">
             <div>
