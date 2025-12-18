@@ -116,23 +116,22 @@ async def get_my_sessions(
     return JSONResponse(content=jsonable_encoder(response.dict()))
 
 
-@router.get("/all", response_model=SessionListForAdminsResponse, summary="Retrieve student interview session history")
+@router.get("/all", response_model=SessionListForAdminsResponse, summary="Retrieve latest session for each student")
 @limiter.limit(settings.RATE_LIMIT_DEFAULT)
 async def get_sessions_with_students(
     request: Request,
     supabase: Annotated[AsyncClient, Depends(get_supabase)],
     role_context: RoleContext = Depends(require_role(["teacher", "admin"])),
     skip: int = Query(default=0, ge=0, description="Number of records to skip"),
-    limit: int = Query(default=20, ge=1, le=100, description="Maximum records to return"),
-    status_filter: Optional[str] = Query(default=None, description="Filter by status (completed, in_progress, failed)"),
-    interview_type: Optional[str] = Query(default=None, description="Filter by interview type (job, university)")
+    limit: int = Query(default=20, ge=1, le=100, description="Maximum records to return")
 ):
     """
-    Retrieve student interview session history
+    Retrieve the latest non-failed session for each student.
 
-    - Admins: All students across the system.
-    - Teachers: Only students within their school.
-    - Optional filters: status and interview_type (job, university)
+    - Admins: Latest session from all students across the system.
+    - Teachers: Latest session from students within their school only.
+    - Excludes failed sessions automatically.
+    - Returns one session per student (the most recent one).
     """
     session_service = InterviewSessionService(supabase)
 
@@ -146,12 +145,10 @@ async def get_sessions_with_students(
                 detail="Teacher is not associated with a school"
             )
 
-    sessions, total = await session_service.get_sessions_with_student_info(
+    sessions, total = await session_service.get_latest_sessions_per_student(
         skip=skip,
         limit=limit,
-        status_filter=status_filter,
-        school_id=school_id,
-        interview_type=interview_type
+        school_id=school_id
     )
 
     shaped_sessions = [

@@ -371,6 +371,75 @@ class InterviewSessionService:
                 detail=f"Failed to fetch sessions with student info: {str(e)}"
             )
 
+    async def get_latest_sessions_per_student(
+        self,
+        skip: int = 0,
+        limit: int = 20,
+        school_id: Optional[int] = None
+    ) -> Tuple[List[dict], int]:
+        """
+        Get the latest non-failed session for each student.
+        
+        Args:
+            skip: Number of records to skip (applied after grouping)
+            limit: Maximum records to return
+            school_id: Optional school scoping (for teachers)
+        
+        Returns:
+            Tuple of (list of latest sessions per student, total count)
+        """
+        try:
+            # Build base query
+            base_query = self.supabase.table('sessions').select(
+                SESSION_COLUMNS_WITH_STUDENT_INFO,
+                count='exact'
+            ).neq('status', 'failed').order('created_at', desc=True)
+            
+            # Apply school filter if provided
+            if school_id is not None:
+                base_query = base_query.eq('students.school_id', school_id)
+            
+            # Fetch all sessions (we'll filter to latest per student in Python)
+            response = await base_query.execute()
+            
+            if not response.data:
+                return [], 0
+            
+            # Group by student_id and keep only the latest session for each
+            student_latest_sessions: Dict[int, dict] = {}
+            for session in response.data:
+                student_data = session.get('students')
+                if not student_data:
+                    continue
+                    
+                student_id = student_data.get('id')
+                if student_id is None:
+                    continue
+                
+                # Keep the first occurrence (already sorted by created_at desc)
+                if student_id not in student_latest_sessions:
+                    student_latest_sessions[student_id] = session
+            
+            # Convert to list and sort by created_at descending
+            all_latest_sessions = sorted(
+                student_latest_sessions.values(),
+                key=lambda s: s.get('created_at', ''),
+                reverse=True
+            )
+            
+            total_count = len(all_latest_sessions)
+            
+            # Apply pagination
+            paginated_sessions = all_latest_sessions[skip:skip + limit]
+            
+            return paginated_sessions, total_count
+            
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to fetch latest sessions per student: {str(e)}"
+            )
+
     @staticmethod
     def build_history_payloads(sessions: List[dict]) -> List[dict]:
         """Create lightweight session payloads for history responses without validation overhead."""
