@@ -18,15 +18,27 @@ const createChips = (paragraph?: string | null) => {
 };
 
 const RadarChart: React.FC<{ scores: { contentRelevance: number; structure: number; fluency: number; confidence: number } }> = ({ scores }) => {
-  const size = 320;
+  const containerRef = React.useRef<HTMLDivElement | null>(null);
+  const [size, setSize] = useState(320);
   const center = size / 2;
-  const radius = 110;
+  const radius = Math.min(Math.max(size * 0.35, 90), 160);
   const maxScore = 10;
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
     const id = requestAnimationFrame(() => setIsReady(true));
     return () => cancelAnimationFrame(id);
+  }, []);
+
+  useEffect(() => {
+    const updateSize = () => {
+      const width = containerRef.current?.offsetWidth || 320;
+      // Keep chart responsive but within sensible bounds for text
+      setSize(Math.min(Math.max(width - 32, 260), 420));
+    };
+    updateSize();
+    window.addEventListener('resize', updateSize);
+    return () => window.removeEventListener('resize', updateSize);
   }, []);
 
   const axes = [
@@ -79,7 +91,7 @@ const RadarChart: React.FC<{ scores: { contentRelevance: number; structure: numb
   });
 
   return (
-    <div className="flex justify-center py-4">
+    <div ref={containerRef} className="flex justify-center py-4">
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="overflow-visible">
         <g>
           {gridPolygons}
