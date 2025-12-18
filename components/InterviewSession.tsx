@@ -43,6 +43,12 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
     totalPauseDurationSeconds?: number;
     totalPauseCount?: number;
   } | null>(null);
+  const [sttMetricsByQuestion, setSttMetricsByQuestion] = useState<Record<number, {
+    audioDurationSeconds?: number;
+    wordCount?: number;
+    totalPauseDurationSeconds?: number;
+    totalPauseCount?: number;
+  }>>({});
   const [pauseEvents, setPauseEvents] = useState<{
     type?: string;
     gapSeconds?: number;
@@ -314,13 +320,33 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
             }
 
             if (payload.type === 'FINAL_SUMMARY') {
-              setSttSummary({
-                finalTranscript: payload.final_transcript,
+              const question = questions[currentQuestionIndex];
+              const summaryMetrics = {
                 audioDurationSeconds: payload.audio_duration_seconds,
                 wordCount: payload.word_count,
                 totalPauseDurationSeconds: payload.total_pause_duration_seconds,
                 totalPauseCount: payload.total_pause_count,
+              };
+              setSttSummary({
+                finalTranscript: payload.final_transcript,
+                ...summaryMetrics,
               });
+              if (question) {
+                setSttMetricsByQuestion((prev) => ({ ...prev, [question.id]: summaryMetrics }));
+                setAnswers((prev) =>
+                  prev.map((a) =>
+                    a.questionId === question.id
+                      ? {
+                          ...a,
+                          audioDurationSeconds: summaryMetrics.audioDurationSeconds,
+                          wordCount: summaryMetrics.wordCount,
+                          totalPauseDurationSeconds: summaryMetrics.totalPauseDurationSeconds,
+                          totalPauseCount: summaryMetrics.totalPauseCount,
+                        }
+                      : a
+                  )
+                );
+              }
               sttFinalTranscriptRef.current = payload.final_transcript || sttFinalTranscriptRef.current;
               setCurrentAnswer(payload.final_transcript || sttFinalTranscriptRef.current);
               stopAudioRecording();
@@ -478,6 +504,9 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
     }
 
     const answerText = finalText || options?.skipReason || '이 질문은 건너뛸게요.';
+    const metrics = sttMetricsByQuestion[question.id] || sttSummary || {};
+    const pauseCountFallback = pauseEvents.length ? pauseEvents.length : undefined;
+    const pauseDurationFallback = pauseEvents.length ? pauseEvents.reduce((acc, p) => acc + (p.gapSeconds || 0), 0) : undefined;
     setInlineError(null);
     setTimeExceeded(false);
 
@@ -487,10 +516,10 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
       audioUrl: recordedAudioUrl || drafts[question.id]?.audioUrl,
       questionOrder: currentQuestionIndex + 1,
       questionText: question.text,
-      audioDurationSeconds: sttSummary?.audioDurationSeconds,
-      wordCount: sttSummary?.wordCount,
-      totalPauseDurationSeconds: sttSummary?.totalPauseDurationSeconds,
-      totalPauseCount: sttSummary?.totalPauseCount,
+      audioDurationSeconds: metrics.audioDurationSeconds,
+      wordCount: metrics.wordCount,
+      totalPauseDurationSeconds: metrics.totalPauseDurationSeconds ?? pauseDurationFallback,
+      totalPauseCount: metrics.totalPauseCount ?? pauseCountFallback,
     };
     const updatedAnswers = [...answers, newAnswer];
     setAnswers(updatedAnswers);
@@ -502,7 +531,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
       setTimeLeft(perQuestionSeconds);
       setIsTimerPaused(false);
     }
-  }, [answers, currentAnswer, currentQuestionIndex, drafts, onFinish, perQuestionSeconds, questions, recordedAudioUrl, sttSummary, stopCurrentRecording]);
+  }, [answers, currentAnswer, currentQuestionIndex, drafts, onFinish, pauseEvents, perQuestionSeconds, questions, recordedAudioUrl, sttMetricsByQuestion, sttSummary, stopCurrentRecording]);
 
 
   useEffect(() => {
@@ -586,6 +615,11 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
     sttFinalTranscriptRef.current = text;
     setRecordedAudioUrl(draft?.audioUrl || null);
     setSttSummary(null);
+      setSttMetricsByQuestion((prev) => {
+        const next = { ...prev };
+        delete next[question.id];
+        return next;
+      });
     setPauseEvents([]);
     setInlineError(null);
     setIsTimerPaused(false);
@@ -621,6 +655,12 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
     sttFinalTranscriptRef.current = '';
     setRecordedAudioUrl(null);
     setSttSummary(null);
+    setSttMetricsByQuestion((prev) => {
+      const next = { ...prev };
+      const question = questions[currentQuestionIndex];
+      if (question) delete next[question.id];
+      return next;
+    });
     setPauseEvents([]);
     setInlineError(null);
     stopCurrentRecording();
