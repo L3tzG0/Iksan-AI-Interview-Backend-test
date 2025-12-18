@@ -139,17 +139,54 @@ export const bulkCreateStudents = async (students: BulkCreateStudentInput[]): Pr
 };
 
 export interface StudentSessionResponse {
-  id: string;
-  started_at?: string;
-  startedAt?: string;
-  completed_at?: string;
-  completedAt?: string;
+  session_id?: string | number;
+  sessionId?: string | number;
+  id?: string | number; // legacy fallback
+  interview_type?: string;
+  interviewType?: string;
+  student_name?: string;
+  studentName?: string;
+  student_identifier?: string | number;
+  studentIdentifier?: string | number;
+  student_id?: string | number; // legacy fallback
+  studentId?: string | number; // legacy fallback
+  school_name?: string;
+  schoolName?: string;
+  major_name?: string;
+  majorName?: string;
+  class_name?: string;
+  className?: string;
+  grade_level?: number;
+  gradeLevel?: number;
   total_score?: number;
   totalScore?: number;
   status?: string;
-  intent?: string;
-  student_id?: string;
-  studentId?: string;
+  completed_at?: string;
+  completedAt?: string;
+  created_at?: string;
+  createdAt?: string;
+}
+
+export interface NormalizedSessionSummary {
+  id: string;
+  interviewType?: string;
+  studentName?: string;
+  studentIdentifier?: string;
+  schoolName?: string;
+  majorName?: string;
+  className?: string;
+  gradeLevel?: number;
+  totalScore?: number;
+  status?: string;
+  completedAt?: string;
+  createdAt?: string;
+  raw?: any;
+}
+
+export interface SessionListResult {
+  sessions: NormalizedSessionSummary[];
+  totalCount: number;
+  raw?: any;
 }
 
 export const fetchStudentSessionsForStudentRole = async () => {
@@ -176,7 +213,30 @@ export const fetchStudentSessionsForStudentRole = async () => {
   return Array.isArray(data) ? data : [];
 };
 
-export const fetchAllSessionsForTeacherAndAdminRole = async () => {
+const normalizeSessionSummary = (session: StudentSessionResponse, fallbackId: number): NormalizedSessionSummary => {
+  const sessionId = session.session_id ?? session.sessionId ?? session.id ?? fallbackId;
+  const studentIdentifier =
+    session.student_identifier ?? session.studentIdentifier ?? session.student_id ?? session.studentId;
+  const gradeLevel = session.grade_level ?? session.gradeLevel;
+
+  return {
+    id: String(sessionId),
+    interviewType: session.interview_type ?? session.interviewType,
+    studentName: session.student_name ?? session.studentName,
+    studentIdentifier: studentIdentifier !== undefined ? String(studentIdentifier) : undefined,
+    schoolName: session.school_name ?? session.schoolName,
+    majorName: session.major_name ?? session.majorName,
+    className: session.class_name ?? session.className,
+    gradeLevel: typeof gradeLevel === 'number' ? gradeLevel : undefined,
+    totalScore: session.total_score ?? session.totalScore,
+    status: session.status,
+    completedAt: session.completed_at ?? session.completedAt,
+    createdAt: session.created_at ?? session.createdAt,
+    raw: session,
+  };
+};
+
+export const fetchAllSessionsForTeacherAndAdminRole = async (): Promise<SessionListResult> => {
   const response = await fetch(`${API_BASE}/api/v1/sessions/all`, {
     method: 'GET',
     headers: {
@@ -185,19 +245,35 @@ export const fetchAllSessionsForTeacherAndAdminRole = async () => {
     },
   });
 
-  let data: StudentSessionResponse[] = [];
+  let data: any = null;
   try {
     data = await response.json();
   } catch {
-    // keep data empty
+    // keep data null and handle below
   }
 
   if (!response.ok) {
-    const msg = typeof data === 'string' ? data : (data as any)?.message || (data as any)?.error;
+    const msg = typeof data === 'string' ? data : data?.message || data?.error;
     throw new Error(msg || '세션 내역을 불러오지 못했습니다.');
   }
 
-  return Array.isArray(data) ? data : [];
+  const rawSessions =
+    (Array.isArray(data?.sessions) && data.sessions) ||
+    (Array.isArray(data?.data) && data.data) ||
+    (Array.isArray(data) && data) ||
+    [];
+
+  const normalized: NormalizedSessionSummary[] = Array.isArray(rawSessions)
+    ? rawSessions.map((session, idx) => normalizeSessionSummary(session as StudentSessionResponse, idx + 1))
+    : [];
+
+  const totalCount = data?.total_count ?? data?.totalCount ?? normalized.length;
+
+  return {
+    sessions: normalized,
+    totalCount,
+    raw: data,
+  };
 };
 
 export const fetchStudentSessionDetail = async (sessionId: string) => {

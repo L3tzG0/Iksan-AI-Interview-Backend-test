@@ -5,7 +5,15 @@ import Card from './Card';
 import Button from './ui/Button';
 import { FilterIcon, SortIcon, SearchIcon, ChartIcon } from './icons';
 import { useToast } from './ui/Toast';
-import { bulkCreateStudents, createStudent, fetchUsers, type BulkRowError, type CreateStudentPayload } from '../services/studentService';
+import {
+  bulkCreateStudents,
+  createStudent,
+  fetchUsers,
+  fetchAllSessionsForTeacherAndAdminRole,
+  type BulkRowError,
+  type CreateStudentPayload,
+  type NormalizedSessionSummary,
+} from '../services/studentService';
 
 interface FilterControlsProps {
   gradeFilter: number | 'all';
@@ -605,6 +613,60 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser, onSele
     };
 
     loadStudents();
+    return () => {
+      isMounted = false;
+    };
+  }, [addToast]);
+
+  const mergeSessionsIntoStudents = (sessionItems: NormalizedSessionSummary[]) => {
+    setStudents((prev) => {
+      const byId = new Map(prev.map((s) => [s.id, s]));
+
+      sessionItems.forEach((session) => {
+        const studentId = session.studentIdentifier || session.studentName || session.id;
+        if (!studentId) return;
+
+        const existing = byId.get(String(studentId));
+        const completed = (session.status || '').toLowerCase() === 'completed' || Boolean(session.completedAt);
+        const latestScore = typeof session.totalScore === 'number' ? Math.round(session.totalScore) : existing?.latestScore ?? 0;
+        const gradeLevel = typeof session.gradeLevel === 'number' ? session.gradeLevel : existing?.grade ?? 0;
+
+        const merged: StudentSummary = {
+          id: String(studentId),
+          name: session.studentName || existing?.name || '이름 없음',
+          major: session.majorName || existing?.major || '',
+          schoolName: session.schoolName || existing?.schoolName || '',
+          grade: gradeLevel,
+          latestScore,
+          improvement: existing?.improvement ?? 0,
+          completed: completed || existing?.completed || false,
+          intent: existing?.intent,
+          tempPassword: existing?.tempPassword,
+        };
+
+        byId.set(merged.id, merged);
+      });
+
+      return Array.from(byId.values());
+    });
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadSessions = async () => {
+      try {
+        const res = await fetchAllSessionsForTeacherAndAdminRole();
+        if (!isMounted) return;
+        mergeSessionsIntoStudents(res.sessions);
+      } catch (err: any) {
+        if (isMounted) {
+          const message = err?.message || '세션 데이터를 불러오지 못했습니다.';
+          addToast(message, 'error');
+        }
+      }
+    };
+
+    loadSessions();
     return () => {
       isMounted = false;
     };

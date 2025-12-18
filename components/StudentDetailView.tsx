@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { fetchAllSessionsForTeacherAndAdminRole, fetchStudentSessionDetail, StudentSessionResponse } from '../services/studentService';
+import { fetchAllSessionsForTeacherAndAdminRole, fetchStudentSessionDetail, type NormalizedSessionSummary } from '../services/studentService';
 import type { StudentDetail, StudentSession, StudentSessionDetail, InterviewReport } from '../types';
 import Spinner from './Spinner';
 import Card from './Card';
@@ -41,15 +41,18 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({ studentId, onBack
       setSessionError(null);
       try {
         const data = await fetchAllSessionsForTeacherAndAdminRole();
-        const normalized = (data as StudentSessionResponse[])
-          .filter((s) => String((s as any)?.student_id || (s as any)?.studentId || '') === String(studentId))
-          .map((s, idx) => ({
-            id: String((s as any).id || (s as any).session_id || idx + 1),
-            startedAt: s.startedAt || (s as any).started_at,
-            completedAt: s.completedAt || (s as any).completed_at,
-            totalScore: s.totalScore ?? (s as any).total_score,
+        const normalized = data.sessions
+          .filter((s: NormalizedSessionSummary) => {
+            const studentIdentifier = s.studentIdentifier ?? '';
+            return String(studentIdentifier) === String(studentId);
+          })
+          .map((s) => ({
+            id: s.id,
+            startedAt: s.createdAt,
+            completedAt: s.completedAt,
+            totalScore: s.totalScore,
             status: s.status,
-            intent: (s.intent as any) || undefined,
+            intent: undefined,
           }));
         setSessions(normalized);
       } catch (err: any) {
