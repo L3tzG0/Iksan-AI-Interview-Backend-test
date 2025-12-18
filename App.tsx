@@ -228,7 +228,6 @@ const App: React.FC = () => {
   const handleViewStudent = (studentId: string) => {
     navigate(`/teacher/students/${studentId}`);
   };
-
   const mapQuestionsFromDetail = useCallback((detail: any): Question[] => {
     const feedback = Array.isArray(detail?.detailed_feedback) ? detail.detailed_feedback : [];
     return feedback
@@ -617,7 +616,7 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
                 element={
                   <ProtectedRoute
                     allowed={['teacher', 'admin']}
-                    element={<TeacherDashboard currentUser={currentUser!} onSelectStudent={handleViewStudent} />}
+                    element={<TeacherDashboard currentUser={currentUser!} />}
                   />
                 }
               />

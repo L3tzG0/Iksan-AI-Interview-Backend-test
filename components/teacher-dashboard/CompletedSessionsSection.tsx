@@ -1,24 +1,35 @@
 import type { FC } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { CompletedSessionsSectionProps } from '../../types/teacherDashboard';
 import FilterControls from './FilterControls';
 import SearchBar from './SearchBar';
+import Spinner from '../Spinner';
 
 const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({
   searchTerm,
   onSearch,
   filterControlsProps,
   processedCompleted,
+  isLoadingStudents,
   activeStudentId,
-  onSelectStudent,
   onHighlightStudent,
-}) => (
-  <div className="space-y-4">
+}) => {
+  const navigate = useNavigate();
+
+    return (
+        <div className="space-y-4">
     <div className="flex lg:flex-row flex-col lg:items-center gap-4">
       <SearchBar value={searchTerm} onChange={onSearch} placeholder="학생 이름 검색" />
       <FilterControls {...filterControlsProps} />
     </div>
 
-    {processedCompleted.length === 0 ? (
+    {isLoadingStudents ? (
+      <div className="bg-white shadow-soft border border-slate-100 rounded-[20px] overflow-hidden">
+        <div className="flex justify-center py-16">
+          <Spinner label="학생 목록을 불러오는 중..." />
+        </div>
+      </div>
+    ) : processedCompleted.length === 0 ? (
       <div className="py-16 text-slate-500 text-center">
         <p className="font-semibold text-lg">완료된 학생이 없습니다.</p>
         <p className="mt-2 text-slate-400 text-sm">필터를 변경하거나 학생을 추가해 주세요.</p>
@@ -53,7 +64,11 @@ const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({
                   }`}
                   onClick={() => {
                     onHighlightStudent(student.id);
-                    onSelectStudent(student.id);
+                    const sessionId = student.session_id || student.sessionId;
+                    const path = sessionId
+                      ? `/teacher/students/${student.id}?session_id=${encodeURIComponent(sessionId)}`
+                      : `/teacher/students/${student.id}`;
+                    navigate(path);
                   }}
                 >
                   <td className="px-6 py-4 font-semibold text-slate-800 group-hover:text-primary">{student.name}</td>
@@ -81,7 +96,8 @@ const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({
         </div>
       </div>
     )}
-  </div>
-);
+        </div>
+)
+}
 
 export default CompletedSessionsSection;

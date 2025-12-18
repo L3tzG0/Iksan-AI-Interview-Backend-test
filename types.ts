@@ -108,6 +108,8 @@ export interface StudentSummary {
   status?: 'in_progress' | 'completed';
   intent?: StudentGoal; // optional: university or work selection
   tempPassword?: string; // optional: temporary password for account
+  sessionId?: string;
+  session_id?: string;
 }
 
 // StudentDetail now holds the history

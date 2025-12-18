@@ -3,6 +3,7 @@ import type { AccountManagementSectionProps } from '../../types/teacherDashboard
 import Button from '../ui/Button';
 import FilterControls from './FilterControls';
 import SearchBar from './SearchBar';
+import Spinner from '../Spinner';
 
 const AccountManagementSection: FC<AccountManagementSectionProps> = ({
   newStudent,
@@ -27,7 +28,6 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
   processedAll,
   isLoadingStudents,
   activeStudentId,
-  onSelectStudent,
   onHighlightStudent,
   fileInputRef,
   canSubmitBulkUpload,
@@ -217,7 +217,7 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
             <tbody className="divide-y divide-slate-100">
               {isLoadingStudents && processedAll.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-6 py-6 text-slate-400 text-center">불러오는 중...</td>
+                  <td colSpan={4} className="px-6 py-6 text-slate-400 text-center"><Spinner label="불러오는 중..." /></td>
                 </tr>
               )}
               {processedAll.map((student) => (
@@ -230,7 +230,6 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
                   }`}
                   onClick={() => {
                     onHighlightStudent(student.id);
-                    onSelectStudent(student.id);
                   }}
                 >
                   <td className="px-6 py-4 font-semibold text-slate-800 group-hover:text-primary">{student.name}</td>

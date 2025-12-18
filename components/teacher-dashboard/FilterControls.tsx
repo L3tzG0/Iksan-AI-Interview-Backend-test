@@ -11,7 +11,7 @@ const FilterControls: FC<FilterControlsProps> = ({
   onSortChange,
   onGoalChange,
   compact,
-  showGrade = true,
+  showGrade = false,
   showGoal = true,
 }) => (
   <div className={`flex flex-wrap gap-3 items-center ${compact ? 'justify-end' : ''}`}>

@@ -26,7 +26,7 @@ import CompletedSessionsSection from './teacher-dashboard/CompletedSessionsSecti
 import DashboardHero from './teacher-dashboard/DashboardHero';
 import TabSwitcher from './teacher-dashboard/TabSwitcher';
 
-const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser, onSelectStudent }) => {
+const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
   const navigate = useNavigate();
   const { tab } = useParams<{ tab?: string }>();
   const tabFromRoute: 'completed' | 'manage' = tab === '2' ? 'manage' : 'completed';
@@ -89,7 +89,30 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser, onSele
           intent: 'university',
           tempPassword: u.tempPassword,
         }));
-        setStudents(hydrated);
+
+        // Merge the freshly hydrated user list with any session-derived student state
+        // to avoid clobbering completed/score info when the requests resolve out of order.
+        setStudents((prev) => {
+          const byId = new Map(prev.map((s) => [s.id, s]));
+
+          hydrated.forEach((student) => {
+            const existing = byId.get(student.id);
+            const merged: StudentSummary = {
+              ...student,
+              ...existing,
+              latestScore: existing?.latestScore ?? student.latestScore,
+              improvement: existing?.improvement ?? student.improvement,
+              completed: existing?.completed ?? student.completed,
+              status: existing?.status ?? student.status,
+              tempPassword: student.tempPassword || existing?.tempPassword,
+              sessionId: existing?.sessionId ?? existing?.session_id ?? student.sessionId,
+              session_id: existing?.session_id ?? existing?.sessionId ?? student.session_id,
+            };
+            byId.set(student.id, merged);
+          });
+
+          return Array.from(byId.values());
+        });
       } catch (err: any) {
         if (isMounted) {
           const message = err?.message || '학생 목록을 불러오지 못했습니다.';
@@ -119,6 +142,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser, onSele
         const latestScore = typeof session.totalScore === 'number' ? Math.round(session.totalScore) : existing?.latestScore ?? 0;
         const gradeLevel = typeof session.gradeLevel === 'number' ? session.gradeLevel : existing?.grade ?? 0;
         const normalizedStatus = completed ? 'completed' : (session.status as 'in_progress' | 'completed') || existing?.status || 'in_progress';
+        const sessionIdValue = session.id ? String(session.id) : existing?.sessionId || existing?.session_id;
 
         const merged: StudentSummary = {
           id: String(studentId),
@@ -132,6 +156,8 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser, onSele
           status: normalizedStatus,
           intent: existing?.intent,
           tempPassword: existing?.tempPassword,
+          sessionId: sessionIdValue,
+          session_id: sessionIdValue,
         };
 
         byId.set(merged.id, merged);
@@ -396,8 +422,8 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser, onSele
             onSearch={handleSearch}
             filterControlsProps={filterControlsProps}
             processedCompleted={processedCompleted}
+            isLoadingStudents={isLoadingStudents}
             activeStudentId={activeStudentId}
-            onSelectStudent={onSelectStudent}
             onHighlightStudent={(id) => setActiveStudentId(id)}
           />
         )}
@@ -426,7 +452,6 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser, onSele
             processedAll={processedAll}
             isLoadingStudents={isLoadingStudents}
             activeStudentId={activeStudentId}
-            onSelectStudent={onSelectStudent}
             onHighlightStudent={(id) => setActiveStudentId(id)}
             fileInputRef={fileInputRef}
             canSubmitBulkUpload={Boolean(bulkSelectedFile) && !isUploadingCsv}

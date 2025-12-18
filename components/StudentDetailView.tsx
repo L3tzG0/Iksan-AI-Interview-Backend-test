@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { fetchAllSessionsForTeacherAndAdminRole, fetchStudentSessionDetail, type NormalizedSessionSummary } from '../services/studentService';
-import type { StudentDetail, StudentSession, StudentSessionDetail, InterviewReport } from '../types';
+import { useSearchParams } from 'react-router-dom';
+import { fetchAllSessionsForTeacherAndAdminRole, type NormalizedSessionSummary } from '../services/studentService';
+import { fetchSessionDetail } from '../services/sessionService';
+import type { StudentDetail, StudentSession, InterviewReport } from '../types';
 import Spinner from './Spinner';
 import Card from './Card';
 import { ArrowLeftIcon } from './icons';
@@ -22,6 +24,37 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({ studentId, onBack
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [isSessionDetailLoading, setIsSessionDetailLoading] = useState(false);
   const [sessionDetailError, setSessionDetailError] = useState<string | null>(null);
+  const [searchParams] = useSearchParams();
+
+  const mapReportFromDetail = useCallback((detail: any): InterviewReport => {
+    const feedback = Array.isArray(detail?.detailed_feedback) ? detail.detailed_feedback : [];
+    const overallScore = detail?.overall_score ?? detail?.overallScore;
+    return {
+      sessionId: detail?.session_id || detail?.sessionId,
+      status: detail?.status,
+      overallScore,
+      strengthSummary: detail?.strength_summary,
+      areasForGrowth: detail?.areas_for_growth,
+      detailedFeedback: feedback,
+      nextSteps: detail?.next_steps,
+      scores: feedback.length
+        ? {
+            contentRelevance: feedback.reduce((sum: number, item: any) => sum + (item.content_relevance_score || 0), 0) / feedback.length || 0,
+            structure: feedback.reduce((sum: number, item: any) => sum + (item.structure_score || 0), 0) / feedback.length || 0,
+            fluency: feedback.reduce((sum: number, item: any) => sum + (item.fluency_score || 0), 0) / feedback.length || 0,
+            confidence: feedback.reduce((sum: number, item: any) => sum + (item.confidence_score || 0), 0) / feedback.length || 0,
+          }
+        : undefined,
+      totalScore: overallScore,
+      summary:
+        detail?.strength_summary || detail?.areas_for_growth
+          ? { strengths: detail.strength_summary || '', areasForGrowth: detail.areas_for_growth || '' }
+          : undefined,
+      nextStepsDetailed: Array.isArray(detail?.next_steps)
+        ? detail.next_steps.map((step: string) => ({ title: step, description: step }))
+        : undefined,
+    };
+  }, []);
 
   useEffect(() => {
     setStudent({
@@ -72,16 +105,10 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({ studentId, onBack
       setSessionDetailError(null);
       setSelectedSessionId(sessionId);
       try {
-        const data: StudentSessionDetail = await fetchStudentSessionDetail(sessionId);
-        const report =
-          (data as any)?.report ||
-          (data as any)?.feedback ||
-          (data as any)?.session?.report ||
-          null;
-        if (report) {
-          setSelectedSessionReport(report as InterviewReport);
-        } else {
-          setSelectedSessionReport(null);
+        const detail = await fetchSessionDetail(sessionId);
+        const mappedReport = mapReportFromDetail(detail);
+        setSelectedSessionReport(mappedReport);
+        if (!mappedReport.detailedFeedback?.length && mappedReport.totalScore === undefined && mappedReport.overallScore === undefined) {
           setSessionDetailError('이 세션에는 리포트 데이터가 없습니다.');
         }
       } catch (err: any) {
@@ -92,8 +119,15 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({ studentId, onBack
         setIsSessionDetailLoading(false);
       }
     },
-    [studentId]
+    [mapReportFromDetail]
   );
+
+  useEffect(() => {
+    const sessionIdFromQuery = searchParams.get('session_id');
+    if (sessionIdFromQuery && sessionIdFromQuery !== selectedSessionId) {
+      handleViewSessionDetail(sessionIdFromQuery);
+    }
+  }, [searchParams, selectedSessionId, handleViewSessionDetail]);
 
   const handleDownloadReport = useCallback(() => {}, []);
 
@@ -129,15 +163,15 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({ studentId, onBack
         )}
       </div>
 
-      {student.report ? (
+      {/* {student.report ? (
         <InterviewReportView report={student.report} />
       ) : (
         <Card className="py-12 text-center">
             <p className="text-slate-500 text-lg">아직 제출된 보고서가 없습니다.</p>
         </Card>
-      )}
+      )} */}
 
-      <Card className="mt-8">
+      {/* <Card className="mt-8">
         <div className="flex justify-between items-center mb-4">
           <div>
             <p className="font-semibold text-primary-text text-xs uppercase tracking-[0.2em]">Session History</p>
@@ -197,8 +231,9 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({ studentId, onBack
           </div>
         )}
       </Card>
+       */}
       {selectedSessionReport && (
-        <Card className="mt-6">
+        <>
           <div className="flex justify-between items-center mb-4">
             <div>
               <p className="font-semibold text-primary-text text-xs uppercase tracking-[0.2em]">Session Detail</p>
@@ -208,7 +243,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({ studentId, onBack
             {isSessionDetailLoading && <Spinner />}
           </div>
           <InterviewReportView report={selectedSessionReport} />
-        </Card>
+          </>
       )}
       {!selectedSessionReport && sessionDetailError && (
         <div className="bg-amber-50 mt-4 px-3 py-2 border border-amber-100 rounded-xl text-amber-600 text-sm">

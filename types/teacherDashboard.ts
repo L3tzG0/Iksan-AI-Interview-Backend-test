@@ -51,6 +51,7 @@ export interface CompletedSessionsSectionProps {
   onSearch: (value: string) => void;
   filterControlsProps: FilterControlsProps;
   processedCompleted: StudentSummary[];
+  isLoadingStudents: boolean;
   activeStudentId: string | null;
   onSelectStudent: (studentId: string) => void;
   onHighlightStudent: (studentId: string) => void;
