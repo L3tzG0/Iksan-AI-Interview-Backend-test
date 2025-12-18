@@ -149,6 +149,8 @@ export interface User {
     major?: string;       
     avatarUrl?: string;
     authToken?: string;
+  studentId?: string;
+  tempPassword?: string;
 }
 
 export interface StudentAccountInput {
