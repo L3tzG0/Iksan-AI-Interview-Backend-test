@@ -210,7 +210,17 @@ export const fetchStudentSessionsForStudentRole = async () => {
     throw new Error(msg || '학생 세션 내역을 불러오지 못했습니다.');
   }
 
-  return Array.isArray(data) ? data : [];
+  const rawSessions =
+    // Common envelope shapes we have seen
+    (Array.isArray((data as any)?.sessions) && (data as any).sessions) ||
+    (Array.isArray((data as any)?.data?.sessions) && (data as any).data.sessions) ||
+    (Array.isArray((data as any)?.data?.results) && (data as any).data.results) ||
+    (Array.isArray((data as any)?.results) && (data as any).results) ||
+    (Array.isArray((data as any)?.data) && (data as any).data) ||
+    (Array.isArray(data) && data) ||
+    [];
+
+  return rawSessions;
 };
 
 const normalizeSessionSummary = (session: StudentSessionResponse, fallbackId: number): NormalizedSessionSummary => {

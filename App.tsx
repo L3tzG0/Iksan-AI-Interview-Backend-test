@@ -100,10 +100,51 @@ const App: React.FC = () => {
       if (isAuthenticated && currentUser?.role === 'student') {
         try {
           const sessions = await fetchStudentSessionsForStudentRole();
-          setStudentHistory([]);
-        } catch {
+          const normalized = sessions
+            .map((session, idx) => {
+              const completedAt =
+                (session as any)?.completed_at ||
+                (session as any)?.completedAt ||
+                (session as any)?.created_at ||
+                (session as any)?.createdAt;
+              const sortKey = completedAt ? Date.parse(completedAt) || 0 : 0;
+              const totalScoreRaw = (session as any)?.total_score ?? (session as any)?.totalScore;
+              const parsedScore = typeof totalScoreRaw === 'number' ? totalScoreRaw : Number(totalScoreRaw);
+              const totalScore = Number.isFinite(parsedScore) ? parsedScore : 0;
+
+              const report: InterviewReport = {
+                sessionId: String(
+                  (session as any)?.session_id ??
+                    (session as any)?.sessionId ??
+                    (session as any)?.id ??
+                    `session-${idx + 1}`
+                ),
+                status: (session as any)?.status,
+                totalScore: Number.isFinite(totalScore) ? totalScore : undefined,
+                date: completedAt
+                  ? new Date(completedAt).toLocaleDateString('ko-KR', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })
+                  : undefined,
+              };
+
+              return { sortKey, report };
+            })
+            .filter((item) => !!item.report.sessionId)
+            .sort((a, b) => b.sortKey - a.sortKey)
+            .map((item) => item.report);
+
+          setStudentHistory(normalized);
+        } catch (err) {
+          console.error('Failed to fetch student history', err);
           setStudentHistory([]);
         }
+      } else {
+        setStudentHistory([]);
       }
     };
     fetchHistory();
@@ -319,8 +360,7 @@ const App: React.FC = () => {
   };
 
   const handleViewHistoryReport = (historyReport: InterviewReport) => {
-    setReport(historyReport);
-    navigate(currentUser?.role === 'student' ? '/student/results' : '/teacher/dashboard');
+    openReportBySessionId(historyReport.sessionId);
   };
 
   const handleViewStudent = (studentId: string) => {
@@ -365,6 +405,27 @@ const App: React.FC = () => {
         : undefined,
     };
   }, []);
+
+  const openReportBySessionId = useCallback(
+    async (sessionId: string | undefined) => {
+      if (!sessionId) return;
+      setIsLoading(true);
+      setError(null);
+      try {
+        const detail = await fetchSessionDetail(sessionId);
+        const mappedReport = mapReportFromDetail(detail);
+        setReport(mappedReport as InterviewReport);
+        const resultsPath = currentUser?.role === 'student' ? '/student/results' : '/teacher/dashboard';
+        navigate(resultsPath);
+      } catch (err) {
+        console.error('Failed to load report from history', err);
+        setError('이전 결과를 불러오지 못했습니다. 다시 시도해 주세요.');
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [currentUser?.role, mapReportFromDetail, navigate]
+  );
 
   useEffect(() => {
     if (!isWaitingForQuestions || !sessionId) return;
@@ -498,8 +559,7 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
       return;
     }
     if (studentHistory.length > 0) {
-      setReport(studentHistory[0]);
-      navigate(resultsPath);
+      openReportBySessionId(studentHistory[0].sessionId);
     }
   };
 
