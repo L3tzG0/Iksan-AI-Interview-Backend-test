@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import AuthLayout from './AuthLayout';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
-import { MailIcon, LockIcon } from '../icons';
+import { MailIcon, LockIcon, IdBadgeIcon } from '../icons';
 import { signIn } from '../../services/authService';
 import { User } from '../../types';
 
@@ -65,7 +65,7 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ onSignIn, onSwitchToSignUp,
           placeholder={mode === 'student' ? '예: 001000100001' : 'name@school.ac.kr'}
           value={loginId}
           onChange={(e) => handleLoginIdChange(e.target.value)}
-          icon={<MailIcon className="w-5 h-5" />}
+          icon={mode === 'student' ? <IdBadgeIcon className="w-6 h-6" /> : <MailIcon className="w-5 h-5" />}
           required
         />
         {inlineError && <p className="text-xs text-rose-500">{inlineError}</p>}
@@ -124,4 +124,3 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ onSignIn, onSwitchToSignUp,
 };
 
 export default SignInScreen;
-
