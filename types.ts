@@ -105,6 +105,7 @@ export interface StudentSummary {
   latestScore: number;
   improvement: number; // as a percentage
   completed: boolean;
+  status?: 'in_progress' | 'completed';
   intent?: StudentGoal; // optional: university or work selection
   tempPassword?: string; // optional: temporary password for account
 }
