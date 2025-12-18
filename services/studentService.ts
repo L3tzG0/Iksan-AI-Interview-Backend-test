@@ -10,16 +10,24 @@ const authHeaders = () => {
 
 export interface CreateStudentPayload {
   full_name: string;
-  school_id?: string;
   school_name?: string;
-  major_id?: string;
   major_name?: string;
   class_id?: string;
   class_name?: string;
   grade_level?: number;
 }
 
-export const createStudent = async (payload: CreateStudentPayload) => {
+export interface CreatedStudentAccount {
+  id?: string;
+  userId?: string;
+  fullName?: string;
+  studentId: string;
+  password?: string;
+  currentClassId?: string;
+  raw?: any;
+}
+
+export const createStudent = async (payload: CreateStudentPayload): Promise<CreatedStudentAccount> => {
   const response = await fetch(`${API_BASE}/api/v1/students/create`, {
     method: 'POST',
     headers: {
@@ -28,11 +36,39 @@ export const createStudent = async (payload: CreateStudentPayload) => {
     },
     body: JSON.stringify(payload),
   });
+
+  let data: any = null;
+  try {
+    data = await response.json();
+  } catch {
+    // ignore parse errors; handled below
+  }
+
   if (!response.ok) {
-    const msg = await response.text();
+    const msg = typeof data === 'string' ? data : data?.message || data?.error || data?.detail;
     throw new Error(msg || '학생을 추가할 수 없어요');
   }
-  return response.json();
+
+  const studentId = data?.student_id ?? data?.studentId;
+  if (!studentId) {
+    throw new Error('생성된 학생 ID가 응답에 없습니다.');
+  }
+
+  const password = data?.password ?? data?.temp_password ?? data?.tempPassword;
+  const fullName = data?.full_name ?? data?.fullName;
+  const userId = data?.user_id ?? data?.userId;
+  const id = data?.id ?? userId;
+  const currentClassId = data?.current_class_id ?? data?.currentClassId;
+
+  return {
+    id: id !== undefined ? String(id) : undefined,
+    userId: userId !== undefined ? String(userId) : undefined,
+    fullName,
+    studentId: String(studentId),
+    password,
+    currentClassId: currentClassId !== undefined ? String(currentClassId) : undefined,
+    raw: data,
+  };
 };
 
 export interface BulkRowError {

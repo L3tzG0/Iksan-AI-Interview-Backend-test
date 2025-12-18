@@ -5,7 +5,7 @@ import Card from './Card';
 import Button from './ui/Button';
 import { FilterIcon, SortIcon, SearchIcon, ChartIcon } from './icons';
 import { useToast } from './ui/Toast';
-import { bulkCreateStudents, fetchUsers, type BulkRowError } from '../services/studentService';
+import { bulkCreateStudents, createStudent, fetchUsers, type BulkRowError, type CreateStudentPayload } from '../services/studentService';
 
 interface TeacherDashboardProps {
   currentUser: User;
@@ -44,6 +44,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser, onSele
   const [isUploadingCsv, setIsUploadingCsv] = useState(false);
   const [bulkSelectedFile, setBulkSelectedFile] = useState<File | null>(null);
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
+  const [isCreatingStudent, setIsCreatingStudent] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { addToast } = useToast();
 
@@ -113,38 +114,61 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser, onSele
     return `${schoolCode}${majorCode}${nextNumber}`;
   };
 
-  const handleCreateStudent = (e: React.FormEvent) => {
+  const handleCreateStudent = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newStudent.name.trim() || !newStudent.major.trim()) {
-      alert('학생 이름과 전공을 입력해주세요.');
+    const trimmedName = newStudent.name.trim();
+    const trimmedMajor = newStudent.major.trim();
+    const trimmedSchool = (newStudent.school || currentUser.schoolName || '').trim();
+    const trimmedClassLabel = newStudent.classLabel.trim();
+
+    if (!trimmedName || !trimmedMajor) {
+      addToast('학생 이름과 전공을 입력해주세요.', 'error');
       return;
     }
-    const studentId = generateStudentId(newStudent.school || currentUser.schoolName, newStudent.major);
-    const tempPassword = `PW${Math.floor(Math.random() * 9999).toString().padStart(4, '0')}`;
-    const account: GeneratedStudentAccount = {
-      name: newStudent.name.trim(),
-      school: newStudent.school || currentUser.schoolName,
-      gradeYear: newStudent.gradeYear,
-      major: newStudent.major.trim(),
-      classLabel: newStudent.classLabel.trim(),
-      studentId,
-      tempPassword,
+
+    const payload: CreateStudentPayload = {
+      full_name: trimmedName,
+      school_name: trimmedSchool || undefined,
+      major_name: trimmedMajor,
+      class_name: trimmedClassLabel || undefined,
+      grade_level: newStudent.gradeYear,
     };
-    setGeneratedAccount(account);
-    const summary: StudentSummary = {
-      id: studentId,
-      name: account.name,
-      major: account.major,
-      schoolName: account.school,
-      grade: account.gradeYear,
-      latestScore: 0,
-      improvement: 0,
-      completed: false,
-      intent: 'university',
-    };
-    setStudents((prev) => [summary, ...prev]);
-    setNewStudent((prev) => ({ ...prev, name: '', major: '', classLabel: '' }));
-    addToast('학생이 추가되었습니다.', 'success');
+
+    setIsCreatingStudent(true);
+    try {
+      const created = await createStudent(payload);
+      const account: GeneratedStudentAccount = {
+        name: created.fullName || trimmedName,
+        school: trimmedSchool || currentUser.schoolName || '',
+        gradeYear: newStudent.gradeYear,
+        major: trimmedMajor,
+        classLabel: trimmedClassLabel,
+        studentId: created.studentId,
+        tempPassword: created.password || '',
+      };
+      setGeneratedAccount(account);
+
+      const summary: StudentSummary = {
+        id: created.studentId,
+        name: account.name,
+        major: account.major,
+        schoolName: account.school,
+        grade: account.gradeYear,
+        latestScore: 0,
+        improvement: 0,
+        completed: false,
+        intent: 'university',
+        tempPassword: account.tempPassword,
+      };
+      setStudents((prev) => [summary, ...prev]);
+      setNewStudent((prev) => ({ ...prev, name: '', major: '', classLabel: '' }));
+      addToast('학생이 추가되었습니다.', 'success');
+    } catch (err: any) {
+      const message = err?.message || '학생을 추가할 수 없어요.';
+      addToast(message, 'error');
+    } finally {
+      setIsCreatingStudent(false);
+    }
   };
 
   const handleBulkUpload = (file?: File) => {
@@ -526,8 +550,8 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser, onSele
                   />
                 </label>
                 <div className="flex items-end">
-                  <Button type="submit" className="w-full">
-                    학생 추가
+                  <Button type="submit" className="w-full" disabled={isCreatingStudent}>
+                    {isCreatingStudent ? '추가 중...' : '학생 추가'}
                   </Button>
                 </div>
               </form>
