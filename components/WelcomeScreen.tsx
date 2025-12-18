@@ -17,14 +17,16 @@ const stats = [
 ];
 
 const industries = [
-  'IT/소프트웨어',
-  '제조/생산',
-  '금융/보험',
-  '헬스케어/바이오',
-  '교육',
-  '마케팅/광고',
-  '공공/비영리',
-  '기타',
+'상업',
+'기계',
+'전기·전자',
+'컴퓨터',
+'디자인·예술',
+'건설',
+'화학·환경',
+'조리·식품가공',
+'관광·서비스',
+'자동차',
 ];
 
 const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewReport }) => {
