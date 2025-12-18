@@ -236,10 +236,13 @@ async def submit_session_answers(
         sanitized_qa_pairs = sanitize_qa_pairs(submit_request.qa_pairs)
         # 2. Update session status to reflect that evaluation is pending
         await session_service.update_session_status(session_id, status="pending_evaluation")
-        
+        session_detail = await session_service.get_session_with_details(session_id)
+        q_type = session_detail.get("type")
+        print(f"q type= {q_type}")
         # 3. ENQUEUE THE JOB (Replaces all synchronous LLM/DB steps)
         job_payload = {
-            "job_type": "evaluation", 
+            "job_type": "evaluation",
+            "q_type": q_type,
             "session_id": session_id,
             "qa_pairs": [p.model_dump() for p in sanitized_qa_pairs],
             "timestamp": datetime.now().isoformat()

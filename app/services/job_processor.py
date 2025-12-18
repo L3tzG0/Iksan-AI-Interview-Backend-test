@@ -175,6 +175,8 @@ async def process_evaluation_job(
     qa_pairs_dicts = job_data["qa_pairs"]
     qa_pairs = [QuestionAnswerPair(**p) for p in qa_pairs_dicts]
     
+    q_type = job_data["q_type"]
+
     session_service = InterviewSessionService(supabase)
     feedback_service = FeedbackService(supabase)
     
@@ -189,7 +191,7 @@ async def process_evaluation_job(
             try:
                 # 2. Call LLM Evaluation Service (The heavy lifting)
                 logging.info(f"Session {session_id}: Attempt {attempt + 1}/{MAX_JOB_RETRIES} to call LLM...")
-                evaluation_result = await generate_session_evaluation(qa_pairs)
+                evaluation_result = await generate_session_evaluation(qa_pairs, q_type)
                 # Success! Break the retry loop
                 break 
             except Exception as e:
