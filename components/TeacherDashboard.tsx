@@ -143,7 +143,6 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
         const completed = (session.status || '').toLowerCase() === 'completed' || Boolean(session.completedAt);
         const latestScore = typeof session.totalScore === 'number' ? Math.round(session.totalScore) : existing?.latestScore ?? 0;
         const gradeLevel = typeof session.gradeLevel === 'number' ? session.gradeLevel : existing?.grade ?? 0;
-        const normalizedStatus = completed ? 'completed' : (session.status as 'in_progress' | 'completed') || existing?.status || 'in_progress';
         const sessionIdValue = session.id ? String(session.id) : existing?.sessionId || existing?.session_id;
 
         const merged: StudentSummary = {
@@ -155,7 +154,8 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
           latestScore,
           improvement: existing?.improvement ?? 0,
           completed: completed || existing?.completed || false,
-          status: normalizedStatus,
+          status: session.status || existing?.status || null,
+          interviewType: session.interviewType || existing?.interviewType || null,
           intent: existing?.intent,
           tempPassword: existing?.tempPassword,
           sessionId: sessionIdValue,
@@ -175,6 +175,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
       try {
         const res = await fetchAllSessionsForTeacherAndAdminRole();
         if (!isMounted) return;
+        console.log('Fetched sessions for teacher/admin:', res);
         mergeSessionsIntoStudents(res.sessions);
       } catch (err: any) {
         if (isMounted) {

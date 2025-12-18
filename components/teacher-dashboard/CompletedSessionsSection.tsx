@@ -15,6 +15,7 @@ const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({
   onHighlightStudent,
 }) => {
   const navigate = useNavigate();
+  console.log('Rendering CompletedSessionsSection with processedCompleted:', processedCompleted);
 
     return (
         <div className="space-y-4">
@@ -48,6 +49,7 @@ const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({
                 <th className="px-6 py-4 font-bold">이름</th>
                 <th className="px-6 py-4 font-bold">학년</th>
                 <th className="px-6 py-4 font-bold">전공</th>
+                <th className="px-6 py-4 font-bold text-center">인터뷰 유형</th>
                 <th className="px-6 py-4 font-bold text-center">상태</th>
                 <th className="px-6 py-4 font-bold text-center">점수</th>
                 <th className="px-6 py-4 font-bold text-center">개선률</th>
@@ -74,6 +76,9 @@ const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({
                   <td className="px-6 py-4 font-semibold text-slate-800 group-hover:text-primary">{student.name}</td>
                   <td className="px-6 py-4">{student.grade}학년</td>
                   <td className="px-6 py-4 font-medium text-slate-700">{student.major}</td>
+                  <td className="px-6 py-4 text-center">
+                    {student.interviewType ? (student.interviewType === 'work' ? '취업' : '대학') : '알 수 없음'}
+                  </td>
                   <td className="px-6 py-4 text-center">
                     <span
                       className={`inline-flex items-center justify-center px-2.5 py-1 rounded-full text-xs font-semibold ${
