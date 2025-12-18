@@ -63,6 +63,7 @@ export interface AccountManagementSectionProps {
   onCreateStudent: (e: FormEvent) => Promise<void>;
   isCreatingStudent: boolean;
   generatedAccount: GeneratedStudentAccount | null;
+  showSchoolField: boolean;
   bulkFileName: string;
   bulkErrors: string[];
   bulkPreview: GeneratedStudentAccount[];

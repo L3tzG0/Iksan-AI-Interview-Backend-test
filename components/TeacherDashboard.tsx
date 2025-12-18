@@ -30,6 +30,8 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
   const navigate = useNavigate();
   const { tab } = useParams<{ tab?: string }>();
   const tabFromRoute: 'completed' | 'manage' = tab === '2' ? 'manage' : 'completed';
+  const isTeacher = currentUser.role === 'teacher';
+  const showSchoolField = currentUser.role === 'admin';
 
   const templateCsvContent =
     '\ufeff이름,학교,학년,전공,반\n김학생,스프링필드고등학교,2,컴퓨터공학,A1\n박학생,리버데일고등학교,3,경영학,B2';
@@ -213,7 +215,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
 
     const payload: CreateStudentPayload = {
       full_name: trimmedName,
-      school_name: trimmedSchool || undefined,
+      ...(showSchoolField ? { school_name: trimmedSchool || undefined } : {}),
       major_name: trimmedMajor,
       class_name: trimmedClassLabel || undefined,
       grade_level: newStudent.gradeYear,
@@ -222,9 +224,10 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
     setIsCreatingStudent(true);
     try {
       const created = await createStudent(payload);
+      const accountSchool = showSchoolField ? trimmedSchool : currentUser.schoolName || '';
       const account: GeneratedStudentAccount = {
         name: created.fullName || trimmedName,
-        school: trimmedSchool || currentUser.schoolName || '',
+        school: accountSchool,
         gradeYear: newStudent.gradeYear,
         major: trimmedMajor,
         classLabel: trimmedClassLabel,
@@ -237,7 +240,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
         id: created.studentId,
         name: account.name,
         major: account.major,
-        schoolName: account.school,
+        schoolName: accountSchool,
         grade: account.gradeYear,
         latestScore: 0,
         improvement: 0,
@@ -429,6 +432,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
             onCreateStudent={handleCreateStudent}
             isCreatingStudent={isCreatingStudent}
             generatedAccount={generatedAccount}
+            showSchoolField={showSchoolField}
             bulkFileName={bulkFileName}
             bulkErrors={bulkErrors}
             bulkPreview={bulkPreview}

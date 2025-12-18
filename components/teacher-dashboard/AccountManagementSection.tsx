@@ -11,6 +11,7 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
   onCreateStudent,
   isCreatingStudent,
   generatedAccount,
+  showSchoolField,
   bulkFileName,
   bulkErrors,
   bulkPreview,
@@ -108,15 +109,17 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
             required
           />
         </label>
-        <label className="space-y-1 font-semibold text-slate-700 text-sm">
-          학교
-          <input
-            value={newStudent.school}
-            onChange={(e) => onUpdateNewStudent('school', e.target.value)}
-            className="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 w-full"
-            placeholder="예: 부산자동차고등학교"
-          />
-        </label>
+        {showSchoolField && (
+          <label className="space-y-1 font-semibold text-slate-700 text-sm">
+            학교
+            <input
+              value={newStudent.school}
+              onChange={(e) => onUpdateNewStudent('school', e.target.value)}
+              className="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 w-full"
+              placeholder="예: 부산자동차고등학교"
+            />
+          </label>
+        )}
         <label className="space-y-1 font-semibold text-slate-700 text-sm">
           학년
           <select
@@ -148,7 +151,7 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
             placeholder="예: A1, B3"
           />
         </label>
-        <div className="flex items-end">
+        <div className={`flex items-end ${!showSchoolField ? 'sm:col-span-2' : ''}`}>
           <Button type="submit" className="w-full" disabled={isCreatingStudent}>
             {isCreatingStudent ? '추가 중...' : '학생 추가'}
           </Button>
