@@ -16,7 +16,7 @@ from datetime import datetime
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - JobProcessor - %(message)s')
 
 # Constants for retry logic
-MAX_JOB_RETRIES = 3
+MAX_JOB_RETRIES = 5
 INITIAL_BACKOFF_SECONDS = 7
 
 
