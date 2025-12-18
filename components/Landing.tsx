@@ -68,21 +68,21 @@ const Landing: React.FC<LandingProps> = ({
             </Button>
           ),
         },
-        {
-          icon: <HomeIcon className="w-5 h-5" />,
-          title: '최근 결과',
-          body: '이전에 받은 피드백을 다시 확인해보세요.',
-          button: (
-            <Button variant="secondary" onClick={onViewResults} className="w-full" disabled={!hasResults}>
-              결과 보기
-            </Button>
-          ),
-        },
+        // {
+        //   icon: <HomeIcon className="w-5 h-5" />,
+        //   title: '최근 결과',
+        //   body: '이전에 받은 피드백을 다시 확인해보세요.',
+        //   button: (
+        //     <Button variant="secondary" onClick={onViewResults} className="w-full" disabled={!hasResults}>
+        //       결과 보기
+        //     </Button>
+        //   ),
+        // },
         {
           icon: <ChartIcon className="w-5 h-5" />,
           title: '면접 TIP',
           body: 'STAR 기법과 답변 구조화 팁을 확인해보세요.',
-          extra: <span className="text-xs text-slate-500">실전 준비를 위한 빠른 가이드.</span>,
+          extra: <span className="text-slate-500 text-xs">실전 준비를 위한 빠른 가이드.</span>,
         },
       ];
 
@@ -95,39 +95,39 @@ const Landing: React.FC<LandingProps> = ({
 
   return (
     <div className="space-y-8 animate-fadeIn">
-      <section className="relative overflow-hidden rounded-[32px] bg-gradient-to-r from-primary-lightest via-white to-primary-lightest shadow-soft border border-white/70 px-6 py-10 md:px-12">
-        <div className="hero-blob hero-blob--primary -right-10 -top-10"></div>
-        <div className="hero-blob hero-blob--secondary -left-10 bottom-0"></div>
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center gap-8">
+      <section className="relative bg-gradient-to-r from-primary-lightest via-white to-primary-lightest shadow-soft px-6 md:px-12 py-10 border border-white/70 rounded-[32px] overflow-hidden">
+        <div className="-top-10 -right-10 hero-blob hero-blob--primary"></div>
+        <div className="bottom-0 -left-10 hero-blob hero-blob--secondary"></div>
+        <div className="z-10 relative flex md:flex-row flex-col md:items-center gap-8">
           <div className="space-y-4">
-            <p className="text-sm font-semibold text-primary-text uppercase tracking-[0.2em] flex items-center gap-2">
+            <p className="flex items-center gap-2 font-semibold text-primary-text text-sm uppercase tracking-[0.2em]">
               <SparklesIcon className="w-4 h-4" />
               환영합니다
             </p>
-            <h1 className="text-3xl md:text-4xl font-bold text-slate-900 leading-tight">{heroTitle}</h1>
-            <p className="text-slate-600 leading-relaxed max-w-3xl">{heroBody}</p>
+            <h1 className="font-bold text-slate-900 text-3xl md:text-4xl leading-tight">{heroTitle}</h1>
+            <p className="max-w-3xl text-slate-600 leading-relaxed">{heroBody}</p>
             <div className="flex flex-wrap gap-3">
               <Button onClick={isTeacher ? onGoTeacherTab1 || onGoDashboard : onStartInterview} className="px-6 py-3">
                 {isTeacher ? '대시보드' : 'AI 인터뷰 시작'}
               </Button>
-              <Button
+              {isTeacher && <Button
                 onClick={isTeacher ? onGoTeacherPreview || onGoTeacherTab2 || onGoDashboard : onViewResults}
                 variant="secondary"
                 className="px-6 py-3"
                 disabled={!isTeacher && !hasResults}
               >
                 {isTeacher ? '학생 인터뷰 미리보기' : '결과 보기'}
-              </Button>
+              </Button>}
             </div>
           </div>
           {latestReport && !isTeacher && (
-            <div className="flex-1 min-w-[260px] bg-white/90 border border-white/70 rounded-[24px] shadow-soft p-6 space-y-3 animate-softFadeUp">
-              <p className="text-xs font-semibold text-slate-500 uppercase">최근 점수</p>
+            <div className="flex-1 space-y-3 bg-white/90 shadow-soft p-6 border border-white/70 rounded-[24px] min-w-[260px] animate-softFadeUp">
+              <p className="font-semibold text-slate-500 text-xs uppercase">최근 점수</p>
               <div className="flex items-baseline gap-2">
-                <span className="text-5xl font-bold text-primary">{latestReport.totalScore?.toFixed(1) ?? '--'}</span>
-                <span className="text-sm text-slate-500">/ 10</span>
+                <span className="font-bold text-primary text-5xl">{latestReport.totalScore?.toFixed(1) ?? '--'}</span>
+                <span className="text-slate-500 text-sm">/ 10</span>
               </div>
-              <p className="text-sm text-slate-600">{latestReport.summary?.strengths?.slice(0, 60) ?? ''}</p>
+              <p className="text-slate-600 text-sm">{latestReport.summary?.strengths?.slice(0, 60) ?? ''}</p>
               <Button onClick={onViewResults} variant="secondary" fullWidth disabled={!hasResults}>자세히 보기</Button>
             </div>
           )}
@@ -142,11 +142,11 @@ const Landing: React.FC<LandingProps> = ({
               index === 0 ? 'animate-softFadeUp' : 'animate-softFadeUp-delayed'
             }`}
           >
-            <div className="flex items-center gap-3 text-primary font-bold text-lg">
+            <div className="flex items-center gap-3 font-bold text-primary text-lg">
               {card.icon}
               {card.title}
             </div>
-            <p className="text-sm text-slate-600">{card.body}</p>
+            <p className="text-slate-600 text-sm">{card.body}</p>
             {card.extra}
             {card.button}
           </div>
