@@ -77,7 +77,7 @@ const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({
                   <td className="px-6 py-4">{student.grade}학년</td>
                   <td className="px-6 py-4 font-medium text-slate-700">{student.major}</td>
                   <td className="px-6 py-4 text-center">
-                    {student.interviewType ? (student.interviewType === 'work' ? '취업' : '대학') : '알 수 없음'}
+                    {student.intent ? (student.intent === 'work' ? '취업' : '대학') : '알 수 없음'}
                   </td>
                   <td className="px-6 py-4 text-center">
                     <span
