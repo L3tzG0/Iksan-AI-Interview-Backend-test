@@ -117,18 +117,6 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, currentPath, onNavigate
                       <div className="py-1">
                         <button
                           onClick={() => {
-                            onNavigate && onNavigate('/student/home');
-                            setIsMenuOpen(false);
-                          }}
-                          className={`w-full text-left px-4 py-3 text-sm hover:bg-primary-lightest/60 flex items-center gap-2 font-semibold ${
-                            currentPath.startsWith('/student') ? 'text-primary' : 'text-slate-700'
-                          }`}
-                        >
-                          <SparklesIcon className="w-4 h-4 text-primary" />
-                          학생 페이지로 이동
-                        </button>
-                        <button
-                          onClick={() => {
                             onNavigate && onNavigate('/teacher/dashboard');
                             setIsMenuOpen(false);
                           }}
