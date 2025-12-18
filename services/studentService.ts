@@ -326,13 +326,11 @@ export const fetchUsers = async ({
     const msg = typeof data === 'string' ? data : data?.message || data?.error;
     throw new Error(msg || '사용자 목록을 불러오지 못했습니다.');
   }
-
-  const users = data?.data || data?.users || data || [];
-  const total = data?.total ?? data?.total_count ?? data?.count;
-
+  const users = data?.data || data?.users || data?.items || data || [];
+  const total = data?.total ?? data?.total_count ?? data?.count ?? (Array.isArray(users) ? users.length : undefined);
   const normalized: User[] = Array.isArray(users)
     ? users.map((u: any) => ({
-        id: u.id || u.user_id || u.uuid || '',
+        id: u.student_id || u.id || u.user_id || u.uuid || '',
         name: u.name || u.full_name || u.display_name || '',
         email: u.email || '',
         role: (u.role || u.role_name || u.user_role || 'student').toLowerCase(),
@@ -340,14 +338,20 @@ export const fetchUsers = async ({
         grade: u.grade_level ?? u.grade,
         major: u.major_name || u.major || '',
         authToken: undefined,
+        studentId: u.student_id || u.id || u.user_id,
+        tempPassword: u.password || u.temp_password || u.tempPassword,
       })) as User[]
     : [];
+
+  const derivedPageSize = data?.page_size ?? data?.limit ?? pageSize;
+  const derivedPage =
+    data?.page ?? (typeof data?.skip === 'number' && derivedPageSize ? Math.floor(data.skip / derivedPageSize) + 1 : page);
 
   return {
     data: normalized,
     total,
-    page: data?.page ?? page,
-    pageSize: data?.page_size ?? pageSize,
+    page: derivedPage,
+    pageSize: derivedPageSize,
   };
 };
 
