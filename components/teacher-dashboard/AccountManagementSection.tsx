@@ -1,4 +1,4 @@
-import type { FC } from 'react';
+import { useCallback, useRef, useState, type DragEvent, type FC } from 'react';
 import type { AccountManagementSectionProps } from '../../types/teacherDashboard';
 import Button from '../ui/Button';
 import FilterControls from './FilterControls';
@@ -31,8 +31,55 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
   onHighlightStudent,
   fileInputRef,
   canSubmitBulkUpload,
-}) => (
-  <div className="space-y-6">
+}) => {
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const dragCounter = useRef(0);
+
+  const handleDragEnter = useCallback((e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current += 1;
+    if (e.dataTransfer?.types.includes('Files')) {
+      setIsDraggingFile(true);
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'copy';
+    }
+    setIsDraggingFile(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current -= 1;
+    if (dragCounter.current <= 0) {
+      setIsDraggingFile(false);
+      dragCounter.current = 0;
+    }
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounter.current = 0;
+      setIsDraggingFile(false);
+      const file = e.dataTransfer?.files?.[0];
+      if (!file) return;
+      if (file.type === 'text/csv' || file.name.toLowerCase().endsWith('.csv')) {
+        onBulkFileChange(file);
+      }
+    },
+    [onBulkFileChange]
+  );
+
+  return (
+    <div className="space-y-6">
     <div className="flex lg:flex-row flex-col lg:justify-between lg:items-center gap-3">
       <div>
         <p className="font-semibold text-primary-text text-xs uppercase tracking-[0.25em]">Student Accounts</p>
@@ -109,9 +156,21 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
       </form>
 
       <div className="space-y-3">
-        <div className="bg-slate-50/70 p-4 border border-slate-200 rounded-2xl">
+        <div
+          className={`bg-slate-50/70 p-4 rounded-2xl border transition-all duration-200 ${
+            isDraggingFile
+              ? 'border-primary/60 bg-primary-lightest/70 shadow-[0_8px_30px_rgba(59,130,246,0.15)] scale-[1.01] border-dashed'
+              : 'border-slate-200'
+          }`}
+          onDragEnter={handleDragEnter}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
           <p className="mb-1 font-semibold text-slate-800 text-sm">CSV 업로드</p>
-          <p className="mb-3 text-slate-500 text-xs">여러 학생을 한 번에 등록합니다.</p>
+          <p className="mb-3 text-slate-500 text-xs">
+            여러 학생을 한 번에 등록합니다. 파일을 드래그해 바로 놓거나 버튼으로 선택하세요.
+          </p>
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="secondary" onClick={onTemplateDownload} className="text-sm">
               CSV 템플릿 다운로드
@@ -128,6 +187,12 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
             </Button>
             <span className="text-slate-500 text-xs">{bulkFileName || '선택된 파일 없음'}</span>
           </div>
+          {isDraggingFile && (
+            <div className="flex items-center gap-2 bg-white/60 mt-3 px-3 py-2 border border-primary/30 rounded-xl font-semibold text-primary text-xs">
+              <span className="inline-block bg-primary rounded-full w-2 h-2 animate-ping"></span>
+              <span>CSV 파일을 여기에 놓으면 업로드가 시작됩니다.</span>
+            </div>
+          )}
           {bulkErrors.length > 0 && (
             <div className="space-y-1 mt-3 text-red-600 text-xs">
               {bulkErrors.map((err, idx) => (
@@ -251,6 +316,7 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
       </div>
     </div>
   </div>
-);
+  );
+};
 
 export default AccountManagementSection;
