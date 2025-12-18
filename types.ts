@@ -165,8 +165,6 @@ export interface StudentAccountInput {
 }
 
 export interface GeneratedStudentAccount extends StudentAccountInput {
-    studentId: string;
-    tempPassword: string;
 }
 
 export type AuthView = 'signin' | 'signup';

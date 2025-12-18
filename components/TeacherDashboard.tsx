@@ -271,38 +271,32 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
       const text = String(reader.result || '');
       const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
 
+      // Skip the first row (header)
+      if (lines.length <= 1) {
+        setBulkErrors(['CSV 파일에 데이터 행이 없습니다.']);
+        setBulkPreview([]);
+        return;
+      }
+      const dataLines = lines.slice(1);
+
       const errors: string[] = [];
       const preview: GeneratedStudentAccount[] = [];
-      const counters: Record<string, number> = {};
 
-      const ensureCounter = (school: string, major: string) => {
-        const key = `${normalizeCode(school, 'SCH')}-${normalizeCode(major, 'GEN')}`;
-        if (!(key in counters)) {
-          const existing = students.filter(
-            (s) => normalizeCode(s.schoolName, 'SCH') === normalizeCode(school, 'SCH') && normalizeCode(s.major, 'GEN') === normalizeCode(major, 'GEN')
-          ).length;
-          counters[key] = existing;
-        }
-        counters[key] += 1;
-        return counters[key];
-      };
-
-      lines.forEach((line, idx) => {
+      dataLines.forEach((line, idx) => {
+        // idx is 0-based for data lines; add 2 to get the original CSV row number (header = 1)
+        const rowNumber = idx + 2;
         const cols = line.split(',').map((c) => c.trim());
         if (cols.length < 4) {
-          errors.push(`${idx + 1}행: 필수 컬럼 누락 (이름, 학교, 학년, 전공)`);
+          errors.push(`${rowNumber}행: 필수 컬럼 누락 (이름, 학교, 학년, 전공)`);
           return;
         }
         const [name, school, gradeStr, major, classLabel = ''] = cols;
         const gradeYear = Number(gradeStr) as 1 | 2 | 3;
         if (!name || !school || !major || ![1, 2, 3].includes(gradeYear)) {
-          errors.push(`${idx + 1}행: 데이터가 올바르지 않습니다.`);
+          errors.push(`${rowNumber}행: 데이터가 올바르지 않습니다.`);
           return;
         }
-        const number = ensureCounter(school, major);
-        const studentId = `${normalizeCode(school, 'SCH')}${normalizeCode(major, 'GEN')}${number.toString().padStart(4, '0')}`;
-        const tempPassword = `PW${Math.floor(Math.random() * 9999).toString().padStart(4, '0')}`;
-        preview.push({ name, school, gradeYear, major, classLabel, studentId, tempPassword });
+        preview.push({ name, school, gradeYear, major, classLabel });
       });
 
       setBulkErrors(errors);

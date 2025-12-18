@@ -143,9 +143,10 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
                   <thead className="bg-slate-50 text-slate-500">
                     <tr>
                       <th className="px-2 py-1 text-left">이름</th>
+                      <th className="px-2 py-1 text-left">학년</th>
                       <th className="px-2 py-1 text-left">학교</th>
                       <th className="px-2 py-1 text-left">전공</th>
-                      <th className="px-2 py-1 text-left">ID</th>
+                      <th className="px-2 py-1 text-left">반</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -153,8 +154,9 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
                       <tr key={row.studentId}>
                         <td className="px-2 py-1">{row.name}</td>
                         <td className="px-2 py-1">{row.school}</td>
+                        <td className="px-2 py-1">{row.gradeYear}</td>
                         <td className="px-2 py-1">{row.major}</td>
-                        <td className="px-2 py-1 font-mono text-primary">{row.studentId}</td>
+                        <td className="px-2 py-1">{row.classLabel}</td>
                       </tr>
                     ))}
                   </tbody>
