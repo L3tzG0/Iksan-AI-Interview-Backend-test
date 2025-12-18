@@ -7,6 +7,10 @@ import VoiceAnswerArea from './interview/VoiceAnswerArea';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { createLiveSttSocket } from '../services/sttService';
 
+const TARGET_SAMPLE_RATE = 16000;
+const AUDIO_BUFFER_SIZE = 4096;
+const FINAL_SUMMARY_TIMEOUT_MS = 5000;
+
 interface InterviewSessionProps {
   questions: Question[];
   onFinish: (answers: Answer[]) => void;
@@ -39,6 +43,12 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
     totalPauseDurationSeconds?: number;
     totalPauseCount?: number;
   } | null>(null);
+  const [pauseEvents, setPauseEvents] = useState<{
+    type?: string;
+    gapSeconds?: number;
+    afterWord?: string;
+    beforeWord?: string;
+  }[]>([]);
   const navigate = useNavigate();
   const location = useLocation();
   const [drafts, setDrafts] = useState<Record<number, { text: string; audioUrl?: string }>>(() => {
@@ -57,6 +67,11 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
   const isRecordingRef = useRef(isRecording);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const micSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const micStreamRef = useRef<MediaStream | null>(null);
+  const finalSummaryTimeoutRef = useRef<number | null>(null);
   const inlineTimerRef = useRef<HTMLDivElement | null>(null);
   const devicesLoadedRef = useRef(false);
 
@@ -102,6 +117,27 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
     } finally {
       setIsRequestingMic(false);
     }
+  }, []);
+
+  const resampleToTarget = useCallback((inputBuffer: Float32Array, originalSampleRate: number) => {
+    if (originalSampleRate === TARGET_SAMPLE_RATE) return inputBuffer;
+    const ratio = originalSampleRate / TARGET_SAMPLE_RATE;
+    const newLength = Math.round(inputBuffer.length / ratio);
+    const output = new Float32Array(newLength);
+    for (let i = 0; i < newLength; i++) {
+      const index = Math.floor(i * ratio);
+      output[i] = inputBuffer[index];
+    }
+    return output;
+  }, []);
+
+  const convertFloat32ToInt16 = useCallback((buffer: Float32Array) => {
+    const output = new Int16Array(buffer.length);
+    for (let i = 0; i < buffer.length; i++) {
+      const s = Math.max(-1, Math.min(1, buffer[i]));
+      output[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+    }
+    return output.buffer;
   }, []);
 
   useEffect(() => {
@@ -189,9 +225,35 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
       }
       mediaRecorderRef.current = null;
     }
+
+    if (processorRef.current) {
+      processorRef.current.disconnect();
+      processorRef.current.onaudioprocess = null;
+      processorRef.current = null;
+    }
+
+    if (micSourceRef.current) {
+      micSourceRef.current.disconnect();
+      micSourceRef.current = null;
+    }
+
+    if (micStreamRef.current) {
+      micStreamRef.current.getTracks().forEach((track) => track.stop());
+      micStreamRef.current = null;
+    }
+
+    if (audioContextRef.current) {
+      const ctx = audioContextRef.current;
+      audioContextRef.current = null;
+      ctx.close().catch(() => {});
+    }
   }, []);
 
   const closeSttSocket = useCallback(() => {
+    if (finalSummaryTimeoutRef.current) {
+      clearTimeout(finalSummaryTimeoutRef.current);
+      finalSummaryTimeoutRef.current = null;
+    }
     if (sttSocketRef.current) {
       try {
         sttSocketRef.current.close();
@@ -202,16 +264,29 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
     }
   }, []);
 
+  const scheduleFinalSummaryClose = useCallback(() => {
+    if (finalSummaryTimeoutRef.current) {
+      clearTimeout(finalSummaryTimeoutRef.current);
+    }
+    finalSummaryTimeoutRef.current = window.setTimeout(() => {
+      closeSttSocket();
+    }, FINAL_SUMMARY_TIMEOUT_MS);
+  }, [closeSttSocket]);
+
   const sendCloseSignal = useCallback(() => {
     if (sttSocketRef.current && sttSocketRef.current.readyState === WebSocket.OPEN) {
       sttSocketRef.current.send(JSON.stringify({ type: 'CLOSE_SIGNAL' }));
+      scheduleFinalSummaryClose();
+    } else {
+      closeSttSocket();
     }
-  }, []);
+  }, [closeSttSocket, scheduleFinalSummaryClose]);
 
   const connectSttSocket = useCallback(async () => {
     return new Promise<void>((resolve, reject) => {
       try {
         const socket = createLiveSttSocket();
+        socket.binaryType = 'arraybuffer';
         sttSocketRef.current = socket;
         socket.onopen = () => resolve();
         socket.onerror = (e) => {
@@ -225,6 +300,19 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
           if (typeof event.data !== 'string') return;
           try {
             const payload = JSON.parse(event.data);
+
+            if (payload.pauses && Array.isArray(payload.pauses)) {
+              setPauseEvents((prev) => [
+                ...prev,
+                ...payload.pauses.map((p: any) => ({
+                  type: p.type,
+                  gapSeconds: p.gap_seconds ?? p.gapSeconds,
+                  afterWord: p.after_word ?? p.afterWord,
+                  beforeWord: p.before_word ?? p.beforeWord,
+                })),
+              ]);
+            }
+
             if (payload.type === 'FINAL_SUMMARY') {
               setSttSummary({
                 finalTranscript: payload.final_transcript,
@@ -235,8 +323,16 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
               });
               sttFinalTranscriptRef.current = payload.final_transcript || sttFinalTranscriptRef.current;
               setCurrentAnswer(payload.final_transcript || sttFinalTranscriptRef.current);
+              stopAudioRecording();
+              setIsRecording(false);
+              if (finalSummaryTimeoutRef.current) {
+                clearTimeout(finalSummaryTimeoutRef.current);
+                finalSummaryTimeoutRef.current = null;
+              }
+              closeSttSocket();
               return;
             }
+
             if (payload.transcript) {
               if (payload.is_final) {
                 sttFinalTranscriptRef.current = `${sttFinalTranscriptRef.current} ${payload.transcript}`.trim();
@@ -259,7 +355,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
         reject(err);
       }
     });
-  }, [currentQuestionIndex, questions, updateDraft]);
+  }, [currentQuestionIndex, questions, stopAudioRecording, updateDraft]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -272,9 +368,8 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
       setIsRecording(false);
       stopAudioRecording();
       sendCloseSignal();
-      closeSttSocket();
     }
-  }, [closeSttSocket, sendCloseSignal, stopAudioRecording]);
+  }, [sendCloseSignal, stopAudioRecording]);
 
   // Stop any active recording when unmounting or leaving the page
   useEffect(() => {
@@ -318,16 +413,38 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
   const startAudioRecording = useCallback(async () => {
     if (!navigator.mediaDevices?.getUserMedia) return;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const constraints: MediaStreamConstraints = {
+        audio: selectedMicId ? { deviceId: { exact: selectedMicId } } : true,
+      };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      micStreamRef.current = stream;
       setMicPermission('granted');
+
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      audioContextRef.current = audioContext;
+      const source = audioContext.createMediaStreamSource(stream);
+      micSourceRef.current = source;
+
+      const processor = audioContext.createScriptProcessor(AUDIO_BUFFER_SIZE, 1, 1);
+      processorRef.current = processor;
+      processor.onaudioprocess = (e) => {
+        if (sttSocketRef.current && sttSocketRef.current.readyState === WebSocket.OPEN) {
+          const inputData = e.inputBuffer.getChannelData(0);
+          const resampled = resampleToTarget(inputData, audioContext.sampleRate);
+          const pcm16 = convertFloat32ToInt16(resampled);
+          sttSocketRef.current.send(pcm16);
+        }
+      };
+
+      source.connect(processor);
+      processor.connect(audioContext.destination);
+
       const recorder = new MediaRecorder(stream);
       audioChunksRef.current = [];
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           audioChunksRef.current.push(event.data);
-          if (sttSocketRef.current && sttSocketRef.current.readyState === WebSocket.OPEN) {
-            sttSocketRef.current.send(event.data);
-          }
         }
       };
       recorder.onstop = () => {
@@ -338,18 +455,16 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
         if (question) {
           updateDraft(question.id, { audioUrl: url, text: currentAnswer });
         }
-        stream.getTracks().forEach((track) => track.stop());
-        sendCloseSignal();
       };
-      recorder.start(800);
+      recorder.start(1000);
       mediaRecorderRef.current = recorder;
     } catch (err) {
       setMicPermission('denied');
-      setInlineError('??? ??? ?????. ???? ??? ??????.');
+      setInlineError('마이크에 접근할 수 없습니다. 브라우저 설정을 확인해주세요.');
       setIsRecording(false);
       console.error('Microphone access denied or failed', err);
     }
-  }, [currentAnswer, currentQuestionIndex, questions, sendCloseSignal, updateDraft]);
+  }, [convertFloat32ToInt16, currentAnswer, currentQuestionIndex, questions, resampleToTarget, selectedMicId, updateDraft]);
 
     const handleNext = useCallback((options?: { allowEmpty?: boolean; skipReason?: string }) => {
     const question = questions[currentQuestionIndex];
@@ -446,6 +561,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
       sttFinalTranscriptRef.current = '';
       sttInterimRef.current = '';
       setSttSummary(null);
+      setPauseEvents([]);
       try {
         await connectSttSocket();
         await startAudioRecording();
@@ -458,7 +574,6 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
     } else {
       stopAudioRecording();
       sendCloseSignal();
-      closeSttSocket();
     }
   };
 
@@ -471,10 +586,12 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
     sttFinalTranscriptRef.current = text;
     setRecordedAudioUrl(draft?.audioUrl || null);
     setSttSummary(null);
+    setPauseEvents([]);
     setInlineError(null);
     setIsTimerPaused(false);
     stopCurrentRecording();
-  }, [currentQuestionIndex, questions, stopCurrentRecording]);
+    closeSttSocket();
+  }, [closeSttSocket, currentQuestionIndex, questions, stopCurrentRecording]);
 
   useEffect(() => {
     const question = questions[currentQuestionIndex];
@@ -504,6 +621,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
     sttFinalTranscriptRef.current = '';
     setRecordedAudioUrl(null);
     setSttSummary(null);
+    setPauseEvents([]);
     setInlineError(null);
     stopCurrentRecording();
   };
@@ -630,6 +748,17 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
             onRequestMicPermission={requestMicPermission}
             isRequestingMic={isRequestingMic}
           />
+
+          {(pauseEvents.length > 0 || sttSummary) && (
+            <div className="bg-slate-50 mt-3 p-3 border border-slate-200 rounded-[12px] text-slate-600 text-xs">
+              {pauseEvents.length > 0 && <p className="m-0">감지된 일시정지: {pauseEvents.length}회</p>}
+              {sttSummary && (
+                <p className="m-0 mt-1">
+                  최종 요약 · 단어 {sttSummary.wordCount ?? '-'}개 · 음성 {sttSummary.audioDurationSeconds ?? '-'}초 · 일시정지 {sttSummary.totalPauseCount ?? '-'}회
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="space-y-4 mt-8">
             <div className="flex flex-wrap justify-end items-center gap-3">

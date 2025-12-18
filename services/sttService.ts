@@ -25,7 +25,9 @@ export const createLiveSttSocket = () => {
   if (token) {
     url.searchParams.set('token', token);
   }
-  return new WebSocket(url.toString());
+  const ws = new WebSocket(url.toString());
+  ws.binaryType = 'arraybuffer';
+  return ws;
 };
 
 export interface KoreanSttResponse {
