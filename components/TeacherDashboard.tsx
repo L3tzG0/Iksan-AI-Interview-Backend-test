@@ -104,16 +104,6 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser, onSele
     URL.revokeObjectURL(url);
   };
 
-  const generateStudentId = (school: string, major: string) => {
-    const schoolCode = normalizeCode(school, 'SCH');
-    const majorCode = normalizeCode(major, 'GEN');
-    const existingCount = students.filter(
-      (s) => normalizeCode(s.schoolName, 'SCH') === schoolCode && normalizeCode(s.major, 'GEN') === majorCode
-    ).length;
-    const nextNumber = (existingCount + 1).toString().padStart(4, '0');
-    return `${schoolCode}${majorCode}${nextNumber}`;
-  };
-
   const handleCreateStudent = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedName = newStudent.name.trim();
