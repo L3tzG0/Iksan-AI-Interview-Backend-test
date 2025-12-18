@@ -22,14 +22,14 @@ interface AdminHeaderProps {
 }
 
 const AdminHeader: React.FC<AdminHeaderProps> = ({ user }) => (
-  <div className="bg-white/90 p-6 rounded-[24px] border border-white/70 shadow-soft mb-6 flex items-center justify-between animate-fadeIn">
+  <div className="flex justify-between items-center bg-white/90 shadow-soft mb-6 p-6 border border-white/70 rounded-[24px] animate-fadeIn">
     <div className="flex items-center gap-4">
-      <div className="p-4 bg-primary-lightest rounded-2xl shadow-inner shadow-white/60">
+      <div className="bg-primary-lightest shadow-inner shadow-white/60 p-4 rounded-2xl">
         <GraduationCapIcon className="w-8 h-8 text-primary" />
       </div>
       <div>
         <h2 className="font-bold text-slate-800 text-lg">교사용 개요</h2>
-        <p className="text-sm text-slate-600">
+        <p className="text-slate-600 text-sm">
             {user?.grade ? `${user.grade}학년 ` : ''}{user?.major ? `${user.major} ` : ''}학생들의 AI 모의면접 성과를 한눈에 확인하세요.
         </p>
       </div>
@@ -38,13 +38,13 @@ const AdminHeader: React.FC<AdminHeaderProps> = ({ user }) => (
 );
 
 const AccessDenied: React.FC<{ onHome: () => void; message?: string }> = ({ onHome, message }) => (
-  <div className="flex flex-col items-center justify-center min-h-[60vh] text-slate-700">
-    <div className="max-w-md w-full bg-white border border-slate-200 shadow-2xl rounded-2xl p-8 space-y-4 text-center">
-      <div className="w-12 h-12 rounded-full bg-rose-50 border border-rose-200 flex items-center justify-center mx-auto">
-        <span className="text-rose-500 text-xl font-bold">!</span>
+  <div className="flex flex-col justify-center items-center min-h-[60vh] text-slate-700">
+    <div className="space-y-4 bg-white shadow-2xl p-8 border border-slate-200 rounded-2xl w-full max-w-md text-center">
+      <div className="flex justify-center items-center bg-rose-50 mx-auto border border-rose-200 rounded-full w-12 h-12">
+        <span className="font-bold text-rose-500 text-xl">!</span>
       </div>
-      <h2 className="text-xl font-bold text-slate-900">접근 권한이 없습니다</h2>
-      <p className="text-sm text-slate-600">
+      <h2 className="font-bold text-slate-900 text-xl">접근 권한이 없습니다</h2>
+      <p className="text-slate-600 text-sm">
         {message || '요청한 페이지를 볼 수 있는 권한이 없어요. 올바른 계정으로 로그인했는지 확인해주세요.'}
       </p>
       <Button onClick={onHome} fullWidth className="justify-center">
@@ -353,25 +353,25 @@ const homePath = getHomePathForRole(currentUser?.role || 'teacher');
   );
 
     const renderError = () => (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/20 backdrop-blur-sm px-4">
-      <div className="max-w-md w-full bg-white border border-slate-100 shadow-2xl rounded-2xl p-6 space-y-4 animate-fadeIn">
-        <div className="w-12 h-12 rounded-full bg-amber-50 border border-amber-100 flex items-center justify-center mx-auto">
-          <span className="text-amber-500 text-xl font-bold">!</span>
+    <div className="z-40 fixed inset-0 flex justify-center items-center bg-slate-900/20 backdrop-blur-sm px-4">
+      <div className="space-y-4 bg-white shadow-2xl p-6 border border-slate-100 rounded-2xl w-full max-w-md animate-fadeIn">
+        <div className="flex justify-center items-center bg-amber-50 mx-auto border border-amber-100 rounded-full w-12 h-12">
+          <span className="font-bold text-amber-500 text-xl">!</span>
         </div>
         <div className="space-y-2 text-center">
-          <h2 className="text-lg font-bold text-slate-900">잠시 멈췄어요</h2>
-          <p className="text-sm text-slate-600 leading-relaxed">
+          <h2 className="font-bold text-slate-900 text-lg">잠시 멈췄어요</h2>
+          <p className="text-slate-600 text-sm leading-relaxed">
             {error || '요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.'}
           </p>
-          <p className="text-xs text-slate-500">
+          <p className="text-slate-500 text-xs">
             네트워크가 잠시 불안정할 때 가끔 발생할 수 있어요.
           </p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-2">
+        <div className="flex sm:flex-row flex-col gap-2">
           <Button
             onClick={() => setError(null)}
             fullWidth
-            className="justify-center bg-primary text-white hover:bg-primary-dark"
+            className="justify-center bg-primary hover:bg-primary-dark text-white"
           >
             다시 시도
           </Button>
@@ -382,7 +382,7 @@ const homePath = getHomePathForRole(currentUser?.role || 'teacher');
               navigate(homePath, { replace: true });
             }}
             fullWidth
-            className="justify-center border border-slate-200 text-slate-700 hover:bg-slate-50"
+            className="justify-center hover:bg-slate-50 border border-slate-200 text-slate-700"
           >
             홈으로 이동
           </Button>
@@ -413,8 +413,8 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
   };
 
   const renderRestoringShell = () => (
-    <div className="flex items-center justify-center min-h-screen text-slate-700">
-      <div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-primary"></div>
+    <div className="flex justify-center items-center min-h-screen text-slate-700">
+      <div className="border-4 border-primary border-dashed rounded-full w-16 h-16 animate-spin"></div>
     </div>
   );
 
@@ -474,10 +474,10 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
   }
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-b from-[#f8f5ff] via-white to-[#f2eefe] text-slate-700 font-elice overflow-hidden">
-      <div className="absolute -top-24 -right-16 w-72 h-72 bg-primary/10 rounded-full blur-3xl animate-pulseSlow pointer-events-none"></div>
-      <div className="absolute top-24 -left-24 w-80 h-80 bg-primary-light/40 rounded-full blur-3xl animate-pulseSlow pointer-events-none"></div>
-      <div className="relative z-10">
+    <div className="relative bg-gradient-to-b from-[#f8f5ff] via-white to-[#f2eefe] min-h-screen overflow-hidden font-elice text-slate-700">
+      <div className="-top-24 -right-16 absolute bg-primary/10 blur-3xl rounded-full w-72 h-72 animate-pulseSlow pointer-events-none"></div>
+      <div className="top-24 -left-24 absolute bg-primary-light/40 blur-3xl rounded-full w-80 h-80 animate-pulseSlow pointer-events-none"></div>
+      <div className="z-10 relative">
         <Navbar 
           user={currentUser!} 
           onLogout={handleLogout} 
@@ -494,11 +494,11 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
             defaultSchool={currentUser?.schoolName}
           />
         )}
-        <main className="max-w-6xl mx-auto p-4 sm:p-6 lg:px-8 pt-8 pb-16">
+        <main className="mx-auto p-4 sm:p-6 lg:px-8 pt-8 pb-16 max-w-6xl">
           {isStaff && location.pathname.startsWith('/teacher') && <AdminHeader user={currentUser} />}
           {isLoading && (
-            <div className="flex flex-col items-center justify-center h-[60vh] text-slate-700">
-              <div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-primary"></div>
+            <div className="flex flex-col justify-center items-center h-[60vh] text-slate-700">
+              <div className="border-4 border-primary border-dashed rounded-full w-16 h-16 animate-spin"></div>
               <p className="mt-4 text-lg">AI가 준비를 마치고 있어요...</p>
             </div>
           )}
