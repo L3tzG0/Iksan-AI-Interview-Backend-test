@@ -112,12 +112,6 @@ class QnAItem(BaseModel):
     answer: str
 
 
-class SessionSubmitRequest(BaseModel):
-    """Request schema for submitting answers to get feedback"""
-    session_id: int
-    qna_history: List[QnAItem]
-
-
 class FeedbackDetail(BaseModel):
     """Detailed feedback for a single Q&A"""
     question_order: Optional[int] = None
@@ -197,30 +191,30 @@ class QuestionAnswerPair(BaseModel):
     """
     question_order: int = Field(..., description="The sequence number of the question.")
     question_text: str = Field(..., description="The text of the question asked.")
-    answer_text: str = Field(..., description="The student's full transcribed answer (input).")
+    answer_text: Optional[str] = Field(None, description="The student's full transcribed answer (input).")
     
-    # REQUIRED INPUT 1: Measured duration from the client's recording timer
-    audio_duration_seconds: float = Field(
-        ..., 
+    # OPTIONAL INPUT 1: Measured duration from the client's recording timer
+    audio_duration_seconds: Optional[float] = Field(
+        None, 
         description="The total duration of the recorded audio for this answer, in seconds.",
         ge=0.0
     )
     
-    # REQUIRED INPUT 2: Explicit word count (essential for languages like Korean)
-    word_count: int = Field(
-        ..., 
+    # OPTIONAL INPUT 2: Explicit word count (essential for languages like Korean)
+    word_count: Optional[int] = Field(
+        None, 
         description="The precise count of tokens/words in the transcribed answer.",
         ge=0
     )
 
-    total_pause_count: int = Field(
-        ...,
+    total_pause_count: Optional[int] = Field(
+        None,
         description="Total number of detected pauses in the answer.",
         ge=0
     )
 
-    total_pause_duration_seconds: float = Field(
-        ...,
+    total_pause_duration_seconds: Optional[float] = Field(
+        None,
         description="Total cumulative duration of all detected pauses in seconds.",
         ge=0.0
     )
@@ -231,7 +225,7 @@ class SessionSubmitRequest(BaseModel):
     Updated to use the detailed QuestionAnswerPair model.
     """
     session_id: int
-    qa_pairs: List[QuestionAnswerPair] = Field(..., description="The list of all 10 questions and their corresponding answers/transcripts.")
+    qa_pairs: Optional[List[QuestionAnswerPair]] = Field(None, description="The list of all 10 questions and their corresponding answers/transcripts. Optional: can be null or undefined.")
 
 
 # =========================================================
