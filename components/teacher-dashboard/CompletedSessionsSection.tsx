@@ -46,9 +46,7 @@ const normalizeSessionToSummary = (
     };
 };
 
-const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({
-    filterControlsProps,
-}) => {
+const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({}) => {
     const [isLoading, setIsLoading] = useState(false);
     const [studentWithSessionList, setStudentWithSessionList] = useState<StudentSummary[]>([]);
 
@@ -89,7 +87,7 @@ const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({
                     // onChange={}
                     placeholder="학생 이름 검색"
                 />
-                <FilterControls {...filterControlsProps} />
+                {/* <FilterControls {...filterControlsProps} /> */}
             </div>
 
             {isLoading ? (

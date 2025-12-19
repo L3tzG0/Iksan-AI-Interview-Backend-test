@@ -27,7 +27,6 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
   onBackendErrorDownload,
   searchTerm,
   onSearch,
-  filterControlsProps,
   isLoadingStudents,
   fileInputRef,
   canSubmitBulkUpload,
@@ -298,7 +297,7 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
       <p className="font-semibold text-slate-800 text-sm">전체 학생 목록</p>
       <div className="flex lg:flex-row flex-col lg:items-center gap-4">
         <SearchBar value={searchTerm} onChange={onSearch} placeholder="학생 이름 검색" />
-        <FilterControls {...filterControlsProps} compact showGrade={false} showGoal={false} />
+        {/* <FilterControls {...filterControlsProps} compact showGrade={false} showGoal={false} /> */}
       </div>
 
       <div className="bg-white shadow-soft border border-slate-100 rounded-[20px] overflow-hidden">
@@ -314,7 +313,7 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
                 <th className="px-6 py-4 font-bold">이름</th>
                 <th className="px-6 py-4 font-bold">전공</th>
                 <th className="px-6 py-4 font-bold">로그인 ID</th>
-                <th className="px-6 py-4 font-bold">임시 비밀번호</th>
+                <th className="px-6 py-4 font-bold">비밀번호</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
