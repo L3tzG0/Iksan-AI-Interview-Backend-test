@@ -185,11 +185,7 @@ const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
                         value={currentAnswer}
                         onChange={(e) => onChangeAnswer(e.target.value)}
                         readOnly={isReadOnly}
-                        placeholder={
-                            isReadOnly
-                                ? "AI가 자동으로 생성한 답변을 보고만 할 수 있습니다."
-                                : "여기에 메모하거나 답변을 직접 작성해도 괜찮습니다."
-                        }
+                        placeholder={`여기에 답을 적어주세요`}
                         maxLength={800}
                         className={`w-full min-h-[260px] max-h-[400px] p-5 pr-24 border rounded-[20px] resize-none text-slate-800 leading-relaxed focus:outline-none focus:ring-2 transition-colors overflow-auto ${
                             isReadOnly

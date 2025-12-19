@@ -733,13 +733,13 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
                   <span className="font-semibold text-slate-500 text-xs">타이머가 숨겨져 있어요</span>
                 )}
                 <div className="flex items-center gap-2 font-semibold text-xs">
-                  <button
+                  {/* <button
                     type="button"
                     onClick={() => setIsTimerPaused((prev) => !prev)}
                     className="bg-white px-3 py-1 border border-slate-200 hover:border-primary rounded-full text-slate-600"
                   >
                     {isTimerPaused ? '재개' : '일시정지'}
-                  </button>
+                  </button> */}
                   <button
                     type="button"
                     onClick={() => setIsTimerVisible((prev) => !prev)}
@@ -756,7 +756,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
                 style={{ width: `${progressPercentage}%` }}
               ></div>
             </div>
-            <p className="font-semibold text-slate-500 text-xs">{progressLabel}</p>
+            {/* <p className="font-semibold text-slate-500 text-xs">{progressLabel}</p> */}
           </div>
         </section>
 
@@ -766,7 +766,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
             AI 질문
           </p>
           <h2 className="font-bold text-slate-800 text-2xl leading-tight">{currentQuestion.text}</h2>
-          <p className="mt-2 text-slate-500 text-xs">각 답변은 1~2분 안에 핵심만 정리해 주세요. 긴장되면 잠시 멈추고 다시 이어도 괜찮아요.</p>
+          <p className="mt-2 text-slate-500 text-xs">각 답변은 1~2분 안에 핵심만 정리해 주세요.</p>
         </Card>
 
         <Card>
