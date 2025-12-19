@@ -26,14 +26,12 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
   searchTerm,
   onSearch,
   filterControlsProps,
-  processedAll,
   isLoadingStudents,
-  activeStudentId,
-  onHighlightStudent,
   fileInputRef,
   canSubmitBulkUpload,
 }) => {
   const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const [userList, setUserList] = useState([]);
   const dragCounter = useRef(0);
 
   const handleDragEnter = useCallback((e: DragEvent<HTMLDivElement>) => {
@@ -272,7 +270,7 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
         {/* <div className="flex flex-wrap items-center gap-3 bg-slate-50/80 px-6 py-3 border-slate-100 border-b text-slate-500 text-xs">
           <span className="inline-flex items-center gap-2"><span className="bg-green-400 border border-green-600 rounded-full w-3 h-3"></span>완료</span>
           <span className="inline-flex items-center gap-2"><span className="bg-slate-200 border border-slate-400 rounded-full w-3 h-3"></span>진행 중</span>
-          <span className="ml-auto text-slate-400">총 {processedAll.length}명</span>
+          <span className="ml-auto text-slate-400">총 {userList.length}명</span>
         </div> */}
         <div className="overflow-x-auto">
           <table className="min-w-full text-slate-600 text-sm text-left">
@@ -285,12 +283,12 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {isLoadingStudents && processedAll.length === 0 && (
+              {isLoadingStudents && userList.length === 0 && (
                 <tr>
                   <td colSpan={4} className="px-6 py-6 text-slate-400 text-center"><Spinner label="불러오는 중..." /></td>
                 </tr>
               )}
-              {processedAll.map((student) => (
+              {userList.map((student) => (
                 <tr
                   key={student.id}
                   className={`group cursor-pointer transition-all ${
@@ -298,9 +296,7 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
                       ? 'bg-primary-lightest/80 border-l-4 border-primary text-primary'
                       : 'hover:bg-primary-lightest/50'
                   }`}
-                  onClick={() => {
-                    onHighlightStudent(student.id);
-                  }}
+                  onClick={() => { }}
                 >
                   <td className="px-6 py-4 font-semibold text-slate-800 group-hover:text-primary">{student.name}</td>
                   <td className="px-6 py-4 font-medium text-slate-700">{student.major}</td>
@@ -308,7 +304,7 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
                   <td className="px-6 py-4 font-mono text-slate-700">{student.tempPassword || '—'}</td>
                 </tr>
               ))}
-              {!isLoadingStudents && processedAll.length === 0 && (
+              {!isLoadingStudents && userList.length === 0 && (
                 <tr>
                   <td colSpan={4} className="px-6 py-6 text-slate-400 text-center">표시할 학생이 없습니다.</td>
                 </tr>

@@ -30,7 +30,6 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
   const navigate = useNavigate();
   const { tab } = useParams<{ tab?: string }>();
   const tabFromRoute: 'completed' | 'manage' = tab === '2' ? 'manage' : 'completed';
-  const isTeacher = currentUser.role === 'teacher';
   const showSchoolField = currentUser.role === 'admin';
 
   const templateCsvContent =
@@ -40,8 +39,6 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
   const [sortOption, setSortOption] = useState<SortOption>('recent');
   const [gradeFilter, setGradeFilter] = useState<GradeFilter>('all');
   const [goalFilter, setGoalFilter] = useState<GoalFilter>('all');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [activeStudentId, setActiveStudentId] = useState<string | null>(null);
   const [newStudent, setNewStudent] = useState<NewStudentInput>({
     name: '',
     school: currentUser.schoolName || '',
@@ -113,7 +110,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
       } catch (err: any) {
         if (isMounted) {
           const message = err?.message || '학생 목록을 불러오지 못했습니다.';
-          addToast(message, 'error');
+          // addToast(message, 'error');
         }
       } finally {
         if (isMounted) setIsLoadingStudents(false);
@@ -386,27 +383,11 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
 
   const gradeOptions = useMemo(() => Array.from(new Set(students.map((s) => s.grade))).sort((a, b) => a - b), [students]);
 
-  const filteredBySearch = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
-    if (!term) return students;
-    return students.filter((s) => s.name.toLowerCase().includes(term));
-  }, [students, searchTerm]);
-
-  const processedAll = useMemo(() => {
-    const sorted = [...filteredBySearch];
-    if (sortOption === 'score') sorted.sort((a, b) => b.latestScore - a.latestScore);
-    else if (sortOption === 'growth') sorted.sort((a, b) => b.improvement - a.improvement);
-    else sorted.sort((a, b) => a.name.localeCompare(b.name));
-    return sorted;
-  }, [filteredBySearch, sortOption]);
-
   const handleTabChange = (nextTab: 'completed' | 'manage') => {
     setActiveTab(nextTab);
     const tabSegment = nextTab === 'manage' ? '2' : '1';
     navigate(`/teacher/dashboard/${tabSegment}`, { replace: true });
   };
-
-  const handleSearch = (value: string) => setSearchTerm(value);
 
   const handleNewStudentChange: AccountManagementSectionProps['onUpdateNewStudent'] = (field, value) => {
     setNewStudent((prev) => ({ ...prev, [field]: value }));
@@ -425,6 +406,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
   return (
     <div className="space-y-8 mx-auto animate-fadeIn container">
       <DashboardHero
+        test={students}
         currentUser={currentUser}
         studentCount={students.length}
         completedCount={stats.completed}
@@ -436,8 +418,6 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
 
         {activeTab === 'completed' && (
           <CompletedSessionsSection
-            searchTerm={searchTerm}
-            onSearch={handleSearch}
             filterControlsProps={filterControlsProps}
           />
         )}
@@ -461,13 +441,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
             onTemplateDownload={downloadTemplate}
             onCsvPicker={triggerCsvPicker}
             onBackendErrorDownload={downloadBackendErrors}
-            searchTerm={searchTerm}
-            onSearch={handleSearch}
-            filterControlsProps={filterControlsProps}
-            processedAll={processedAll}
-            isLoadingStudents={isLoadingStudents}
-            activeStudentId={activeStudentId}
-            onHighlightStudent={(id) => setActiveStudentId(id)}
+            filterControlsProps={filterControlsProps} 
             fileInputRef={fileInputRef}
             canSubmitBulkUpload={Boolean(bulkStudentsPayload.length) && !isUploadingCsv && bulkErrors.length === 0}
           />

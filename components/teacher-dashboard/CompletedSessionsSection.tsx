@@ -47,8 +47,6 @@ const normalizeSessionToSummary = (
 };
 
 const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({
-    searchTerm,
-    onSearch,
     filterControlsProps,
 }) => {
     const [isLoading, setIsLoading] = useState(false);
@@ -87,8 +85,8 @@ const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({
         <div className="space-y-4">
             <div className="flex lg:flex-row flex-col lg:items-center gap-4">
                 <SearchBar
-                    value={searchTerm}
-                    onChange={onSearch}
+                    // value={searchTerm}
+                    // onChange={}
                     placeholder="학생 이름 검색"
                 />
                 <FilterControls {...filterControlsProps} />
