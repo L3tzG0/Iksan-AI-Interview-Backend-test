@@ -673,14 +673,14 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
   const isResumeBased = currentQuestion.type === 'resume-based';
   const progressPercentage = ((currentQuestionIndex + 1) / questions.length) * 100;
   const currentStepLabel = isResumeBased ? '3/3 이력서 기반' : '2/3 즉흥 질문';
-  const progressLabel = `${currentQuestionIndex + 1} / ${questions.length} · ${isResumeBased ? '이력서 기반' : '즉흥 질문'}`;
+  const progressLabel = `${currentQuestionIndex + 1} / ${questions.length} · 질문`;
   const quickTips = [
     { title: 'STAR 구조', description: '상황-과제-행동-결과 순서로 핵심만 또렷하게 설명해요.' },
     { title: '30초 생각 시간', description: '질문을 들은 뒤 30초는 정리하고 10초 안에 말문을 여세요.' },
     { title: '감정 + 숫자', description: '느낀 점과 수치를 함께 말하면 설득력 있는 답변이 됩니다.' },
   ];
 
-  console.log('Render InterviewSession', { currentQuestion, currentQuestionIndex, isRecording, timeLeft, micPermission });
+  console.log('Render InterviewSession', { currentQuestion});
 
   return (
     <div className="flex flex-col justify-start items-center pt-6 min-h-[calc(100vh-10rem)] animate-fadeIn">
@@ -713,14 +713,14 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
                   <span className="font-semibold text-slate-500 text-sm">
                     질문 {currentQuestionIndex + 1} / {questions.length}
                   </span>
-                  <span className="bg-primary-lightest px-3 py-1 rounded-full font-semibold text-primary text-xs">{currentStepLabel}</span>
-                  <span
+                  {/* <span className="bg-primary-lightest px-3 py-1 rounded-full font-semibold text-primary text-xs">{currentStepLabel}</span> */}
+                  {/* <span
                     className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
                       isResumeBased ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
                     }`}
                   >
                     {isResumeBased ? '이력서 기반' : '즉흥 질문'}
-                  </span>
+                  </span> */}
                 </div>
               </div>
               <div className="flex flex-col items-end gap-2 font-bold text-primary text-2xl">
