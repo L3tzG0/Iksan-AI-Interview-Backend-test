@@ -1,6 +1,7 @@
-
 import React, { useState, useCallback, useEffect } from 'react';
+import { Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom';
 import WelcomeScreen from './components/WelcomeScreen';
+import Landing from './components/Landing';
 import InterviewSession from './components/InterviewSession';
 import ResultsScreen from './components/ResultsScreen';
 import TeacherDashboard from './components/TeacherDashboard';
@@ -8,270 +9,811 @@ import StudentDetailView from './components/StudentDetailView';
 import SignInScreen from './components/auth/SignInScreen';
 import SignUpScreen from './components/auth/SignUpScreen';
 import Navbar from './components/layout/Navbar';
-import { InterviewReport, Question, Answer, User, AuthView, AppView } from './types';
-import { generateQuestions, evaluateAnswers, saveInterviewReportForStudent, getStudentDetails } from './services/geminiService';
+import AddStudentModal from './components/AddStudentModal';
+import { InterviewReport, Question, Answer, User, InterviewStartPayload } from './types';
+import { fetchStudentSessionsForStudentRole } from './services/studentService';
+import { initiateSession, submitSessionAnswers, fetchSessionStatus, fetchSessionDetail } from './services/sessionService';
 import { GraduationCapIcon } from './components/icons';
+import { clearStoredToken, fetchProfile, getStoredToken, getTokenExpiry } from './services/authService';
+import Button from './components/ui/Button';
+import SessionExpiryModal from './components/ui/SessionExpiryModal';
 
 interface AdminHeaderProps {
     user?: User | null;
 }
 
 const AdminHeader: React.FC<AdminHeaderProps> = ({ user }) => (
-  <div className="bg-white/90 p-6 rounded-[24px] border border-white/70 shadow-soft mb-6 flex items-center justify-between animate-fadeIn">
+  <div className="flex justify-between items-center bg-white/90 shadow-soft mb-6 p-6 border border-white/70 rounded-[24px] animate-fadeIn">
     <div className="flex items-center gap-4">
-      <div className="p-4 bg-primary-lightest rounded-2xl shadow-inner shadow-white/60">
+      <div className="bg-primary-lightest shadow-inner shadow-white/60 p-4 rounded-2xl">
         <GraduationCapIcon className="w-8 h-8 text-primary" />
       </div>
       <div>
-        <h2 className="font-bold text-slate-800 text-lg">오늘의 학급 현황</h2>
-        <p className="text-sm text-slate-600">
-            {user?.grade ? `${user.grade}학년 ` : ''}{user?.major ? `${user.major} ` : ''}학생들의 AI 면접 데이터를 한눈에 확인해 보세요.
+        <h2 className="font-bold text-slate-800 text-lg">교사용 개요</h2>
+        <p className="text-slate-600 text-sm">
+            {user?.grade ? `${user.grade}학년 ` : ''}{user?.major ? `${user.major} ` : ''}학생들의 AI 모의면접 성과를 한눈에 확인하세요.
         </p>
       </div>
     </div>
   </div>
 );
 
+const AccessDenied: React.FC<{ onHome: () => void; message?: string }> = ({ onHome, message }) => (
+  <div className="flex flex-col justify-center items-center min-h-[60vh] text-slate-700">
+    <div className="space-y-4 bg-white shadow-2xl p-8 border border-slate-200 rounded-2xl w-full max-w-md text-center">
+      <div className="flex justify-center items-center bg-rose-50 mx-auto border border-rose-200 rounded-full w-12 h-12">
+        <span className="font-bold text-rose-500 text-xl">!</span>
+      </div>
+      <h2 className="font-bold text-slate-900 text-xl">접근 권한이 없습니다</h2>
+      <p className="text-slate-600 text-sm">
+        {message || '요청한 페이지를 볼 수 있는 권한이 없어요. 올바른 계정으로 로그인했는지 확인해주세요.'}
+      </p>
+      <Button onClick={onHome} fullWidth className="justify-center">
+        홈으로 이동
+      </Button>
+    </div>
+  </div>
+);
+
 const App: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const getHomePathForRole = useCallback(
+    (role: User['role']) => (role === 'student' ? '/student/home' : '/teacher/home'),
+    []
+  );
   // Auth State
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [authView, setAuthView] = useState<AuthView>('signin');
-
+  const [loginRedirectPath, setLoginRedirectPath] = useState<string | null>(null);
   // App State
-  const [view, setView] = useState<AppView>('welcome');
   const [questions, setQuestions] = useState<Question[]>([]);
   const [report, setReport] = useState<InterviewReport | null>(null);
   const [studentHistory, setStudentHistory] = useState<InterviewReport[]>([]);
-  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [perQuestionSeconds, setPerQuestionSeconds] = useState(60);
+  const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(true);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessionStatusMessage, setSessionStatusMessage] = useState<string | null>(null);
+  const [isWaitingForQuestions, setIsWaitingForQuestions] = useState(false);
+  const [isWaitingForResults, setIsWaitingForResults] = useState(false);
+  const [isSessionModalOpen, setIsSessionModalOpen] = useState(false);
+  const [sessionSecondsLeft, setSessionSecondsLeft] = useState(0);
+  const [sessionExpired, setSessionExpired] = useState(false);
+  const warnTimerRef = React.useRef<number | null>(null);
+  const expireTimerRef = React.useRef<number | null>(null);
+  const countdownRef = React.useRef<number | null>(null);
+
+  const clearDrafts = useCallback(() => {
+    try {
+      sessionStorage.removeItem('ai-interview-draft');
+    } catch {
+      // ignore
+    }
+  }, []);
 
   // Load student history if user is a student
   useEffect(() => {
-      const fetchHistory = async () => {
-          if (isAuthenticated && currentUser?.role === 'student') {
-              try {
-                  const details = await getStudentDetails(currentUser.id);
-                  setStudentHistory(details.history || []);
-              } catch (e) {
-                  console.log("Fetching history failed (likely new user)", e);
-                  setStudentHistory([]);
-              }
-          }
-      };
-      fetchHistory();
+    const fetchHistory = async () => {
+      if (isAuthenticated && currentUser?.role === 'student') {
+        try {
+          const sessions = await fetchStudentSessionsForStudentRole();
+          const normalized = sessions
+            .map((session, idx) => {
+              const completedAt =
+                (session as any)?.completed_at ||
+                (session as any)?.completedAt ||
+                (session as any)?.created_at ||
+                (session as any)?.createdAt;
+              const sortKey = completedAt ? Date.parse(completedAt) || 0 : 0;
+              const totalScoreRaw = (session as any)?.total_score ?? (session as any)?.totalScore;
+              const parsedScore = typeof totalScoreRaw === 'number' ? totalScoreRaw : Number(totalScoreRaw);
+              const totalScore = Number.isFinite(parsedScore) ? parsedScore : 0;
+
+              const report: InterviewReport = {
+                sessionId: String(
+                  (session as any)?.session_id ??
+                    (session as any)?.sessionId ??
+                    (session as any)?.id ??
+                    `session-${idx + 1}`
+                ),
+                status: (session as any)?.status,
+                totalScore: Number.isFinite(totalScore) ? totalScore : undefined,
+                date: completedAt
+                  ? new Date(completedAt).toLocaleDateString('ko-KR', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })
+                  : undefined,
+              };
+
+              return { sortKey, report };
+            })
+            .filter((item) => !!item.report.sessionId)
+            .sort((a, b) => b.sortKey - a.sortKey)
+            .map((item) => item.report);
+
+          setStudentHistory(normalized);
+        } catch (err) {
+          console.error('Failed to fetch student history', err);
+          setStudentHistory([]);
+        }
+      } else {
+        setStudentHistory([]);
+      }
+    };
+    fetchHistory();
   }, [isAuthenticated, currentUser]);
+
+  // Restore session from stored token on reload
+  useEffect(() => {
+    const restore = async () => {
+      try {
+        const user = await fetchProfile();
+        if (user) {
+          setCurrentUser(user);
+          setIsAuthenticated(true);
+          setLoginRedirectPath(getHomePathForRole(user.role));
+        }
+      } catch (err) {
+        console.error('Failed to restore session', err);
+        clearStoredToken();
+      }
+      setIsRestoring(false);
+    };
+    restore();
+  }, [getHomePathForRole]);
+
+  useEffect(() => {
+    if (isAuthenticated || isRestoring) return;
+    const hintedRole = location.pathname.startsWith('/teacher') ? 'teacher' : 'student';
+    setLoginRedirectPath(getHomePathForRole(hintedRole as User['role']));
+  }, [getHomePathForRole, isAuthenticated, isRestoring, location.pathname]);
 
   const handleAuthSuccess = (user: User) => {
     setCurrentUser(user);
     setIsAuthenticated(true);
-    
-    if (user.role === 'teacher') {
-        setView('teacherDashboard');
-    } else {
-        setView('welcome');
-    }
+    const roleHome = getHomePathForRole(user.role);
+    const hintedHome =
+      loginRedirectPath && loginRedirectPath.startsWith('/teacher') && user.role !== 'student'
+        ? loginRedirectPath
+        : loginRedirectPath && loginRedirectPath.startsWith('/student') && user.role === 'student'
+        ? loginRedirectPath
+        : roleHome;
+    navigate(hintedHome, { replace: true });
+    setLoginRedirectPath(null);
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
     setCurrentUser(null);
-    setAuthView('signin');
-    setView('welcome');
     setQuestions([]);
     setReport(null);
     setStudentHistory([]);
+    setSessionId(null);
+    clearDrafts();
+    clearStoredToken();
+    navigate('/', { replace: true });
   };
 
   const handleRoleToggle = () => {
     if (!currentUser) return;
-    // Demo feature: toggle role but keep user data for simplicity in this mock
+    if (currentUser.role === 'admin') return;
     const newRole = currentUser.role === 'student' ? 'teacher' : 'student';
     setCurrentUser({ ...currentUser, role: newRole });
-    
-    if (newRole === 'teacher') {
-        setView('teacherDashboard');
-    } else {
-        setView('welcome');
-    }
+    navigate('/');
   };
 
-  const handleStartInterview = useCallback(async (input: string | { data: string; mimeType: string }) => {
-    setIsLoading(true);
-    setError(null);
-
-    // Prototype: bypass API calls so UI can be previewed instantly
-    const mockQuestions: Question[] = [
-      { id: 1, text: "최근 학교 프로젝트에서 가장 기억에 남는 경험은 무엇인가요?", type: "general" },
-      { id: 2, text: "이력서에 적힌 동아리/동아리 활동 중 가장 도전적이었던 순간을 이야기해 주세요.", type: "resume-based" },
-      { id: 3, text: "졸업 후 진로 목표와 그 이유를 구체적으로 설명해 주세요.", type: "general" },
-    ];
-    setQuestions(mockQuestions);
-    setView('session');
-    setIsLoading(false);
-    return;
-
-    // If you want live generation later, remove the return above and re-enable below.
-    // try {
-    //   const generatedQuestions = await generateQuestions(input);
-    //   setQuestions(generatedQuestions);
-    //   setView('session');
-    // } catch (err) {
-    //   setError('질문 생성 중 오류가 발생했어요. 다시 시도해 주세요.');
-    //   console.error(err);
-    // } finally {
-    //   setIsLoading(false);
-    // }
+  const clearSessionTimers = useCallback(() => {
+    if (warnTimerRef.current) {
+      window.clearTimeout(warnTimerRef.current);
+      warnTimerRef.current = null;
+    }
+    if (expireTimerRef.current) {
+      window.clearTimeout(expireTimerRef.current);
+      expireTimerRef.current = null;
+    }
+    if (countdownRef.current) {
+      window.clearInterval(countdownRef.current);
+      countdownRef.current = null;
+    }
   }, []);
 
+  const startCountdown = useCallback((expMs: number) => {
+    setSessionSecondsLeft(Math.max(0, Math.floor((expMs - Date.now()) / 1000)));
+    if (countdownRef.current) {
+      window.clearInterval(countdownRef.current);
+    }
+    countdownRef.current = window.setInterval(() => {
+      const next = Math.max(0, Math.floor((expMs - Date.now()) / 1000));
+      setSessionSecondsLeft(next);
+      if (next <= 0 && countdownRef.current) {
+        window.clearInterval(countdownRef.current);
+        countdownRef.current = null;
+      }
+    }, 1000);
+  }, []);
+
+  const openSessionWarning = useCallback(
+    (expMs: number) => {
+      setSessionExpired(false);
+      setIsSessionModalOpen(true);
+      startCountdown(expMs);
+    },
+    [startCountdown]
+  );
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      clearSessionTimers();
+      setIsSessionModalOpen(false);
+      return;
+    }
+
+    const token = getStoredToken();
+    const expSeconds = getTokenExpiry(token);
+    if (!expSeconds) return;
+
+    const expMs = expSeconds * 1000;
+    const now = Date.now();
+
+    if (expMs <= now) {
+      setSessionExpired(true);
+      setIsSessionModalOpen(true);
+      setSessionSecondsLeft(0);
+      return;
+    }
+
+    const warningLeadMs = 5 * 60 * 1000; // show modal 5 minutes before expiry
+    const warnDelay = expMs - now - warningLeadMs;
+
+    if (warnDelay <= 0) {
+      openSessionWarning(expMs);
+    } else {
+      warnTimerRef.current = window.setTimeout(() => openSessionWarning(expMs), warnDelay);
+    }
+
+    expireTimerRef.current = window.setTimeout(() => {
+      clearSessionTimers();
+      setSessionExpired(true);
+      setIsSessionModalOpen(true);
+      setSessionSecondsLeft(0);
+    }, expMs - now);
+
+    return () => {
+      clearSessionTimers();
+    };
+  }, [clearSessionTimers, isAuthenticated, openSessionWarning]);
+
+  const handleReloginNow = useCallback(() => {
+    setIsSessionModalOpen(false);
+    setSessionExpired(false);
+    handleLogout();
+  }, []);
+
+  const handleDismissSessionModal = useCallback(() => {
+    setIsSessionModalOpen(false);
+  }, []);
+
+  const handleStartInterview = useCallback(async (input: InterviewStartPayload) => {
+    setIsLoading(true);
+    setError(null);
+    clearDrafts();
+    setQuestions([]);
+    setReport(null);
+    setSessionStatusMessage(null);
+    setIsWaitingForResults(false);
+    setIsWaitingForQuestions(true);
+    setPerQuestionSeconds(input.perQuestionSeconds || 60);
+    setSessionId(null);
+
+    try {
+      const session = await initiateSession(input);
+      if (!session.sessionId) {
+        throw new Error('Session ID missing');
+      }
+      setSessionId(session.sessionId);
+      setSessionStatusMessage(session.message || 'Request queued. Generating questions...');
+    } catch (err) {
+      console.error('Failed to initiate interview session', err);
+      setError('?? ??? ???? ? ??????. ?? ? ?? ??? ???.');
+      setIsWaitingForQuestions(false);
+      setIsLoading(false);
+    }
+  }, [clearDrafts]);
+
   const handleFinishInterview = useCallback(async (answers: Answer[]) => {
+    if (!sessionId) {
+      setError('??? ???? ? ??????. ??? ????.');
+      return;
+    }
     setIsLoading(true);
     setError(null);
     try {
-      const interviewReport = await evaluateAnswers(questions, answers);
-      if (currentUser) {
-        saveInterviewReportForStudent(currentUser.id, interviewReport);
-        // Refresh history
-        const details = await getStudentDetails(currentUser.id);
-        setStudentHistory(details.history || []);
+      const hasMeaningfulAnswer = answers.some((answer) => (answer.text || '').trim().length > 2 || answer.audioUrl);
+      if (!hasMeaningfulAnswer) {
+        setError('??? ?? ?? ??? ? ????. ?? ? ??? ??? ???.');
+        setIsLoading(false);
+        return;
       }
-      setReport(interviewReport);
-      setView('results');
-    } catch (err)
-     {
-      setError('답변 평가에 실패했습니다. 다시 시도해주세요.');
+
+      await submitSessionAnswers(sessionId, answers);
+      setIsWaitingForResults(true);
+      setSessionStatusMessage('??? ?? ??. ?? ??? ?? ????.');
+    } catch (err) {
+      setError('?? ??? ?? ???? ??????. ??? ????.');
       console.error(err);
-    } finally {
       setIsLoading(false);
     }
-  }, [questions, currentUser]);
+  }, [sessionId]);
 
   const handleTryAnotherTopic = () => {
     setQuestions([]);
     setReport(null);
-    setView('welcome');
+    clearDrafts();
+    navigate('/');
   };
 
-  const handleNavigate = useCallback((targetView: AppView) => {
-    if (targetView === 'results' && !report) {
-        setView('welcome');
-        return;
-    }
-    if (targetView === 'session' && questions.length === 0) {
-        setView('welcome');
-        return;
-    }
-    if (targetView === 'teacherDashboard' && currentUser?.role !== 'teacher') {
-        setView('welcome');
-        return;
-    }
-    setView(targetView);
-  }, [report, questions, currentUser]);
+  const handleViewHistoryReport = (historyReport: InterviewReport) => {
+    openReportBySessionId(historyReport.sessionId);
+  };
 
   const handleViewStudent = (studentId: string) => {
-    setSelectedStudentId(studentId);
-    setView('studentDetail');
+    navigate(`/teacher/students/${studentId}`);
+  };
+  const mapQuestionsFromDetail = useCallback((detail: any): Question[] => {
+    const feedback = Array.isArray(detail?.detailed_feedback) ? detail.detailed_feedback : [];
+    return feedback
+      .map((item: any, idx: number) => ({
+        id: item?.question_order ?? idx + 1,
+        text: item?.question || item?.question_text || '',
+        type: 'general' as const,
+      }))
+      .filter((q: Question) => q.text);
+  }, []);
+
+  const mapReportFromDetail = useCallback((detail: any): InterviewReport => {
+    const feedback = Array.isArray(detail?.detailed_feedback) ? detail.detailed_feedback : [];
+    const overallScore = detail?.overall_score ?? detail?.overallScore;
+    return {
+      sessionId: detail?.session_id || detail?.sessionId,
+      status: detail?.status,
+      overallScore,
+      strengthSummary: detail?.strength_summary,
+      areasForGrowth: detail?.areas_for_growth,
+      detailedFeedback: feedback,
+      nextSteps: detail?.next_steps,
+      scores: feedback.length
+        ? {
+            contentRelevance: feedback.reduce((sum: number, item: any) => sum + (item.content_relevance_score || 0), 0) / feedback.length || 0,
+            structure: feedback.reduce((sum: number, item: any) => sum + (item.structure_score || 0), 0) / feedback.length || 0,
+            fluency: feedback.reduce((sum: number, item: any) => sum + (item.fluency_score || 0), 0) / feedback.length || 0,
+            confidence: feedback.reduce((sum: number, item: any) => sum + (item.confidence_score || 0), 0) / feedback.length || 0,
+          }
+        : undefined,
+      totalScore: overallScore,
+      summary: detail?.strength_summary || detail?.areas_for_growth
+        ? { strengths: detail.strength_summary || '', areasForGrowth: detail.areas_for_growth || '' }
+        : undefined,
+      nextStepsDetailed: Array.isArray(detail?.next_steps)
+        ? detail.next_steps.map((step: string) => ({ title: step, description: step }))
+        : undefined,
+    };
+  }, []);
+
+  const openReportBySessionId = useCallback(
+    async (sessionId: string | undefined) => {
+      if (!sessionId) return;
+      setIsLoading(true);
+      setError(null);
+      try {
+        const detail = await fetchSessionDetail(sessionId);
+        const mappedReport = mapReportFromDetail(detail);
+        setReport(mappedReport as InterviewReport);
+        const resultsPath = currentUser?.role === 'student' ? '/student/results' : '/teacher/dashboard';
+        navigate(resultsPath);
+      } catch (err) {
+        console.error('Failed to load report from history', err);
+        setError('이전 결과를 불러오지 못했습니다. 다시 시도해 주세요.');
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [currentUser?.role, mapReportFromDetail, navigate]
+  );
+
+  useEffect(() => {
+    if (!isWaitingForQuestions || !sessionId) return;
+    let timer: any;
+    const pollQuestions = async () => {
+      try {
+        const status = await fetchSessionStatus(sessionId);
+        if (status.message) setSessionStatusMessage(status.message);
+        if (status.isReady) {
+          const detail = await fetchSessionDetail(sessionId);
+          const fetchedQuestions = mapQuestionsFromDetail(detail);
+          if (!fetchedQuestions.length) {
+            throw new Error('No questions returned');
+          }
+          const limit = detail?.per_question_seconds || detail?.time_limit_seconds || detail?.time_limit;
+          if (limit) setPerQuestionSeconds(limit);
+          setQuestions(fetchedQuestions);
+          setIsWaitingForQuestions(false);
+          setIsLoading(false);
+          navigate('/student/interview');
+        }
+      } catch (err) {
+        console.error('Failed to poll questions', err);
+        setError('??? ??? ??????. ??? ????.');
+        setIsWaitingForQuestions(false);
+        setIsLoading(false);
+      }
+    };
+    pollQuestions();
+    timer = setInterval(pollQuestions, 3000);
+    return () => clearInterval(timer);
+  }, [isWaitingForQuestions, sessionId, navigate, mapQuestionsFromDetail]);
+
+  useEffect(() => {
+    if (!isWaitingForResults || !sessionId) return;
+    let timer: any;
+    const pollResults = async () => {
+      try {
+        const status = await fetchSessionStatus(sessionId);
+        if (status.message) setSessionStatusMessage(status.message);
+        if (status.isReady || status.status === 'completed') {
+          const detail = await fetchSessionDetail(sessionId);
+          const mappedReport = mapReportFromDetail(detail);
+          setReport(mappedReport as InterviewReport);
+          setIsWaitingForResults(false);
+          setIsLoading(false);
+          const resultsPath = currentUser?.role === 'student' ? '/student/results' : '/teacher/dashboard';
+          navigate(resultsPath);
+        }
+      } catch (err) {
+        console.error('Failed to poll results', err);
+        setError('?? ??? ?? ??????. ??? ????.');
+        setIsWaitingForResults(false);
+        setIsLoading(false);
+      }
+    };
+    pollResults();
+    timer = setInterval(pollResults, 5000);
+    return () => clearInterval(timer);
+  }, [isWaitingForResults, sessionId, navigate, currentUser?.role, mapReportFromDetail]);
+const homePath = getHomePathForRole(currentUser?.role || 'teacher');
+
+  const getSigninPath = () =>
+    location.pathname.startsWith('/teacher') ? '/signin/teacher' : '/signin/student';
+
+  const ProtectedRoute: React.FC<{
+    allowed: Array<User['role']>;
+    element: React.ReactElement;
+    message?: string;
+  }> = ({ allowed, element, message }) => {
+    if (!isAuthenticated || !currentUser) {
+      return <Navigate to={getSigninPath()} replace />;
+    }
+    if (allowed.includes(currentUser.role)) return element;
+    return <AccessDenied onHome={() => navigate(homePath, { replace: true })} message={message} />;
   };
 
-  const handleBackToDashboard = () => {
-    setSelectedStudentId(null);
-    setView('teacherDashboard');
-  };
-  
-  const handleViewHistoryReport = (historyReport: InterviewReport) => {
-      setReport(historyReport);
-      setView('results');
-  };
+  const NotFound: React.FC = () => (
+    <AccessDenied
+      onHome={() => navigate(homePath, { replace: true })}
+      message="요청한 페이지를 찾을 수 없습니다. 홈으로 돌아가 주세요."
+    />
+  );
 
-  const renderMainContent = () => {
-    if (isLoading) {
-      return (
-        <div className="flex flex-col items-center justify-center h-[60vh] text-slate-700">
-          <div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-primary"></div>
-          <p className="mt-4 text-lg">AI가 작업 중입니다...</p>
+    const renderError = () => (
+    <div className="z-40 fixed inset-0 flex justify-center items-center bg-slate-900/20 backdrop-blur-sm px-4">
+      <div className="space-y-4 bg-white shadow-2xl p-6 border border-slate-100 rounded-2xl w-full max-w-md animate-fadeIn">
+        <div className="flex justify-center items-center bg-amber-50 mx-auto border border-amber-100 rounded-full w-12 h-12">
+          <span className="font-bold text-amber-500 text-xl">!</span>
         </div>
-      );
-    }
-
-    if (error) {
-       return (
-        <div className="flex flex-col items-center justify-center h-[60vh] text-slate-700">
-            <div className="bg-red-100 border border-red-400 p-6 rounded-lg text-center shadow-lg">
-                <h2 className="text-xl font-bold mb-2 text-red-800">오류가 발생했습니다</h2>
-                <p className="text-red-700">{error}</p>
-                <button 
-                    onClick={() => {
-                      setError(null);
-                      setView('welcome');
-                    }} 
-                    className="mt-4 px-4 py-2 bg-primary text-white hover:bg-primary-dark rounded-md transition-colors"
-                >
-                    처음으로 돌아가기
-                </button>
-            </div>
+        <div className="space-y-2 text-center">
+          <h2 className="font-bold text-slate-900 text-lg">잠시 멈췄어요</h2>
+          <p className="text-slate-600 text-sm leading-relaxed">
+            {error || '요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.'}
+          </p>
+          <p className="text-slate-500 text-xs">
+            네트워크가 잠시 불안정할 때 가끔 발생할 수 있어요.
+          </p>
         </div>
-       );
-    }
+        <div className="flex sm:flex-row flex-col gap-2">
+          <Button
+            onClick={() => setError(null)}
+            fullWidth
+            className="justify-center bg-primary hover:bg-primary-dark text-white"
+          >
+            다시 시도
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setError(null);
+              navigate(homePath, { replace: true });
+            }}
+            fullWidth
+            className="justify-center hover:bg-slate-50 border border-slate-200 text-slate-700"
+          >
+            홈으로 이동
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
 
-    switch (view) {
-      case 'session':
-        return <InterviewSession questions={questions} onFinish={handleFinishInterview} />;
-      case 'results':
-        return report && <ResultsScreen report={report} onRetry={handleTryAnotherTopic} />;
-      case 'teacherDashboard':
-        return currentUser && <TeacherDashboard currentUser={currentUser} onSelectStudent={handleViewStudent} />;
-      case 'studentDetail':
-        return selectedStudentId && <StudentDetailView studentId={selectedStudentId} onBack={handleBackToDashboard} />;
-      case 'welcome':
-      default:
-        return (
-            <WelcomeScreen 
-                onStart={handleStartInterview} 
-                history={studentHistory} 
-                onViewReport={handleViewHistoryReport}
-            />
-        );
+const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin';
+  const latestReport = report ?? (studentHistory.length > 0 ? studentHistory[0] : null);
+
+  const handleOpenLatestReport = () => {
+    const resultsPath = currentUser?.role === 'student' ? '/student/results' : '/teacher/dashboard';
+    if (report) {
+      navigate(resultsPath);
+      return;
+    }
+    if (studentHistory.length > 0) {
+      openReportBySessionId(studentHistory[0].sessionId);
     }
   };
 
-  // Authentication Flow
-  if (!isAuthenticated) {
-    if (authView === 'signin') {
-        return <SignInScreen onSignIn={handleAuthSuccess} onSwitchToSignUp={() => setAuthView('signup')} />;
-    } else {
-        return <SignUpScreen onSignUp={handleAuthSuccess} onSwitchToSignIn={() => setAuthView('signin')} />;
-    }
+  const InlineStudentDetail: React.FC = () => {
+    const { id } = useParams();
+    if (!id) return <Navigate to="/teacher/dashboard" replace />;
+    return <StudentDetailView studentId={id} onBack={() => navigate('/teacher/dashboard')} />;
+  };
+
+  const renderRestoringShell = () => (
+    <div className="flex justify-center items-center min-h-screen text-slate-700">
+      <div className="border-4 border-primary border-dashed rounded-full w-16 h-16 animate-spin"></div>
+    </div>
+  );
+
+  if (isRestoring) {
+    return renderRestoringShell();
   }
 
-  // Main App Flow
+  if (!isAuthenticated) {
+    const defaultSigninPath = location.pathname.startsWith('/teacher') ? '/signin/teacher' : '/signin/student';
+    return (
+      <Routes>
+        <Route path="/" element={<Navigate to={defaultSigninPath} replace />} />
+        <Route
+          path="/signin"
+          element={
+            <SignInScreen
+              mode="student"
+              onSignIn={handleAuthSuccess}
+              onSwitchToSignUp={() => navigate('/signup/teacher')}
+              onSwitchMode={() => navigate('/signin/teacher')}
+            />
+          }
+        />
+        <Route
+          path="/signin/student"
+          element={
+            <SignInScreen
+              mode="student"
+              onSignIn={handleAuthSuccess}
+              onSwitchToSignUp={() => navigate('/signup/teacher')}
+              onSwitchMode={() => navigate('/signin/teacher')}
+            />
+          }
+        />
+        <Route
+          path="/signin/teacher"
+          element={
+            <SignInScreen
+              mode="staff"
+              onSignIn={handleAuthSuccess}
+              onSwitchToSignUp={() => navigate('/signup/teacher')}
+              onSwitchMode={() => navigate('/signin/student')}
+            />
+          }
+        />
+        <Route
+          path="/signup/teacher"
+          element={<SignUpScreen defaultRole="teacher" onSignUp={handleAuthSuccess} onSwitchToSignIn={() => navigate('/signin/teacher')} />}
+        />
+        <Route
+          path="/signup/admin"
+          element={<SignUpScreen defaultRole="admin" onSignUp={handleAuthSuccess} onSwitchToSignIn={() => navigate('/signin/teacher')} />}
+        />
+        <Route path="*" element={<Navigate to={defaultSigninPath} replace />} />
+      </Routes>
+    );
+  }
+
   return (
-    <div className="relative min-h-screen bg-gradient-to-b from-[#f8f5ff] via-white to-[#f2eefe] text-slate-700 font-elice overflow-hidden">
-      <div className="absolute -top-24 -right-16 w-72 h-72 bg-primary/10 rounded-full blur-3xl animate-pulseSlow pointer-events-none"></div>
-      <div className="absolute top-24 -left-24 w-80 h-80 bg-primary-light/40 rounded-full blur-3xl animate-pulseSlow pointer-events-none"></div>
-      <div className="relative z-10">
+    <div className="relative bg-gradient-to-b from-[#f8f5ff] via-white to-[#f2eefe] min-h-screen overflow-hidden font-elice text-slate-700">
+      <div className="-top-24 -right-16 absolute bg-primary/10 blur-3xl rounded-full w-72 h-72 animate-pulseSlow pointer-events-none"></div>
+      <div className="top-24 -left-24 absolute bg-primary-light/40 blur-3xl rounded-full w-80 h-80 animate-pulseSlow pointer-events-none"></div>
+      <div className="z-10 relative">
         <Navbar 
           user={currentUser!} 
           onLogout={handleLogout} 
           onToggleRole={handleRoleToggle}
-          currentView={view}
-          onNavigate={handleNavigate}
+          currentPath={location.pathname}
+          onNavigate={(path) => navigate(path)}
           hasResults={!!report}
+          onOpenAddStudent={isStaff ? () => setIsAddStudentOpen(true) : undefined}
         />
-        <main className="max-w-6xl mx-auto p-4 sm:p-6 lg:px-8 pt-8 pb-16">
-          {currentUser?.role === 'teacher' && view === 'teacherDashboard' && <AdminHeader user={currentUser} />}
-          {renderMainContent()}
+        {isStaff && (
+          <AddStudentModal
+            isOpen={isAddStudentOpen}
+            onClose={() => setIsAddStudentOpen(false)}
+            defaultSchool={currentUser?.schoolName}
+          />
+        )}
+        <main className="mx-auto p-4 sm:p-6 lg:px-8 pt-8 pb-16 max-w-6xl">
+          {isStaff && location.pathname.startsWith('/teacher') && <AdminHeader user={currentUser} />}
+          {isLoading && (
+            <div className="flex flex-col justify-center items-center h-[60vh] text-slate-700">
+              <div className="border-4 border-primary border-dashed rounded-full w-16 h-16 animate-spin"></div>
+              <p className="mt-4 text-lg">AI가 준비를 마치고 있어요...</p>
+            </div>
+          )}
+          {!isLoading && (
+            <Routes>
+        <Route
+          path="/"
+          element={
+          <Navigate
+            to={currentUser?.role === 'student' ? '/student/home' : '/teacher/home'}
+            replace
+          />
+          }
+        />
+              <Route
+                path="/student/home"
+                element={
+                  <ProtectedRoute
+                    allowed={['student', 'teacher', 'admin']}
+                    element={
+                      <Landing
+                        user={currentUser!}
+                        hasResults={!!latestReport}
+                        latestReport={latestReport}
+                        onStartInterview={() => navigate('/student/interview/start')}
+                        onGoDashboard={() => navigate('/student/results')}
+                        onViewResults={handleOpenLatestReport}
+                      />
+                    }
+                  />
+                }
+              />
+              <Route
+                path="/student/interview/start"
+                element={
+                  <ProtectedRoute
+                    allowed={['student', 'teacher', 'admin']}
+                    element={
+                      <WelcomeScreen
+                        onStart={handleStartInterview}
+                        history={studentHistory}
+                        onViewReport={handleViewHistoryReport}
+                      />
+                    }
+                  />
+                }
+              />
+              <Route
+                path="/student/interview"
+                element={
+                  <ProtectedRoute
+                    allowed={['student', 'teacher', 'admin']}
+                    element={
+                      questions.length === 0 ? (
+                        <Navigate to="/student/home" replace />
+                      ) : (
+                        <InterviewSession
+                          questions={questions}
+                          onFinish={handleFinishInterview}
+                          perQuestionSeconds={perQuestionSeconds}
+                          onExit={() => navigate('/student/home', { replace: true })}
+                        />
+                      )
+                    }
+                  />
+                }
+              />
+              <Route
+                path="/student/results"
+                element={
+                  <ProtectedRoute
+                    allowed={['student', 'teacher', 'admin']}
+                    element={
+                      report ? (
+                        <ResultsScreen
+                          report={report}
+                          onRetry={handleTryAnotherTopic}
+                          studentMeta={{
+                            name: currentUser!.name,
+                            schoolName: currentUser!.schoolName,
+                            grade: currentUser!.grade,
+                            major: currentUser!.major,
+                          }}
+                        />
+                      ) : (
+                        <Navigate to="/student/home" replace />
+                      )
+                    }
+                  />
+                }
+              />
+              <Route
+                path="/teacher/home"
+                element={
+                  <ProtectedRoute
+                    allowed={['teacher', 'admin']}
+                    element={
+                      <Landing
+                        user={currentUser!}
+                        hasResults={!!latestReport}
+                        latestReport={latestReport}
+                        onStartInterview={() => navigate('/teacher/dashboard/2')}
+                        onGoDashboard={() => navigate('/teacher/dashboard/1')}
+                        onViewResults={handleOpenLatestReport}
+                        onGoTeacherTab1={() => navigate('/teacher/dashboard/1')}
+                        onGoTeacherTab2={() => navigate('/teacher/dashboard/2')}
+                        onGoTeacherPreview={() => navigate('/teacher/interview/preview')}
+                      />
+                    }
+                  />
+                }
+              />
+              <Route path="/teacher/dashboard" element={<Navigate to="/teacher/dashboard/1" replace />} />
+              <Route
+                path="/teacher/dashboard/:tab"
+                element={
+                  <ProtectedRoute
+                    allowed={['teacher', 'admin']}
+                    element={<TeacherDashboard currentUser={currentUser!} />}
+                  />
+                }
+              />
+              <Route
+                path="/teacher/interview/preview"
+                element={
+                  <ProtectedRoute
+                    allowed={['teacher', 'admin']}
+                    element={
+                      <WelcomeScreen
+                        onStart={() => {}}
+                        history={[]}
+                        onViewReport={() => {}}
+                      />
+                    }
+                  />
+                }
+              />
+              <Route
+                path="/teacher/students/:id"
+                element={
+                  <ProtectedRoute allowed={['teacher', 'admin']} element={<InlineStudentDetail />} />
+                }
+              />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          )}
+          {error && renderError()}
         </main>
+        <SessionExpiryModal
+          isOpen={isSessionModalOpen}
+          secondsLeft={sessionSecondsLeft}
+          isExpired={sessionExpired}
+          onRelogin={handleReloginNow}
+          onDismiss={handleDismissSessionModal}
+        />
       </div>
     </div>
   );
 };
 
 export default App;
-
-
-
-
-
-
-

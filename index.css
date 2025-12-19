@@ -1,4 +1,4 @@
-@import url('https://font.elice.io/css?family=Elice+DX+Neolli');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap');
 
 :root {
   color-scheme: light;
@@ -6,10 +6,31 @@
   --elice-primary-soft: #cbb5ff;
   --elice-surface: #ffffff;
   --elice-bg: #f8f5ff;
+  /* Design tokens */
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --shadow-soft: 0 12px 30px rgba(103, 0, 230, 0.12);
+  --shadow-card: 0 10px 30px rgba(15, 23, 42, 0.08);
+  --shadow-inner: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  --blur-strong: blur(30px);
 }
 
 * {
-  font-family: 'Elice DX Neolli', 'Noto Sans KR', 'Pretendard', sans-serif;
+  font-family: 'Noto Sans KR', 'Pretendard', sans-serif;
+}
+
+:focus-visible {
+  outline: 2px solid var(--elice-primary);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(103, 0, 230, 0.15);
 }
 
 body {
@@ -118,6 +139,31 @@ body {
   }
 }
 
+@keyframes softFadeUp {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.99);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-softFadeUp {
+  animation: softFadeUp 0.55s ease forwards;
+}
+
+.animate-softFadeUp-delayed {
+  animation: softFadeUp 0.7s ease forwards;
+  animation-delay: 0.1s;
+}
+
+.animate-softFadeUp-late {
+  animation: softFadeUp 0.8s ease forwards;
+  animation-delay: 0.2s;
+}
+
 @keyframes fadeUp {
   0% {
     opacity: 0;
@@ -135,4 +181,14 @@ body {
       radial-gradient(circle at 20% 20%, rgba(149, 117, 255, 0.18), transparent 45%),
       linear-gradient(180deg, #f8f5ff 0%, #fff 100%);
   }
+}
+
+@keyframes progressIndeterminate {
+  0% { transform: translateX(-50%); }
+  50% { transform: translateX(80%); }
+  100% { transform: translateX(200%); }
+}
+
+.animate-progressIndeterminate {
+  animation: progressIndeterminate 1.2s ease-in-out infinite;
 }
