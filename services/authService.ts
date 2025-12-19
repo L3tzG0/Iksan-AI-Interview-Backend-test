@@ -6,6 +6,7 @@ const API_BASE =
     import.meta.env.VITE_API_BASE ||
     "https://iksan-ai-interview-backend-production.up.railway.app";
 const TOKEN_KEY = "auth_token";
+const REFRESH_TOKEN_KEY = "auth_refresh_token";
 
 const saveToken = (token: string) => {
     try {
@@ -15,9 +16,30 @@ const saveToken = (token: string) => {
     }
 };
 
+const saveRefreshToken = (token: string) => {
+    try {
+        sessionStorage.setItem(REFRESH_TOKEN_KEY, token);
+    } catch {
+        // ignore storage errors
+    }
+};
+
+const saveTokens = (accessToken?: string, refreshToken?: string) => {
+    if (accessToken) saveToken(accessToken);
+    if (refreshToken) saveRefreshToken(refreshToken);
+};
+
 export const getStoredToken = () => {
     try {
         return sessionStorage.getItem(TOKEN_KEY) || undefined;
+    } catch {
+        return undefined;
+    }
+};
+
+export const getStoredRefreshToken = () => {
+    try {
+        return sessionStorage.getItem(REFRESH_TOKEN_KEY) || undefined;
     } catch {
         return undefined;
     }
@@ -36,6 +58,7 @@ export const getTokenExpiry = (token?: string): number | undefined => {
 export const clearStoredToken = () => {
     try {
         sessionStorage.removeItem(TOKEN_KEY);
+        sessionStorage.removeItem(REFRESH_TOKEN_KEY);
     } catch {
         // ignore
     }
@@ -66,6 +89,8 @@ export const getSchools = async (
 
 const buildUserFromResponse = (data: any, fallbackEmail: string): User => {
     const token = data?.token || data?.access_token || data?.accessToken;
+    const refreshToken =
+        data?.refresh_token || data?.refreshToken || data?.refresh;
     const profile = data?.user || data?.profile || data?.data || data || {};
 
     let decoded: any = {};
@@ -142,6 +167,7 @@ const buildUserFromResponse = (data: any, fallbackEmail: string): User => {
         grade,
         major,
         authToken: token,
+        refreshToken,
     };
 };
 
@@ -179,8 +205,8 @@ export const signIn = async (
     }
 
     const user = buildUserFromResponse(data, loginId);
-    if (user.authToken) {
-        saveToken(user.authToken);
+    if (user.authToken || user.refreshToken) {
+        saveTokens(user.authToken, user.refreshToken);
     }
     return user;
 };
@@ -226,10 +252,42 @@ export const signUp = async (
         }
         const data = await response.json();
         const user = buildUserFromResponse(data, email);
-        if (user.authToken) saveToken(user.authToken);
+        if (user.authToken || user.refreshToken) saveTokens(user.authToken, user.refreshToken);
         return user;
     } catch (e) {
         // fallback to login attempt
         return signIn(email, password);
     }
+};
+
+export const refreshAuthToken = async () => {
+    const refreshToken = getStoredRefreshToken();
+    if (!refreshToken) {
+        throw new Error("Missing refresh token");
+    }
+
+    const response = await fetch(`${API_BASE}/api/v1/auth/refresh`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+
+    if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || "Failed to refresh token");
+    }
+
+    const data = await response.json();
+    const newAccessToken = data?.access_token || data?.token;
+    const newRefreshToken = data?.refresh_token || refreshToken;
+    saveTokens(newAccessToken, newRefreshToken);
+
+    const user = buildUserFromResponse(data, data?.user?.email || "");
+    return {
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken,
+        user,
+    };
 };

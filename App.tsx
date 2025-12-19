@@ -14,9 +14,8 @@ import { InterviewReport, Question, Answer, User, InterviewStartPayload } from '
 import { fetchStudentSessionsForStudentRole } from './services/studentService';
 import { initiateSession, submitSessionAnswers, fetchSessionStatus, fetchSessionDetail } from './services/sessionService';
 import { GraduationCapIcon } from './components/icons';
-import { clearStoredToken, fetchProfile, getStoredToken, getTokenExpiry } from './services/authService';
+import { clearStoredToken, fetchProfile, getStoredToken, getTokenExpiry, refreshAuthToken } from './services/authService';
 import Button from './components/ui/Button';
-import SessionExpiryModal from './components/ui/SessionExpiryModal';
 
 interface AdminHeaderProps {
     user?: User | null;
@@ -79,12 +78,7 @@ const App: React.FC = () => {
   const [sessionStatusMessage, setSessionStatusMessage] = useState<string | null>(null);
   const [isWaitingForQuestions, setIsWaitingForQuestions] = useState(false);
   const [isWaitingForResults, setIsWaitingForResults] = useState(false);
-  const [isSessionModalOpen, setIsSessionModalOpen] = useState(false);
-  const [sessionSecondsLeft, setSessionSecondsLeft] = useState(0);
-  const [sessionExpired, setSessionExpired] = useState(false);
-  const warnTimerRef = React.useRef<number | null>(null);
-  const expireTimerRef = React.useRef<number | null>(null);
-  const countdownRef = React.useRef<number | null>(null);
+  const refreshTimerRef = React.useRef<number | null>(null);
 
   const clearDrafts = useCallback(() => {
     try {
@@ -209,96 +203,55 @@ const App: React.FC = () => {
     navigate('/');
   };
 
-  const clearSessionTimers = useCallback(() => {
-    if (warnTimerRef.current) {
-      window.clearTimeout(warnTimerRef.current);
-      warnTimerRef.current = null;
-    }
-    if (expireTimerRef.current) {
-      window.clearTimeout(expireTimerRef.current);
-      expireTimerRef.current = null;
-    }
-    if (countdownRef.current) {
-      window.clearInterval(countdownRef.current);
-      countdownRef.current = null;
+  const clearRefreshTimer = useCallback(() => {
+    if (refreshTimerRef.current) {
+      window.clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = null;
     }
   }, []);
-
-  const startCountdown = useCallback((expMs: number) => {
-    setSessionSecondsLeft(Math.max(0, Math.floor((expMs - Date.now()) / 1000)));
-    if (countdownRef.current) {
-      window.clearInterval(countdownRef.current);
-    }
-    countdownRef.current = window.setInterval(() => {
-      const next = Math.max(0, Math.floor((expMs - Date.now()) / 1000));
-      setSessionSecondsLeft(next);
-      if (next <= 0 && countdownRef.current) {
-        window.clearInterval(countdownRef.current);
-        countdownRef.current = null;
-      }
-    }, 1000);
-  }, []);
-
-  const openSessionWarning = useCallback(
-    (expMs: number) => {
-      setSessionExpired(false);
-      setIsSessionModalOpen(true);
-      startCountdown(expMs);
-    },
-    [startCountdown]
-  );
 
   useEffect(() => {
     if (!isAuthenticated) {
-      clearSessionTimers();
-      setIsSessionModalOpen(false);
+      clearRefreshTimer();
       return;
     }
 
     const token = getStoredToken();
     const expSeconds = getTokenExpiry(token);
-    if (!expSeconds) return;
+    if (!expSeconds) return undefined;
 
     const expMs = expSeconds * 1000;
     const now = Date.now();
+    const leadMs = 60 * 1000 * 3; // refresh 3 minutes before expiry
+    const delay = Math.max(0, expMs - now - leadMs);
 
-    if (expMs <= now) {
-      setSessionExpired(true);
-      setIsSessionModalOpen(true);
-      setSessionSecondsLeft(0);
-      return;
-    }
-
-    const warningLeadMs = 5 * 60 * 1000; // show modal 5 minutes before expiry
-    const warnDelay = expMs - now - warningLeadMs;
-
-    if (warnDelay <= 0) {
-      openSessionWarning(expMs);
-    } else {
-      warnTimerRef.current = window.setTimeout(() => openSessionWarning(expMs), warnDelay);
-    }
-
-    expireTimerRef.current = window.setTimeout(() => {
-      clearSessionTimers();
-      setSessionExpired(true);
-      setIsSessionModalOpen(true);
-      setSessionSecondsLeft(0);
-    }, expMs - now);
+    refreshTimerRef.current = window.setTimeout(async () => {
+      try {
+        const result = await refreshAuthToken();
+        const accessToken = result.accessToken || token;
+        setCurrentUser((prev) => {
+          if (!prev && result.user) {
+            return { ...result.user, authToken: accessToken, refreshToken: result.refreshToken };
+          }
+          if (!prev) return prev;
+          return {
+            ...prev,
+            ...result.user,
+            authToken: accessToken || prev.authToken,
+            refreshToken: result.refreshToken || prev.refreshToken,
+          };
+        });
+        setIsAuthenticated(true);
+      } catch (err) {
+        console.error('Token refresh failed', err);
+        handleLogout();
+      }
+    }, delay);
 
     return () => {
-      clearSessionTimers();
+      clearRefreshTimer();
     };
-  }, [clearSessionTimers, isAuthenticated, openSessionWarning]);
-
-  const handleReloginNow = useCallback(() => {
-    setIsSessionModalOpen(false);
-    setSessionExpired(false);
-    handleLogout();
-  }, []);
-
-  const handleDismissSessionModal = useCallback(() => {
-    setIsSessionModalOpen(false);
-  }, []);
+  }, [clearRefreshTimer, currentUser?.authToken, handleLogout, isAuthenticated]);
 
   const handleStartInterview = useCallback(async (input: InterviewStartPayload) => {
     setIsLoading(true);
@@ -806,13 +759,6 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
           )}
           {error && renderError()}
         </main>
-        <SessionExpiryModal
-          isOpen={isSessionModalOpen}
-          secondsLeft={sessionSecondsLeft}
-          isExpired={sessionExpired}
-          onRelogin={handleReloginNow}
-          onDismiss={handleDismissSessionModal}
-        />
       </div>
     </div>
   );

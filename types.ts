@@ -153,6 +153,7 @@ export interface User {
     major?: string;       
     avatarUrl?: string;
     authToken?: string;
+    refreshToken?: string;
   studentId?: string;
   tempPassword?: string;
 }
