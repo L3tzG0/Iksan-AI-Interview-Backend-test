@@ -408,7 +408,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
   const processedCompleted = useMemo(() => {
     const byGrade = gradeFilter === 'all' ? filteredBySearch : filteredBySearch.filter((s) => s.grade === gradeFilter);
     const byGoal = goalFilter === 'all' ? byGrade : byGrade.filter((s) => s.intent === goalFilter);
-    return byGoal.filter((s) => s.completed);
+    return byGoal;
   }, [filteredBySearch, gradeFilter, goalFilter]);
 
   const handleTabChange = (nextTab: 'completed' | 'manage') => {
