@@ -682,6 +682,9 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
 
   console.log('Render InterviewSession', { currentQuestion});
 
+  const defaultAnswerPlaceholder = '여기에 답을 적어주세요';
+  const placeholderText = currentQuestion.questionOrder % 2 === 1 ? '이 질문은 음성 녹음으로 반드시 답변해야 합니다.' : defaultAnswerPlaceholder;
+
   return (
     <div className="flex flex-col justify-start items-center pt-6 min-h-[calc(100vh-10rem)] animate-fadeIn">
       {isTimerVisible && !isTimerInView && (
@@ -791,6 +794,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
             micPermission={micPermission}
             onRequestMicPermission={requestMicPermission}
             isRequestingMic={isRequestingMic}
+            answerPlaceholder={placeholderText}
           />
 
           {(pauseEvents.length > 0 || sttSummary) && (

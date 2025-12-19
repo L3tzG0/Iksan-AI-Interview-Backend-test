@@ -17,6 +17,7 @@ interface VoiceAnswerAreaProps {
     devices?: { deviceId: string; label: string }[];
     selectedDeviceId?: string;
     onSelectDevice?: (deviceId: string) => void;
+    answerPlaceholder?: string;
 }
 
 const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
@@ -35,6 +36,7 @@ const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
     devices = [],
     selectedDeviceId,
     onSelectDevice,
+    answerPlaceholder = '여기에 답을 적어주세요',
 }) => {
     const handleRetry = () => {
         onChangeAnswer("");
@@ -185,7 +187,7 @@ const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
                         value={currentAnswer}
                         onChange={(e) => onChangeAnswer(e.target.value)}
                         readOnly={isReadOnly}
-                        placeholder={`여기에 답을 적어주세요`}
+                        placeholder={answerPlaceholder}
                         maxLength={800}
                         className={`w-full min-h-[260px] max-h-[400px] p-5 pr-24 border rounded-[20px] resize-none text-slate-800 leading-relaxed focus:outline-none focus:ring-2 transition-colors overflow-auto ${
                             isReadOnly
