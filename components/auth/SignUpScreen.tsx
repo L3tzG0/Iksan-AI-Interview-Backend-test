@@ -71,7 +71,7 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({
             setIsSuccessOpen(true);
         } catch (error) {
             console.error(error);
-            alert("회원가입에 실패했습니다.");
+            alert("등록에 실패했습니다.");
         } finally {
             setIsLoading(false);
         }
@@ -87,7 +87,7 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({
 
     return (
         <AuthLayout
-            title="회원가입"
+            title="등록"
             subtitle="교사/관리자 계정을 만들고 학생을 관리하세요."
         >
             <div className="flex bg-slate-100 mb-6 p-1 rounded-xl">
@@ -101,7 +101,7 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({
                     }`}
                 >
                     <GraduationCapIcon className="w-4 h-4" />
-                    교사 가입
+                    교사 등록
                 </button>
                 <button
                     type="button"
@@ -113,7 +113,7 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({
                     }`}
                 >
                     <BrainIcon className="w-4 h-4" />
-                    관리자 가입
+                    관리자 등록
                 </button>
             </div>
 
@@ -209,14 +209,14 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({
             <StatusModal
                 isOpen={isSuccessOpen}
                 type="success"
-                title="회원가입이 완료되었습니다"
+                title="등록이 완료되었습니다"
                 description="확인을 누르면 로그인 페이지로 이동합니다."
                 onClose={() => setIsSuccessOpen(false)}
                 primaryAction={{ label: "확인", onClick: handleConfirm }}
             >
                 {createdUser?.email && (
                     <div className="space-y-1">
-                        <p className="font-semibold text-slate-800">가입 정보</p>
+                        <p className="font-semibold text-slate-800">등록 정보</p>
                         <p className="text-slate-600 text-sm">이메일: {createdUser.email}</p>
                     </div>
                 )}

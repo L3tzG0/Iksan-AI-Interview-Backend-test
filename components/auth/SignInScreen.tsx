@@ -115,7 +115,7 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ onSignIn, onSwitchToSignUp,
         <div className="mt-6 text-slate-600 text-sm text-center">
           교사/관리자 신규 계정이 필요하신가요?{' '}
           <button onClick={onSwitchToSignUp} className="font-bold text-primary hover:text-primary-dark">
-            회원가입
+            등록
           </button>
         </div>
       )}
