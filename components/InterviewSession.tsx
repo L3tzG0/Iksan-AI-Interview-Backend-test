@@ -553,7 +553,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
   useEffect(() => {
     if (timeLeft === 0 && !isTimerPaused) {
       if (!currentAnswer.trim()) {
-        setInlineError('시간이 다 되었습니다. 답변을 작성하거나 타이머를 일시정지해 주세요.');
+        setInlineError('시간이 다 되었습니다. 답변을 작성해 주세요.');
         setIsTimerPaused(true);
         return;
       }
