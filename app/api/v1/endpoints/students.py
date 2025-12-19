@@ -56,6 +56,13 @@ async def create_student_account(
         teacher_response = await supabase.table("teachers").select("school_id").eq("user_id", str(role_context.user.id)).single().execute()
         if teacher_response.data:
             creator_school_id = teacher_response.data.get("school_id")
+        
+        # Prevent teachers from specifying school_name
+        if student_account_in.school_name is not None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Teachers cannot specify school_name. Students will be created for your school automatically."
+            )
     
     registration_service = StudentRegistrationService(supabase)
     
@@ -125,10 +132,25 @@ async def bulk_create_student_accounts(
             detail="Maximum 100 students can be created at once"
         )
     
+    # Get teacher's school_id if they are a teacher
+    creator_school_id = None
+    if role_id == 2:  # Teacher
+        teacher_response = await supabase.table("teachers").select("school_id").eq("user_id", str(role_context.user.id)).single().execute()
+        if teacher_response.data:
+            creator_school_id = teacher_response.data.get("school_id")
+        
+        # Prevent teachers from specifying school_name in any student
+        for idx, student in enumerate(request.students):
+            if student.school_name is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Teachers cannot specify school_name. Student at index {idx} contains school_name field. Students will be created for your school automatically."
+                )
+    
     registration_service = StudentRegistrationService(supabase)
     
     try:
-        results = await registration_service.bulk_create_student_accounts(request.students)
+        results = await registration_service.bulk_create_student_accounts(request.students, creator_school_id=creator_school_id)
         
         # results is already a list of StudentAccountResponse objects
         return StudentBulkCreateResponse(
