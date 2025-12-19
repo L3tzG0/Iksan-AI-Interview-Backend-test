@@ -225,7 +225,7 @@ export const signUp = async (
     full_name: string,
     email: string,
     role_id: 2 | 1,
-    teacher_details: {
+    teacher_data: {
         school_name?: string;
         major?: string;
     },
@@ -240,7 +240,7 @@ export const signUp = async (
                 email,
                 password,
                 role_id,
-                teacher_details,
+                teacher_data,
             }),
         });
         if (!response.ok) {

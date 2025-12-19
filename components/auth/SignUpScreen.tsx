@@ -30,7 +30,6 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({
     const [confirmPassword, setConfirmPassword] = useState("");
 
     const [schoolName, setSchoolName] = useState("");
-    const [organization, setOrganization] = useState("");
 
     const [isLoading, setIsLoading] = useState(false);
 
