@@ -46,6 +46,7 @@ export interface Answer {
   audioUrl?: string;
   questionOrder?: number;
   questionText?: string;
+  isSkipped?: boolean;
   audioDurationSeconds?: number;
   wordCount?: number;
   totalPauseDurationSeconds?: number;

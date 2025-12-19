@@ -335,14 +335,17 @@ const App: React.FC = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const hasMeaningfulAnswer = answers.some((answer) => (answer.text || '').trim().length > 2 || answer.audioUrl);
+      const answered = answers.filter(
+        (answer) => !answer.isSkipped && (((answer.text || '').trim().length > 0) || answer.audioUrl)
+      );
+      const hasMeaningfulAnswer = answered.some((answer) => (answer.text || '').trim().length > 2 || answer.audioUrl);
       if (!hasMeaningfulAnswer) {
         setError('??? ?? ?? ??? ? ????. ?? ? ??? ??? ???.');
         setIsLoading(false);
         return;
       }
 
-      await submitSessionAnswers(sessionId, answers);
+      await submitSessionAnswers(sessionId, answered);
       setIsWaitingForResults(true);
       setSessionStatusMessage('??? ?? ??. ?? ??? ?? ????.');
     } catch (err) {

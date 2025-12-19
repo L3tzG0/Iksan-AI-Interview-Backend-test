@@ -503,6 +503,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
       return;
     }
 
+    const isSkipped = Boolean(options?.skipReason);
     const answerText = finalText || options?.skipReason || '이 질문은 건너뛸게요.';
     const metrics = sttMetricsByQuestion[question.id] || sttSummary || {};
     const pauseCountFallback = pauseEvents.length ? pauseEvents.length : undefined;
@@ -516,6 +517,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
       audioUrl: recordedAudioUrl || drafts[question.id]?.audioUrl,
       questionOrder: currentQuestionIndex + 1,
       questionText: question.text,
+      isSkipped,
       audioDurationSeconds: metrics.audioDurationSeconds,
       wordCount: metrics.wordCount,
       totalPauseDurationSeconds: metrics.totalPauseDurationSeconds ?? pauseDurationFallback,
