@@ -39,6 +39,8 @@ class UserListItemResponse(BaseModel):
     updated_at: FlexibleDateTime
     student_id: Optional[str] = None
     password: Optional[str] = None
+    school_name: Optional[str] = None
+    major_name: Optional[str] = None
 
     class Config:
         from_attributes = True

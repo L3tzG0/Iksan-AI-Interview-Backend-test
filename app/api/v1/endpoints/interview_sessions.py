@@ -31,7 +31,9 @@ from app.schemas.interview_session import (
     SessionQueueResponse,
     SessionHistoryItem,
     SessionHistoryResponse,
+    SessionListForAdminsResponse,
     SessionSubmitRequest,
+    SessionWithStudentInfo,
     SessionFeedbackResponse,
     SessionDetailResponse,
     FeedbackDetail,
@@ -41,7 +43,7 @@ from app.schemas.interview_session import (
 )
 from app.schemas.pagination import PaginatedResponse, create_paginated_response
 from app.services.document_service import DocumentService
-from app.services.interview_session_service import InterviewSessionService
+from app.services.interview_session_service import InterviewSessionService, CalculatedAverages
 from app.services.text_extraction_service import TextExtractionService
 from app.services.feedback_service import FeedbackService
 from app.services.user_service import UserProfileService
@@ -62,7 +64,8 @@ async def get_my_sessions(
     current_user = Depends(get_current_user),
     skip: int = Query(default=0, ge=0, description="Number of records to skip"),
     limit: int = Query(default=20, ge=1, le=100, description="Maximum records to return"),
-    status_filter: Optional[str] = Query(default=None, description="Filter by status (completed, in_progress, failed)")
+    status_filter: Optional[str] = Query(default=None, description="Filter by status (completed, in_progress, failed)"),
+    interview_type: Optional[str] = Query(default=None, description="Filter by interview type (job, university)")
 ):
     """
     Get current student's interview session history based on token-derived ID.
@@ -73,6 +76,7 @@ async def get_my_sessions(
     - **skip**: Number of records to skip (default: 0)
     - **limit**: Max records to return (default: 20, max: 100)
     - **status_filter**: Filter by session status
+    - **interview_type**: Filter by interview type (job, university)
     
     Returns: Paginated list of session history
     """
@@ -94,7 +98,8 @@ async def get_my_sessions(
         student_id=student_id,
         skip=skip,
         limit=limit,
-        status_filter=status_filter
+        status_filter=status_filter,
+        interview_type=interview_type
     )
     
     # Transform to SessionHistoryItem format
@@ -106,6 +111,61 @@ async def get_my_sessions(
     
     response = SessionHistoryResponse(
         sessions=session_items,
+        total_count=total
+    )
+    return JSONResponse(content=jsonable_encoder(response.dict()))
+
+
+@router.get("/all", response_model=SessionListForAdminsResponse, summary="Retrieve latest session for each student")
+@limiter.limit(settings.RATE_LIMIT_DEFAULT)
+async def get_sessions_with_students(
+    request: Request,
+    supabase: Annotated[AsyncClient, Depends(get_supabase)],
+    role_context: RoleContext = Depends(require_role(["teacher", "admin"])),
+    skip: int = Query(default=0, ge=0, description="Number of records to skip"),
+    limit: int = Query(default=20, ge=1, le=100, description="Maximum records to return"),
+    interview_type: Optional[str] = Query(default=None, description="Filter by interview type (job, university)")
+):
+    """
+    Retrieve the latest non-failed session for each student.
+
+    - Admins: Latest session from all students across the system.
+    - Teachers: Latest session from students within their school only.
+    - Excludes failed sessions automatically.
+    - Returns one session per student (the most recent one).
+    - Optional filter by interview_type applies before grouping.
+    """
+    session_service = InterviewSessionService(supabase)
+
+    school_id: Optional[int] = None
+    if role_context.role_name == "teacher":
+        teacher_response = await supabase.table("teachers").select("school_id").eq("user_id", str(role_context.user.id)).single().execute()
+        school_id = teacher_response.data.get("school_id") if teacher_response and teacher_response.data else None
+        if not school_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Teacher is not associated with a school"
+            )
+
+    sessions, total = await session_service.get_latest_sessions_per_student(
+        skip=skip,
+        limit=limit,
+        school_id=school_id,
+        interview_type=interview_type
+    )
+
+    shaped_sessions = [
+        SessionWithStudentInfo.model_construct(
+            **session_service.shape_session_with_student_info(
+                session,
+                include_school=(role_context.role_name == "admin")
+            )
+        )
+        for session in sessions
+    ]
+
+    response = SessionListForAdminsResponse(
+        sessions=shaped_sessions,
         total_count=total
     )
     return JSONResponse(content=jsonable_encoder(response.dict()))
@@ -175,11 +235,14 @@ async def submit_session_answers(
         # clean answer
         sanitized_qa_pairs = sanitize_qa_pairs(submit_request.qa_pairs)
         # 2. Update session status to reflect that evaluation is pending
-        session_service.update_session_status(session_id, status="pending_evaluation")
-        
+        await session_service.update_session_status(session_id, status="pending_evaluation")
+        session_detail = await session_service.get_session_with_details(session_id)
+        q_type = session_detail.get("type")
+        print(f"q type= {q_type}")
         # 3. ENQUEUE THE JOB (Replaces all synchronous LLM/DB steps)
         job_payload = {
-            "job_type": "evaluation", 
+            "job_type": "evaluation",
+            "q_type": q_type,
             "session_id": session_id,
             "qa_pairs": [p.model_dump() for p in sanitized_qa_pairs],
             "timestamp": datetime.now().isoformat()
@@ -215,12 +278,13 @@ async def submit_session_answers(
             detail=f"Failed to queue session evaluation job. Session marked as failed. Error: {error_detail}"
         )
 
+
 # --- ASYNCHRONOUS FLOW - STEP 2: STATUS CHECK (Polling) ---
 @router.get("/status/{session_id}", response_model=SessionStatusResponse)
 async def get_session_status(
     session_id: Annotated[int, Path(description="The ID of the interview session")],
     supabase: Annotated[AsyncClient, Depends(get_supabase)],
-    current_user = Depends(get_current_user),
+    role_context: RoleContext = Depends(require_role(["student", "teacher", "admin"]))
 ):
     """
     Allows the client to poll for the current status of a queued session.
@@ -228,16 +292,43 @@ async def get_session_status(
     user_service = UserProfileService(supabase)
     session_service = InterviewSessionService(supabase)
     
-    # 1. Fetch and validate session state & ownership
+    # 1. Fetch session
     session = await session_service.get_session(session_id)
-    
-    student_details = await user_service.get_student_details(current_user.id)
-    student_id = student_details.get("id")
-    if session.get("student_id") != student_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, 
-            detail="You are not authorized to submit to this session."
-        )
+    if not session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+
+    # 2. Role-aware authorization
+    if role_context.role_name == "student":
+        student_details = await user_service.get_student_details(role_context.user.id)
+        if not student_details:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Current user is not associated with a student record"
+            )
+        if session.get("student_id") != student_details.get("id"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not authorized to view this session."
+            )
+    elif role_context.role_name == "teacher":
+        teacher_response = await supabase.table("teachers").select("school_id").eq("user_id", str(role_context.user.id)).single().execute()
+        teacher_school_id = teacher_response.data.get("school_id") if teacher_response and teacher_response.data else None
+        if not teacher_school_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Teacher is not associated with a school"
+            )
+
+        student_response = await supabase.table("students").select("school_id").eq("id", session.get("student_id")).single().execute()
+        student_school_id = student_response.data.get("school_id") if student_response and student_response.data else None
+        if not student_school_id or student_school_id != teacher_school_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not authorized to view this session."
+            )
+    else:
+        # Admins are allowed to view any session
+        pass
     
     status_message = session.get('status')
     
@@ -253,7 +344,7 @@ async def get_session_detail(
     request: Request,
     session_id: int,
     supabase: Annotated[AsyncClient, Depends(get_supabase)],
-    current_user = Depends(get_current_user)
+    role_context: RoleContext = Depends(require_role(["student", "teacher", "admin"]))
 ):
     """
     Get detailed view of a student's specific session with feedbacks.
@@ -286,14 +377,48 @@ async def get_session_detail(
             detail=f"Session is still processing. Current status: {current_status}. Please continue polling the /status/{session_id} endpoint."
         )
     
-    # Verify current user owns this session (get student details)
-    student_details = await user_service.get_student_details(current_user.id)
-    if student_details and student_details.get("id") != session.get("student_id"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can only view your own sessions"
-        )
+    # Verify access based on role
+    if role_context.role_name == "student":
+        student_details = await user_service.get_student_details(role_context.user.id)
+        if not student_details:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Current user is not associated with a student record"
+            )
+        if student_details.get("id") != session.get("student_id"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only view your own sessions"
+            )
+    elif role_context.role_name == "teacher":
+        teacher_response = await supabase.table("teachers").select("school_id").eq("user_id", str(role_context.user.id)).single().execute()
+        teacher_school_id = teacher_response.data.get("school_id") if teacher_response and teacher_response.data else None
+        if not teacher_school_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Teacher is not associated with a school"
+            )
+        student_response = await supabase.table("students").select("school_id").eq("id", session.get("student_id")).single().execute()
+        student_school_id = student_response.data.get("school_id") if student_response and student_response.data else None
+        if not student_school_id or student_school_id != teacher_school_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not authorized to view this session"
+            )
+    else:
+        # Admins can view any session
+        pass
     
+    # --- CALCULATE DIMENSION AVERAGES (NEW LOGIC) ---
+    raw_feedbacks = session.get("detailed_feedbacks", [])
+    
+    if raw_feedbacks:
+        # Calculate the dimension averages using the service logic
+        calculated_averages: CalculatedAverages = session_service.calculate_session_dimension_averages(raw_feedbacks)
+    else:
+        calculated_averages = CalculatedAverages(0.0, 0.0, 0.0, 0.0)
+    
+
     # Transform detailed_feedbacks from database format
     sorted_feedbacks = session_service.normalize_ordered_records(
         session.get("detailed_feedbacks"),
@@ -301,6 +426,7 @@ async def get_session_detail(
     )
     feedback_list = [
         FeedbackDetail(
+            question_order=fb.get("question_order"),
             question=fb.get("question_text") or "",
             answer=fb.get("answer_text") or "",
             evaluation=fb.get("evaluation_text") or "",
@@ -344,7 +470,12 @@ async def get_session_detail(
         session_id=session["id"],
         student_id=session["student_id"],
         status=session["status"],
+        interview_type=session.get("type"),
         total_score=session.get("total_score"),
+        avg_cr=calculated_averages.avg_cr,
+        avg_st=calculated_averages.avg_st,
+        avg_fl=calculated_averages.avg_fl,
+        avg_cp=calculated_averages.avg_cp,
         created_at=session["created_at"],
         completed_at=session.get("completed_at"),
         overall_score=session.get("total_score"),
@@ -414,7 +545,11 @@ async def initiate_interview_session(
         
         # Step 2: Create session
         # NOTE: Status is set to "pending" instead of the synchronous "in_progress"
-        session = await session_service.create_session(student_id=student_id, status="pending")
+        session = await session_service.create_session(
+            student_id=student_id,
+            status="pending",
+            session_type="job"
+        )
         session_id = session['id']
         assert session_id is not None, "Session ID must be set after creation"
         
@@ -495,11 +630,11 @@ async def initiate_interview_session(
         return JSONResponse(content=jsonable_encoder(response.dict()))
         
     except HTTPException:
-        _rollback_session_creation(session_service, session_id)
+        await _rollback_session_creation(session_service, session_id)
         raise
         
     except Exception as e:
-        _rollback_session_creation(session_service, session_id)
+        await _rollback_session_creation(session_service, session_id)
         raise HTTPException(
             status_code=500,
             detail=f"Failed to queue interview session: {str(e)}"
@@ -520,7 +655,7 @@ async def initiate_university_prep_session(
     raw_text: Optional[str] = Form(None, description="Raw student record text content"),
     universities: str = Form(..., description="Comma-separated list of preferred universities (e.g., 'Stanford, MIT')"),
     departments: str = Form(..., description="Comma-separated list of preferred academic departments (e.g., 'Computer Science, Electrical Engineering')"),
-    current_user = Depends(require_role("student"))
+    role_context: RoleContext = Depends(require_role("student"))
 ):
     """
     Initiate new university preparation session. Saves input data, creates a session in 'pending' status, 
@@ -552,7 +687,7 @@ async def initiate_university_prep_session(
             )
 
         # Step 1: User check
-        student_details = await user_service.get_student_details(current_user.id)
+        student_details = await user_service.get_student_details(role_context.user.id)
         if not student_details:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -561,7 +696,11 @@ async def initiate_university_prep_session(
         student_id = student_details.get("id")
         
         # Step 2: Create session with initial 'pending' status (CHANGED from "in_progress")
-        session = session_service.create_session(student_id=student_id, status="pending")
+        session = await session_service.create_session(
+            student_id=student_id,
+            status="pending",
+            session_type="university"
+        )
         session_id = session['id']
         assert session_id is not None, "Session ID must be set after creation"
         

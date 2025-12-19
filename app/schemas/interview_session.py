@@ -61,6 +61,7 @@ class SessionHistoryItem(BaseModel):
     """Single session history item for listing"""
     id: int
     status: str
+    interview_type: Optional[str] = None
     total_score: Optional[float] = None
     completed_at: Optional[FlexibleDateTime] = None
     created_at: FlexibleDateTime
@@ -78,20 +79,42 @@ class SessionHistoryResponse(BaseModel):
         from_attributes = True
 
 
+class SessionWithStudentInfo(BaseModel):
+    """Admin/teacher view of sessions with student context."""
+    session_id: int
+    interview_type: Optional[str] = None
+    student_name: Optional[str]
+    student_identifier: Optional[str]
+    school_name: Optional[str] = None
+    major_name: Optional[str] = None
+    class_name: Optional[str] = None
+    grade_level: Optional[int] = None
+    total_score: Optional[float] = None
+    status: str
+    completed_at: Optional[FlexibleDateTime] = None
+    created_at: FlexibleDateTime
+
+    class Config:
+        from_attributes = True
+
+
+class SessionListForAdminsResponse(BaseModel):
+    sessions: List[SessionWithStudentInfo]
+    total_count: int
+
+    class Config:
+        from_attributes = True
+
+
 class QnAItem(BaseModel):
     """Single Q&A item in the conversation history"""
     question: str
     answer: str
 
 
-class SessionSubmitRequest(BaseModel):
-    """Request schema for submitting answers to get feedback"""
-    session_id: int
-    qna_history: List[QnAItem]
-
-
 class FeedbackDetail(BaseModel):
     """Detailed feedback for a single Q&A"""
+    question_order: Optional[int] = None
     question: str
     answer: str
     evaluation: str
@@ -129,10 +152,15 @@ class SessionDetailResponse(BaseModel):
     session_id: int
     student_id: int
     status: str
+    interview_type: Optional[str] = None
     total_score: Optional[float] = None
     created_at: FlexibleDateTime
     completed_at: Optional[FlexibleDateTime] = None
     overall_score: Optional[float] = None
+    avg_cr: float = Field(default=0.0, description="Average Content Relevance score.")
+    avg_st: float = Field(default=0.0, description="Average Structure score.")
+    avg_fl: float = Field(default=0.0, description="Average Fluency score (Odd Qs only).")
+    avg_cp: float = Field(default=0.0, description="Average Confidence Proxy score (Odd Qs only).")
     strength_summary: Optional[str] = None
     areas_for_growth: Optional[str] = None
     detailed_feedback: Optional[List[FeedbackDetail]] = None
@@ -163,30 +191,30 @@ class QuestionAnswerPair(BaseModel):
     """
     question_order: int = Field(..., description="The sequence number of the question.")
     question_text: str = Field(..., description="The text of the question asked.")
-    answer_text: str = Field(..., description="The student's full transcribed answer (input).")
+    answer_text: Optional[str] = Field(None, description="The student's full transcribed answer (input).")
     
-    # REQUIRED INPUT 1: Measured duration from the client's recording timer
-    audio_duration_seconds: float = Field(
-        ..., 
+    # OPTIONAL INPUT 1: Measured duration from the client's recording timer
+    audio_duration_seconds: Optional[float] = Field(
+        None, 
         description="The total duration of the recorded audio for this answer, in seconds.",
         ge=0.0
     )
     
-    # REQUIRED INPUT 2: Explicit word count (essential for languages like Korean)
-    word_count: int = Field(
-        ..., 
+    # OPTIONAL INPUT 2: Explicit word count (essential for languages like Korean)
+    word_count: Optional[int] = Field(
+        None, 
         description="The precise count of tokens/words in the transcribed answer.",
         ge=0
     )
 
-    total_pause_count: int = Field(
-        ...,
+    total_pause_count: Optional[int] = Field(
+        None,
         description="Total number of detected pauses in the answer.",
         ge=0
     )
 
-    total_pause_duration_seconds: float = Field(
-        ...,
+    total_pause_duration_seconds: Optional[float] = Field(
+        None,
         description="Total cumulative duration of all detected pauses in seconds.",
         ge=0.0
     )
@@ -197,7 +225,7 @@ class SessionSubmitRequest(BaseModel):
     Updated to use the detailed QuestionAnswerPair model.
     """
     session_id: int
-    qa_pairs: List[QuestionAnswerPair] = Field(..., description="The list of all 10 questions and their corresponding answers/transcripts.")
+    qa_pairs: Optional[List[QuestionAnswerPair]] = Field(None, description="The list of all 10 questions and their corresponding answers/transcripts. Optional: can be null or undefined.")
 
 
 # =========================================================
@@ -238,7 +266,6 @@ class DetailedEvaluationItem(BaseModel):
 
     class Config:
         # Allows accessing fields using both snake_case (Python) and alias (LLM output)
-        allow_population_by_field_name = True
         populate_by_name = True 
 
 class EvaluationBatchResponse(BaseModel):

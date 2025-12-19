@@ -15,6 +15,7 @@ from uuid import UUID
 from supabase import AsyncClient
 from fastapi import HTTPException, status
 
+from app.core.admin_client import get_admin_client
 from app.schemas.student import StudentAccountCreate, StudentAccountResponse
 from app.core.config import settings
 from app.utils.string_utils import sanitize_name
@@ -460,19 +461,19 @@ class StudentRegistrationService:
         logger.debug(f"[_create_auth_user] Creating auth user with fake_email={fake_email}, student_id={student_id}")
         
         try:
-            # Use admin API to create user with email confirmed
             logger.debug(f"[_create_auth_user] Calling Supabase admin API with email: {fake_email}")
-            response = await self.supabase.auth.admin.create_user({
-                "email": fake_email,
-                "password": password,
-                "email_confirm": True,
-                "user_metadata": {
-                    "full_name": full_name,
-                    "role_id": STUDENT_ROLE_ID,
-                    "student_id": student_id,
-                    "is_student": True
-                }
-            })
+            async with get_admin_client() as admin_client:
+                response = await admin_client.auth.admin.create_user({
+                    "email": fake_email,
+                    "password": password,
+                    "email_confirm": True,
+                    "user_metadata": {
+                        "full_name": full_name,
+                        "role_id": STUDENT_ROLE_ID,
+                        "student_id": student_id,
+                        "is_student": True
+                    }
+                })
             logger.debug(f"[_create_auth_user] Supabase response received")
             
             if not response.user:
@@ -674,7 +675,8 @@ class StudentRegistrationService:
             # Cleanup: delete auth user if subsequent steps fail
             try:
                 logger.debug(f"[create_student_account] Cleaning up auth user: {user_id}")
-                await self.supabase.auth.admin.delete_user(str(user_id))
+                async with get_admin_client() as admin_client:
+                    await admin_client.auth.admin.delete_user(str(user_id))
                 logger.info(f"[create_student_account] Auth user deleted during cleanup")
             except Exception as cleanup_error:
                 logger.warning(f"[create_student_account] Failed to cleanup auth user: {str(cleanup_error)}")
@@ -718,12 +720,12 @@ class StudentRegistrationService:
             
         except Exception as e:
             # Rollback: delete all created auth users
-            for user_id in created_user_ids:
-                try:
-                    # Delete auth user (cascades to user_profiles and students)
-                    await self.supabase.auth.admin.delete_user(str(user_id))
-                except:
-                    pass  # Best effort cleanup
+            async with get_admin_client() as admin_client:
+                for user_id in created_user_ids:
+                    try:
+                        await admin_client.auth.admin.delete_user(str(user_id))
+                    except:
+                        pass  # Best effort cleanup
             
             # Re-raise the original exception
             raise HTTPException(

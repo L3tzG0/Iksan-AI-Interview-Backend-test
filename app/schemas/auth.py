@@ -90,3 +90,5 @@ class RegisterRequest(BaseModel):
     # Role-specific nested data
     teacher_data: Optional[TeacherRegistrationData] = None
 
+class RefreshRequest(BaseModel):
+    refresh_token: str

@@ -16,8 +16,8 @@ from datetime import datetime
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - JobProcessor - %(message)s')
 
 # Constants for retry logic
-MAX_JOB_RETRIES = 3
-INITIAL_BACKOFF_SECONDS = 5
+MAX_JOB_RETRIES = 5
+INITIAL_BACKOFF_SECONDS = 7
 
 
 async def process_interview_job(
@@ -48,7 +48,7 @@ async def process_interview_job(
                 logging.info(f"Session {session_id}: Attempt {attempt + 1}/{MAX_JOB_RETRIES} to generate questions...")
                 
                 # 2. RAG Implementation
-                rag_context = await retrieve_questions_from_rag(cv_text=cv_text, k=5)
+                rag_context = await retrieve_questions_from_rag(cv_text=cv_text, q_type="job", k=5)
 
                 # 3. Generate interview questions using LLM (The slow step)
                 generated_questions_list = await generate_interview_questions(
@@ -118,7 +118,7 @@ async def process_university_prep_job(
                 logging.info(f"Session {session_id}: Attempt {attempt + 1}/{MAX_JOB_RETRIES} to generate university prep questions...")
                 
                 # 2. RAG Implementation
-                academic_context = await retrieve_questions_from_rag(cv_text=student_record_text, k=5)
+                academic_context = await retrieve_questions_from_rag(cv_text=student_record_text, q_type="uni", k=5)
 
                 # 3. Generate questions using LLM
                 generated_questions_list = await generate_university_prep_questions(
@@ -175,6 +175,8 @@ async def process_evaluation_job(
     qa_pairs_dicts = job_data["qa_pairs"]
     qa_pairs = [QuestionAnswerPair(**p) for p in qa_pairs_dicts]
     
+    q_type = job_data["q_type"]
+
     session_service = InterviewSessionService(supabase)
     feedback_service = FeedbackService(supabase)
     
@@ -189,7 +191,7 @@ async def process_evaluation_job(
             try:
                 # 2. Call LLM Evaluation Service (The heavy lifting)
                 logging.info(f"Session {session_id}: Attempt {attempt + 1}/{MAX_JOB_RETRIES} to call LLM...")
-                evaluation_result = await generate_session_evaluation(qa_pairs)
+                evaluation_result = await generate_session_evaluation(qa_pairs, q_type)
                 # Success! Break the retry loop
                 break 
             except Exception as e:
