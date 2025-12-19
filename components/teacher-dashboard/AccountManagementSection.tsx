@@ -1,9 +1,11 @@
-import { useCallback, useRef, useState, type DragEvent, type FC } from 'react';
+import { useCallback, useEffect, useRef, useState, type DragEvent, type FC } from 'react';
 import type { AccountManagementSectionProps } from '../../types/teacherDashboard';
+import type { User } from '../../types';
 import Button from '../ui/Button';
 import FilterControls from './FilterControls';
 import SearchBar from './SearchBar';
 import Spinner from '../Spinner';
+import { fetchUsers } from '../../services/studentService';
 
 const AccountManagementSection: FC<AccountManagementSectionProps> = ({
   newStudent,
@@ -31,7 +33,8 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
   canSubmitBulkUpload,
 }) => {
   const [isDraggingFile, setIsDraggingFile] = useState(false);
-  const [userList, setUserList] = useState([]);
+  const [userList, setUserList] = useState<User[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const dragCounter = useRef(0);
 
   const handleDragEnter = useCallback((e: DragEvent<HTMLDivElement>) => {
@@ -76,6 +79,38 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
     },
     [onBulkFileChange]
   );
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadUsers = async () => {
+      setIsLoadingUsers(true);
+      try {
+        const result = await fetchUsers({
+          role: 'student',
+          page: 1,
+          pageSize: 200,
+          search: searchTerm,
+        });
+        if (!isActive) return;
+        setUserList(result.data ?? []);
+      } catch (error) {
+        console.error('학생 계정 목록을 불러오는 중 오류가 발생했습니다.', error);
+      } finally {
+        if (isActive) {
+          setIsLoadingUsers(false);
+        }
+      }
+    };
+
+    loadUsers();
+
+    return () => {
+      isActive = false;
+    };
+  }, [searchTerm]);
+
+  const isStudentTableLoading = isLoadingUsers || isLoadingStudents;
 
   return (
     <div className="space-y-6">
@@ -283,7 +318,7 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {isLoadingStudents && userList.length === 0 && (
+              {isStudentTableLoading && userList.length === 0 && (
                 <tr>
                   <td colSpan={4} className="px-6 py-6 text-slate-400 text-center"><Spinner label="불러오는 중..." /></td>
                 </tr>
@@ -291,11 +326,7 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
               {userList.map((student) => (
                 <tr
                   key={student.id}
-                  className={`group cursor-pointer transition-all ${
-                    activeStudentId === student.id
-                      ? 'bg-primary-lightest/80 border-l-4 border-primary text-primary'
-                      : 'hover:bg-primary-lightest/50'
-                  }`}
+                  className={`group cursor-pointer transition-all border-primary text-primary hover:bg-primary-lightest/80`}
                   onClick={() => { }}
                 >
                   <td className="px-6 py-4 font-semibold text-slate-800 group-hover:text-primary">{student.name}</td>
@@ -304,7 +335,7 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
                   <td className="px-6 py-4 font-mono text-slate-700">{student.tempPassword || '—'}</td>
                 </tr>
               ))}
-              {!isLoadingStudents && userList.length === 0 && (
+              {!isStudentTableLoading && userList.length === 0 && (
                 <tr>
                   <td colSpan={4} className="px-6 py-6 text-slate-400 text-center">표시할 학생이 없습니다.</td>
                 </tr>
