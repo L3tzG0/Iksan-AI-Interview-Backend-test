@@ -503,6 +503,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
       return;
     }
 
+    const isSkipped = Boolean(options?.skipReason);
     const answerText = finalText || options?.skipReason || '이 질문은 건너뛸게요.';
     const metrics = sttMetricsByQuestion[question.id] || sttSummary || {};
     const pauseCountFallback = pauseEvents.length ? pauseEvents.length : undefined;
@@ -516,6 +517,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
       audioUrl: recordedAudioUrl || drafts[question.id]?.audioUrl,
       questionOrder: currentQuestionIndex + 1,
       questionText: question.text,
+      isSkipped,
       audioDurationSeconds: metrics.audioDurationSeconds,
       wordCount: metrics.wordCount,
       totalPauseDurationSeconds: metrics.totalPauseDurationSeconds ?? pauseDurationFallback,
@@ -551,7 +553,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
   useEffect(() => {
     if (timeLeft === 0 && !isTimerPaused) {
       if (!currentAnswer.trim()) {
-        setInlineError('시간이 다 되었습니다. 답변을 작성하거나 타이머를 일시정지해 주세요.');
+        setInlineError('시간이 다 되었습니다. 답변을 작성해 주세요.');
         setIsTimerPaused(true);
         return;
       }
@@ -671,12 +673,17 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
   const isResumeBased = currentQuestion.type === 'resume-based';
   const progressPercentage = ((currentQuestionIndex + 1) / questions.length) * 100;
   const currentStepLabel = isResumeBased ? '3/3 이력서 기반' : '2/3 즉흥 질문';
-  const progressLabel = `${currentQuestionIndex + 1} / ${questions.length} · ${isResumeBased ? '이력서 기반' : '즉흥 질문'}`;
+  const progressLabel = `${currentQuestionIndex + 1} / ${questions.length} · 질문`;
   const quickTips = [
     { title: 'STAR 구조', description: '상황-과제-행동-결과 순서로 핵심만 또렷하게 설명해요.' },
     { title: '30초 생각 시간', description: '질문을 들은 뒤 30초는 정리하고 10초 안에 말문을 여세요.' },
     { title: '감정 + 숫자', description: '느낀 점과 수치를 함께 말하면 설득력 있는 답변이 됩니다.' },
   ];
+
+  console.log('Render InterviewSession', { currentQuestion});
+
+  const defaultAnswerPlaceholder = '여기에 답을 적어주세요';
+  const placeholderText = currentQuestion.questionOrder % 2 === 1 ? '이 질문은 음성 녹음으로 반드시 답변해야 합니다.' : defaultAnswerPlaceholder;
 
   return (
     <div className="flex flex-col justify-start items-center pt-6 min-h-[calc(100vh-10rem)] animate-fadeIn">
@@ -709,14 +716,14 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
                   <span className="font-semibold text-slate-500 text-sm">
                     질문 {currentQuestionIndex + 1} / {questions.length}
                   </span>
-                  <span className="bg-primary-lightest px-3 py-1 rounded-full font-semibold text-primary text-xs">{currentStepLabel}</span>
-                  <span
+                  {/* <span className="bg-primary-lightest px-3 py-1 rounded-full font-semibold text-primary text-xs">{currentStepLabel}</span> */}
+                  {/* <span
                     className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
                       isResumeBased ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
                     }`}
                   >
                     {isResumeBased ? '이력서 기반' : '즉흥 질문'}
-                  </span>
+                  </span> */}
                 </div>
               </div>
               <div className="flex flex-col items-end gap-2 font-bold text-primary text-2xl">
@@ -729,13 +736,13 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
                   <span className="font-semibold text-slate-500 text-xs">타이머가 숨겨져 있어요</span>
                 )}
                 <div className="flex items-center gap-2 font-semibold text-xs">
-                  <button
+                  {/* <button
                     type="button"
                     onClick={() => setIsTimerPaused((prev) => !prev)}
                     className="bg-white px-3 py-1 border border-slate-200 hover:border-primary rounded-full text-slate-600"
                   >
                     {isTimerPaused ? '재개' : '일시정지'}
-                  </button>
+                  </button> */}
                   <button
                     type="button"
                     onClick={() => setIsTimerVisible((prev) => !prev)}
@@ -752,7 +759,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
                 style={{ width: `${progressPercentage}%` }}
               ></div>
             </div>
-            <p className="font-semibold text-slate-500 text-xs">{progressLabel}</p>
+            {/* <p className="font-semibold text-slate-500 text-xs">{progressLabel}</p> */}
           </div>
         </section>
 
@@ -762,7 +769,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
             AI 질문
           </p>
           <h2 className="font-bold text-slate-800 text-2xl leading-tight">{currentQuestion.text}</h2>
-          <p className="mt-2 text-slate-500 text-xs">각 답변은 1~2분 안에 핵심만 정리해 주세요. 긴장되면 잠시 멈추고 다시 이어도 괜찮아요.</p>
+          <p className="mt-2 text-slate-500 text-xs">각 답변은 1~2분 안에 핵심만 정리해 주세요.</p>
         </Card>
 
         <Card>
@@ -787,6 +794,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
             micPermission={micPermission}
             onRequestMicPermission={requestMicPermission}
             isRequestingMic={isRequestingMic}
+            answerPlaceholder={placeholderText}
           />
 
           {(pauseEvents.length > 0 || sttSummary) && (
@@ -810,7 +818,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
                 {isLastQuestion ? '연습 마치고 결과 보기' : '다음 질문'}
               </Button>
             </div>
-            {inlineError && <p className="font-semibold text-red-600 text-sm text-right">{inlineError}</p>}
+            {/* {inlineError && <p className="font-semibold text-red-600 text-sm text-right">{inlineError}</p>} */}
           </div>
         </Card>
 

@@ -1,7 +1,6 @@
 import { InterviewStartPayload, Answer } from '../types';
 import { getStoredToken } from './authService';
-
-const API_BASE = import.meta.env.VITE_API_BASE || 'https://iksan-ai-interview-backend-production.up.railway.app';
+import { API_BASE } from './apiBase';
 
 export interface InitiateSessionResponse {
   sessionId?: string;
@@ -132,9 +131,12 @@ export interface SubmitSessionResponse {
 
 export const submitSessionAnswers = async (sessionId: string, qaPairs: Answer[]): Promise<SubmitSessionResponse> => {
   const token = getStoredToken();
+  const answeredPairs = qaPairs.filter(
+    (a) => !a.isSkipped && (((a.text || '').trim().length > 0) || a.audioUrl)
+  );
   const payload = {
     session_id: sessionId,
-    qa_pairs: qaPairs.map((a, idx) => ({
+    qa_pairs: answeredPairs.map((a, idx) => ({
       question_order: a.questionOrder ?? idx + 1,
       question_text: a.questionText || '',
       answer_text: a.text,

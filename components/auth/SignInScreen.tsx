@@ -68,7 +68,7 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ onSignIn, onSwitchToSignUp,
           icon={mode === 'student' ? <IdBadgeIcon className="w-6 h-6" /> : <MailIcon className="w-5 h-5" />}
           required
         />
-        {inlineError && <p className="text-xs text-rose-500">{inlineError}</p>}
+        {inlineError && <p className="text-rose-500 text-xs">{inlineError}</p>}
         <Input
           label="비밀번호"
           type="password"
@@ -79,16 +79,16 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ onSignIn, onSwitchToSignUp,
           icon={<LockIcon className="w-5 h-5" />}
           required
         />
-
-        <div className="flex items-center justify-between text-sm">
+{/* 
+        <div className="flex justify-between items-center text-sm">
             <label className="flex items-center text-slate-600 cursor-pointer">
-                <input type="checkbox" className="mr-2 rounded border-slate-300 text-primary focus:ring-primary bg-white" />
+                <input type="checkbox" className="bg-white mr-2 border-slate-300 rounded focus:ring-primary text-primary" />
                 로그인 상태 유지
             </label>
-            <button type="button" className="text-primary font-medium hover:text-primary-dark">
+            <button type="button" className="font-medium text-primary hover:text-primary-dark">
                 비밀번호 찾기
             </button>
-        </div>
+        </div> */}
 
         <Button type="submit" fullWidth isLoading={isLoading}>
             로그인
@@ -104,7 +104,7 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ onSignIn, onSwitchToSignUp,
                 setLoginId('');
                 onSwitchMode && onSwitchMode();
               }}
-            className="text-sm text-primary font-semibold hover:text-primary-dark"
+            className="font-semibold text-primary hover:text-primary-dark text-sm"
           >
             {mode === 'student' ? '교사/관리자 로그인으로 전환' : '학생 로그인으로 전환'}
           </button>
@@ -112,10 +112,10 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ onSignIn, onSwitchToSignUp,
       </form>
 
       {mode === 'staff' && (
-        <div className="mt-6 text-center text-sm text-slate-600">
+        <div className="mt-6 text-slate-600 text-sm text-center">
           교사/관리자 신규 계정이 필요하신가요?{' '}
-          <button onClick={onSwitchToSignUp} className="text-primary font-bold hover:text-primary-dark">
-            회원가입
+          <button onClick={onSwitchToSignUp} className="font-bold text-primary hover:text-primary-dark">
+            등록
           </button>
         </div>
       )}

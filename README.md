@@ -123,3 +123,26 @@ After login, students can:
 ## Notes
 - The system is designed to simulate **real interview behavior**, focusing on structured answers, clarity, and role alignment.
 - Feedback emphasizes methodology, quantification, and professional communication.
+
+---
+
+## Deploy to Netlify
+
+### Prereqs
+- Push this repo to GitHub (or GitLab/Bitbucket) so Netlify can connect to it.
+
+### Netlify settings
+In Netlify:
+1. **Add new site** → **Import an existing project**
+2. Select your git provider + repository
+3. Set:
+   - **Base directory**: (leave empty)
+   - **Build command**: `npm run build`
+   - **Publish directory**: `dist`
+4. Add environment variables (Site configuration → Environment variables):
+   - `VITE_API_BASE` (optional; defaults to the Railway backend URL already in code)
+5. Deploy
+
+### Notes / troubleshooting
+- This app uses React Router (`BrowserRouter`). Netlify needs an SPA fallback redirect so deep links like `/teacher/home` load correctly. This repo includes that via `netlify.toml`.
+- If you set `VITE_API_BASE`, use an absolute URL including protocol (e.g. `https://iksan-ai-interview-backend-production.up.railway.app`). A value without `https://` can be treated as a relative path and end up prefixed by the current route.

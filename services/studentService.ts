@@ -1,7 +1,6 @@
 import { getStoredToken } from './authService';
 import type { School, Major, User, ClassRoom } from '../types';
-
-const API_BASE = import.meta.env.VITE_API_BASE || 'https://iksan-ai-interview-backend-production.up.railway.app';
+import { API_BASE } from './apiBase';
 
 const authHeaders = () => {
   const token = getStoredToken();
@@ -82,6 +81,7 @@ export interface BulkCreateResult {
   created: number;
   failed: number;
   errors?: BulkRowError[];
+  students?: CreatedStudentAccount[];
 }
 
 const parseBulkErrorMessage = (data: any, fallback: string) => {
@@ -117,8 +117,14 @@ export const bulkCreateStudents = async (students: BulkCreateStudentInput[]): Pr
     throw new Error(msg || 'CSV 업로드에 실패했어요');
   }
 
-  const total = data?.total ?? data?.total_count ?? data?.count ?? data?.summary?.total ?? 0;
-  const created = data?.created ?? data?.created_count ?? data?.summary?.created ?? data?.data?.created ?? 0;
+  const total = data?.total ?? data?.total_count ?? data?.count ?? data?.summary?.total ?? data?.students?.length ?? students.length;
+  const created =
+    data?.created_count ??
+    data?.created ??
+    data?.summary?.created ??
+    data?.data?.created ??
+    data?.students?.length ??
+    0;
   const failed = data?.failed ?? data?.failed_count ?? data?.summary?.failed ?? Math.max((total || 0) - (created || 0), 0);
 
   const errorsSource = data?.errors || data?.errorRows || data?.error_rows || data?.failed_rows || [];
@@ -130,10 +136,26 @@ export const bulkCreateStudents = async (students: BulkCreateStudentInput[]): Pr
       }))
     : [];
 
+  const createdStudentsSource =
+    (Array.isArray(data?.students) && data.students) ||
+    (Array.isArray(data?.data?.students) && data.data.students) ||
+    [];
+
+  const createdStudents: CreatedStudentAccount[] = createdStudentsSource.map((s: any) => ({
+    id: s?.id !== undefined ? String(s.id) : undefined,
+    userId: s?.user_id !== undefined ? String(s.user_id) : s?.userId,
+    fullName: s?.full_name ?? s?.fullName,
+    studentId: s?.student_id ?? s?.studentId ?? '',
+    password: s?.password ?? s?.temp_password ?? s?.tempPassword,
+    currentClassId: s?.current_class_id ?? s?.currentClassId,
+    raw: s,
+  }));
+
   return {
     total: total || created + failed,
     created,
     failed,
+    students: createdStudents,
     errors,
   };
 };

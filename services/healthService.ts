@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_BASE || 'https://iksan-ai-interview-backend-production.up.railway.app';
+import { API_BASE } from './apiBase';
 
 export interface RedisStatusResponse {
   status: string;

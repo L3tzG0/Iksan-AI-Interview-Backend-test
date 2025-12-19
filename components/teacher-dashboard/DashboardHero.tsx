@@ -1,7 +1,11 @@
 import type { FC } from 'react';
 import type { DashboardHeroProps } from '../../types/teacherDashboard';
 
-const DashboardHero: FC<DashboardHeroProps> = ({ currentUser, studentCount, completedCount, averageScore }) => (
+const DashboardHero: FC<DashboardHeroProps> = ({ test, currentUser, studentCount, completedCount, averageScore }) => {
+  
+  console.log(test)
+  
+  return (
   <section className="relative bg-gradient-to-r from-primary-lightest via-white to-white shadow-soft p-6 sm:p-8 border border-white/70 rounded-[28px] overflow-hidden">
     <div className="-top-8 -right-8 hero-blob hero-blob--primary"></div>
     <div className="bottom-0 -left-8 hero-blob hero-blob--secondary"></div>
@@ -30,6 +34,6 @@ const DashboardHero: FC<DashboardHeroProps> = ({ currentUser, studentCount, comp
       </div>
     </div>
   </section>
-);
+)}
 
 export default DashboardHero;

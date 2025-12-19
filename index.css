@@ -192,3 +192,35 @@ body {
 .animate-progressIndeterminate {
   animation: progressIndeterminate 1.2s ease-in-out infinite;
 }
+
+/* Print helpers */
+@media print {
+  body {
+    background: #fff !important;
+    -webkit-print-color-adjust: exact;
+    color: #0f172a;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-area {
+    color: #0f172a;
+    background: #fff;
+  }
+  .print-area * {
+    box-shadow: none !important;
+    filter: none !important;
+    -webkit-filter: none !important;
+  }
+  .print-area section {
+    page-break-inside: avoid;
+  }
+  .hero-blob,
+  .hero-blob--primary,
+  .hero-blob--secondary,
+  .animate-softFadeUp,
+  .animate-softFadeUp-delayed,
+  .animate-softFadeUp-late {
+    display: none !important;
+  }
+}

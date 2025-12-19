@@ -46,6 +46,7 @@ export interface Answer {
   audioUrl?: string;
   questionOrder?: number;
   questionText?: string;
+  isSkipped?: boolean;
   audioDurationSeconds?: number;
   wordCount?: number;
   totalPauseDurationSeconds?: number;
@@ -152,6 +153,7 @@ export interface User {
     major?: string;       
     avatarUrl?: string;
     authToken?: string;
+    refreshToken?: string;
   studentId?: string;
   tempPassword?: string;
 }
