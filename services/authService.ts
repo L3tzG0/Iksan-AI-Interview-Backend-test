@@ -1,10 +1,7 @@
 import { User, School } from "../types";
 import { fetchSchools as fetchSchoolsApi } from "./studentService";
 import { jwtDecode } from "jwt-decode";
-
-const API_BASE =
-    import.meta.env.VITE_API_BASE ||
-    "https://iksan-ai-interview-backend-production.up.railway.app";
+import { API_BASE } from "./apiBase";
 const TOKEN_KEY = "auth_token";
 const REFRESH_TOKEN_KEY = "auth_refresh_token";
 
