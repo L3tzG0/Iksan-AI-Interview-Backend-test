@@ -269,11 +269,11 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
       </div>
 
       <div className="bg-white shadow-soft border border-slate-100 rounded-[20px] overflow-hidden">
-        <div className="flex flex-wrap items-center gap-3 bg-slate-50/80 px-6 py-3 border-slate-100 border-b text-slate-500 text-xs">
+        {/* <div className="flex flex-wrap items-center gap-3 bg-slate-50/80 px-6 py-3 border-slate-100 border-b text-slate-500 text-xs">
           <span className="inline-flex items-center gap-2"><span className="bg-green-400 border border-green-600 rounded-full w-3 h-3"></span>완료</span>
           <span className="inline-flex items-center gap-2"><span className="bg-slate-200 border border-slate-400 rounded-full w-3 h-3"></span>진행 중</span>
           <span className="ml-auto text-slate-400">총 {processedAll.length}명</span>
-        </div>
+        </div> */}
         <div className="overflow-x-auto">
           <table className="min-w-full text-slate-600 text-sm text-left">
             <thead className="bg-slate-50 border-slate-200 border-b text-slate-500 text-xs uppercase">
