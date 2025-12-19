@@ -405,13 +405,13 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
 
   return (
     <div className="space-y-8 mx-auto animate-fadeIn container">
-      <DashboardHero
+      {/* <DashboardHero
         test={students}
         currentUser={currentUser}
         studentCount={students.length}
         completedCount={stats.completed}
         averageScore={stats.avgScore}
-      />
+      /> */}
 
       <Card className="space-y-6">
         <TabSwitcher activeTab={activeTab} onChange={handleTabChange} />
