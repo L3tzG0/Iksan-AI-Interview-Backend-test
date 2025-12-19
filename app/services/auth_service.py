@@ -229,3 +229,30 @@ class AuthService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Sign out failed: {str(e)}"
             )
+
+    async def refresh_token(self, refresh_token: str):
+        """
+        Refresh the session using a refresh token.
+        Returns a new access token and refresh token.
+        """
+        try:
+            # Supabase native method to refresh session
+            response = await self.supabase.auth.refresh_session(refresh_token)
+            
+            if not response.session:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid or expired refresh token"
+                )
+            
+            return {
+                "user": response.user,
+                "session": response.session,
+                "access_token": response.session.access_token,
+                "refresh_token": response.session.refresh_token
+            }
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not refresh session"
+            )

@@ -10,7 +10,7 @@ from app.core.rate_limit import limiter, get_ip_address
 from app.services.auth_service import AuthService
 from app.services.user_service import UserProfileService
 from app.services.student_registration_service import StudentRegistrationService
-from app.schemas.auth import Token, LoginRequest, RegisterRequest, UserResponse, StudentLoginRequest, StudentLoginResponse
+from app.schemas.auth import Token, LoginRequest, RegisterRequest, UserResponse, StudentLoginRequest, StudentLoginResponse, RefreshRequest
 
 router = APIRouter()
 
@@ -42,6 +42,42 @@ async def register_user(
     )
 
     return JSONResponse(content=jsonable_encoder(user_response.dict(exclude_none=True)))
+
+@router.post("/refresh", response_model=Token)
+async def refresh_access_token(
+    refresh_data: RefreshRequest,
+    supabase: Annotated[AsyncClient, Depends(get_supabase)]
+):
+    """
+    Refresh access token using a valid refresh token.
+    This allows users to stay logged in beyond the 1-hour access token limit.
+    """
+    auth_service = AuthService(supabase)
+    result = await auth_service.refresh_token(refresh_data.refresh_token)
+    
+    # Re-fetch user context to return the full Token object (consistent with login)
+    profile_service = UserProfileService(supabase)
+    user = result["user"]
+    
+    try:
+        user_context = await profile_service.get_full_user_context(user.id)
+        user_response = profile_service.build_user_response(
+            user=user,
+            profile=user_context["profile"],
+            student_details=user_context["student_details"],
+            teacher_details=user_context["teacher_details"],
+        )
+    except Exception:
+        user_response = profile_service.build_user_response(user=user)
+    
+    token_response = Token(
+        access_token=result["access_token"],
+        token_type="bearer",
+        refresh_token=result["refresh_token"],
+        user=user_response
+    )
+
+    return JSONResponse(content=jsonable_encoder(token_response.dict(exclude_none=True)))
 
 @router.post("/login", response_model=Token)
 @limiter.limit(settings.RATE_LIMIT_AUTH, key_func=get_ip_address)
