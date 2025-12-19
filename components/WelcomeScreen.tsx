@@ -220,7 +220,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
         </div>
       </section>
 
-      <div className={`w-full mx-auto max-w-5xl grid gap-8 ${hasHistory ? 'lg:grid-cols-[3fr_2fr]' : 'lg:grid-cols-1'}`}>
+      <div className={`w-full mx-auto grid gap-8 ${hasHistory ? 'lg:grid-cols-[3fr_2fr]' : 'lg:grid-cols-1'}`}>
         <div className="bg-white/95 shadow-elice p-6 sm:p-8 border border-white/70 rounded-[24px] animate-softFadeUp">
           <div className="flex justify-between items-center mb-6">
             <div>

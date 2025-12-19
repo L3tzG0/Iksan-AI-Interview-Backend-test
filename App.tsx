@@ -587,8 +587,8 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
 
   return (
     <div className="relative bg-white min-h-screen overflow-hidden font-elice text-slate-700">
-      <div className="-top-24 -right-16 absolute bg-primary/10 blur-3xl rounded-full w-72 h-72 animate-pulseSlow pointer-events-none"></div>
-      <div className="top-24 -left-24 absolute bg-primary-light/40 blur-3xl rounded-full w-80 h-80 animate-pulseSlow pointer-events-none"></div>
+      {/* <div className="-top-24 -right-16 absolute bg-primary/10 blur-3xl rounded-full w-72 h-72 animate-pulseSlow pointer-events-none"></div>
+      <div className="top-24 -left-24 absolute bg-primary-light/40 blur-3xl rounded-full w-80 h-80 animate-pulseSlow pointer-events-none"></div> */}
       <div className="z-10 relative">
         <Navbar 
           user={currentUser!} 
