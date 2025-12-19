@@ -366,14 +366,12 @@ const App: React.FC = () => {
     openReportBySessionId(historyReport.sessionId);
   };
 
-  const handleViewStudent = (studentId: string) => {
-    navigate(`/teacher/students/${studentId}`);
-  };
   const mapQuestionsFromDetail = useCallback((detail: any): Question[] => {
     const feedback = Array.isArray(detail?.detailed_feedback) ? detail.detailed_feedback : [];
     return feedback
       .map((item: any, idx: number) => ({
         id: item?.question_order ?? idx + 1,
+        questionOrder: item?.question_order ?? item.question_order,
         text: item?.question || item?.question_text || '',
         type: 'general' as const,
       }))
@@ -439,6 +437,7 @@ const App: React.FC = () => {
         if (status.message) setSessionStatusMessage(status.message);
         if (status.isReady) {
           const detail = await fetchSessionDetail(sessionId);
+          console.log('Fetched session detail for questions', detail);
           const fetchedQuestions = mapQuestionsFromDetail(detail);
           if (!fetchedQuestions.length) {
             throw new Error('No questions returned');

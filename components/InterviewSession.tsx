@@ -680,6 +680,8 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
     { title: '감정 + 숫자', description: '느낀 점과 수치를 함께 말하면 설득력 있는 답변이 됩니다.' },
   ];
 
+  console.log('Render InterviewSession', { currentQuestion, currentQuestionIndex, isRecording, timeLeft, micPermission });
+
   return (
     <div className="flex flex-col justify-start items-center pt-6 min-h-[calc(100vh-10rem)] animate-fadeIn">
       {isTimerVisible && !isTimerInView && (
@@ -812,7 +814,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
                 {isLastQuestion ? '연습 마치고 결과 보기' : '다음 질문'}
               </Button>
             </div>
-            {inlineError && <p className="font-semibold text-red-600 text-sm text-right">{inlineError}</p>}
+            {/* {inlineError && <p className="font-semibold text-red-600 text-sm text-right">{inlineError}</p>} */}
           </div>
         </Card>
 
