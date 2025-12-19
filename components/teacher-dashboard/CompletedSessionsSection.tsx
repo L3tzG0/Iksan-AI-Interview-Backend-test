@@ -1,24 +1,87 @@
 import type { FC } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { CompletedSessionsSectionProps } from "../../types/teacherDashboard";
+import type { StudentGoal, StudentSummary } from "../../types";
 import FilterControls from "./FilterControls";
 import SearchBar from "./SearchBar";
 import Spinner from "../Spinner";
+import {
+    fetchAllSessionsForTeacherAndAdminRole,
+    type NormalizedSessionSummary,
+} from "../../services/studentService";
+
+const mapInterviewTypeToGoal = (value?: string): StudentGoal | undefined => {
+    if (!value) return undefined;
+    const normalized = value.toLowerCase();
+    if (normalized === "job" || normalized === "work") return "work";
+    if (normalized === "university") return "university";
+    return undefined;
+};
+
+const normalizeSessionToSummary = (
+    session: NormalizedSessionSummary
+): StudentSummary | null => {
+    const identifier = session.studentIdentifier || session.studentName || session.id;
+    if (!identifier) return null;
+    const grade = typeof session.gradeLevel === "number" ? session.gradeLevel : 0;
+    const totalScore = typeof session.totalScore === "number" ? Math.round(session.totalScore) : 0;
+    const statusValue = (session.status || "").toLowerCase();
+    const completed = statusValue === "completed" || Boolean(session.completedAt);
+    const sessionIdValue = session.id ?? session.sessionId;
+
+    return {
+        id: String(identifier),
+        name: session.studentName || "이름 없음",
+        major: session.majorName || "",
+        schoolName: session.schoolName || "",
+        grade,
+        latestScore: totalScore,
+        improvement: 0,
+        completed,
+        status: completed ? "completed" : "in_progress",
+        intent: mapInterviewTypeToGoal(session.interviewType),
+        sessionId: sessionIdValue !== undefined ? String(sessionIdValue) : undefined,
+        session_id: sessionIdValue !== undefined ? String(sessionIdValue) : undefined,
+    };
+};
 
 const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({
     searchTerm,
     onSearch,
     filterControlsProps,
-    processedCompleted,
-    isLoadingStudents,
-    activeStudentId,
-    onHighlightStudent,
 }) => {
+    const [isLoading, setIsLoading] = useState(false);
+    const [studentWithSessionList, setStudentWithSessionList] = useState<StudentSummary[]>([]);
+
+    useEffect(() => {
+        let isActive = true;
+
+        const loadCompletedSessions = async () => {
+            setIsLoading(true);
+            try {
+                const { sessions } = await fetchAllSessionsForTeacherAndAdminRole();
+                if (!isActive) return;
+                const normalized = sessions
+                    .map(normalizeSessionToSummary)
+                    .filter((student): student is StudentSummary => Boolean(student));
+                setStudentWithSessionList(normalized);
+            } catch (error) {
+                console.error("Failed to fetch completed sessions:", error);
+            } finally {
+                if (isActive) {
+                    setIsLoading(false);
+                }
+            }
+        };
+
+        loadCompletedSessions();
+        return () => {
+            isActive = false;
+        };
+    }, []);
+
     const navigate = useNavigate();
-    console.log(
-        "Rendering CompletedSessionsSection with processedCompleted:",
-        processedCompleted
-    );
 
     return (
         <div className="space-y-4">
@@ -31,13 +94,13 @@ const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({
                 <FilterControls {...filterControlsProps} />
             </div>
 
-            {isLoadingStudents ? (
+            {isLoading ? (
                 <div className="bg-white shadow-soft border border-slate-100 rounded-[20px] overflow-hidden">
                     <div className="flex justify-center py-16">
                         <Spinner label="학생 목록을 불러오는 중..." />
                     </div>
                 </div>
-            ) : processedCompleted.length === 0 ? (
+            ) : studentWithSessionList.length === 0 ? (
                 <div className="py-16 text-slate-500 text-center">
                     <p className="font-semibold text-lg">
                         표시할 세션이 없습니다.
@@ -61,7 +124,7 @@ const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({
                             학생을 클릭하면 상세로 이동합니다.
                         </span>
                         <span className="ml-auto text-slate-400">
-                            총 {processedCompleted.length}명
+                            총 {studentWithSessionList.length}명
                         </span>
                     </div>
                     <div className="overflow-x-auto">
@@ -92,16 +155,11 @@ const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                                {processedCompleted.map((student) => (
+                                {studentWithSessionList.map((student) => (
                                     <tr
                                         key={student.id}
-                                        className={`group cursor-pointer transition-all ${
-                                            activeStudentId === student.id
-                                                ? "bg-primary-lightest/80 border-l-4 border-primary text-primary"
-                                                : "hover:bg-primary-lightest/50"
-                                        }`}
+                                        className={`group cursor-pointer transition-all border-primary text-primary hover:bg-primary-lightest/80 `}
                                         onClick={() => {
-                                            onHighlightStudent(student.id);
                                             const sessionId =
                                                 student.session_id ||
                                                 student.sessionId;

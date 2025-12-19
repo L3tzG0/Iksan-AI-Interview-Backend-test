@@ -62,11 +62,6 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { addToast } = useToast();
 
-  const normalizeCode = (value: string, fallback: string) => {
-    const letters = value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3);
-    return letters || fallback;
-  };
-
   useEffect(() => {
     setActiveTab(tabFromRoute);
   }, [tabFromRoute]);
@@ -174,7 +169,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
       try {
         const res = await fetchAllSessionsForTeacherAndAdminRole();
         if (!isMounted) return;
-        console.log('Fetched sessions for teacher/admin:', res);
+        // console.log('Fetched sessions for teacher/admin:', res);
         mergeSessionsIntoStudents(res.sessions);
       } catch (err: any) {
         if (isMounted) {
@@ -405,12 +400,6 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
     return sorted;
   }, [filteredBySearch, sortOption]);
 
-  const processedCompleted = useMemo(() => {
-    const byGrade = gradeFilter === 'all' ? filteredBySearch : filteredBySearch.filter((s) => s.grade === gradeFilter);
-    const byGoal = goalFilter === 'all' ? byGrade : byGrade.filter((s) => s.intent === goalFilter);
-    return byGoal;
-  }, [filteredBySearch, gradeFilter, goalFilter]);
-
   const handleTabChange = (nextTab: 'completed' | 'manage') => {
     setActiveTab(nextTab);
     const tabSegment = nextTab === 'manage' ? '2' : '1';
@@ -450,10 +439,6 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
             searchTerm={searchTerm}
             onSearch={handleSearch}
             filterControlsProps={filterControlsProps}
-            processedCompleted={processedCompleted}
-            isLoadingStudents={isLoadingStudents}
-            activeStudentId={activeStudentId}
-            onHighlightStudent={(id) => setActiveStudentId(id)}
           />
         )}
 
