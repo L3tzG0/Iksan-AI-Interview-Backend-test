@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { UploadCloudIcon, FileTextIcon, ClockIcon, SparklesIcon } from './icons';
 import Button from './ui/Button';
 import type { InterviewReport, InterviewStartPayload, StudentGoal } from '../types';
@@ -10,11 +10,6 @@ interface WelcomeScreenProps {
 }
 
 const MAX_SIZE_MB = 5;
-
-const stats = [
-  { label: '주간 모의면접', value: '+5%', sub: '지난 인터뷰 대비 전체 점수 5% 향상' },
-  { label: '평균 준비 시간', value: '10분', sub: '세션당 권장 연습' },
-];
 
 const industries = [
 '상업',
@@ -41,6 +36,53 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
   const [workField, setWorkField] = useState('');
   const [perQuestionSeconds, setPerQuestionSeconds] = useState(60);
   const hasHistory = Array.isArray(history) && history.length > 0;
+
+  const stats = useMemo(() => {
+    const getScore = (r?: InterviewReport) => {
+      if (!r) return 0;
+      if (typeof r.overallScore === 'number') return r.overallScore;
+      if (typeof r.totalScore === 'number') return r.totalScore;
+      const vals = Object.values(r.scores || {});
+      return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+    };
+
+    const latestReport = history?.[0];
+    const previousReport = history?.[1];
+    const improvementRaw = getScore(latestReport) - getScore(previousReport);
+    const improvement = `${improvementRaw >= 0 ? '+' : ''}${Math.round(improvementRaw)}%`;
+
+    const now = Date.now();
+    const weekAgo = now - 7 * 24 * 60 * 60 * 1000;
+    const weeklyCount =
+      (history || []).filter((r) => {
+        if (!r?.date) return false;
+        const ts = Date.parse(r.date);
+        return !Number.isNaN(ts) && ts >= weekAgo;
+      }).length || (history ? history.length : 0);
+
+    const latestFeedback = latestReport?.detailedFeedback || [];
+    const avgPauseSeconds =
+      latestFeedback.length > 0
+        ? latestFeedback.reduce((sum, item) => sum + (item.total_pause_duration_seconds || 0), 0) /
+          latestFeedback.length
+        : 0;
+    const prepSeconds =
+      avgPauseSeconds > 0
+        ? Math.round(avgPauseSeconds)
+        : Math.round(
+            latestFeedback.reduce((sum, item) => sum + (item.audio_duration_seconds || 0), 0) /
+              (latestFeedback.length || 1)
+          );
+    const prepLabel =
+      prepSeconds > 0
+        ? `${Math.floor(prepSeconds / 60)}분 ${prepSeconds % 60}초`
+        : `${perQuestionSeconds}초`;
+
+    return [
+      { label: '주간 모의면접', value: improvement, sub: `최근 7일 인터뷰 ${weeklyCount}회` },
+      { label: '평균 준비 시간', value: prepLabel, sub: '세션당 평균 준비' },
+    ];
+  }, [history, perQuestionSeconds]);
 
   const handleIncomingFile = useCallback((file?: File) => {
     if (!file) return;
