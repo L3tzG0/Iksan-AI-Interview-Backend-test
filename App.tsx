@@ -574,11 +574,11 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
         />
         <Route
           path="/signup/teacher"
-          element={<SignUpScreen defaultRole="teacher" onSignUp={handleAuthSuccess} onSwitchToSignIn={() => navigate('/signin/teacher')} />}
+          element={<SignUpScreen defaultRole="teacher" onSwitchToSignIn={() => navigate('/signin/teacher')} />}
         />
         <Route
           path="/signup/admin"
-          element={<SignUpScreen defaultRole="admin" onSignUp={handleAuthSuccess} onSwitchToSignIn={() => navigate('/signin/teacher')} />}
+          element={<SignUpScreen defaultRole="admin" onSwitchToSignIn={() => navigate('/signin/teacher')} />}
         />
         <Route path="*" element={<Navigate to={defaultSigninPath} replace />} />
       </Routes>
@@ -586,7 +586,7 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
   }
 
   return (
-    <div className="relative bg-gradient-to-b from-[#f8f5ff] via-white to-[#f2eefe] min-h-screen overflow-hidden font-elice text-slate-700">
+    <div className="relative bg-white min-h-screen overflow-hidden font-elice text-slate-700">
       <div className="-top-24 -right-16 absolute bg-primary/10 blur-3xl rounded-full w-72 h-72 animate-pulseSlow pointer-events-none"></div>
       <div className="top-24 -left-24 absolute bg-primary-light/40 blur-3xl rounded-full w-80 h-80 animate-pulseSlow pointer-events-none"></div>
       <div className="z-10 relative">

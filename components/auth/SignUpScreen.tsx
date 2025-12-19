@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import AuthLayout from "./AuthLayout";
 import Input from "../ui/Input";
 import Button from "../ui/Button";
+import StatusModal from "../ui/StatusModal";
 import {
     MailIcon,
     LockIcon,
@@ -13,7 +14,7 @@ import { signUp } from "../../services/authService";
 import { User } from "../../types";
 
 interface SignUpScreenProps {
-    onSignUp: (user: User) => void;
+    onSignUp?: (user: User) => void;
     onSwitchToSignIn: () => void;
     defaultRole?: "teacher" | "admin";
 }
@@ -32,6 +33,8 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({
     const [schoolName, setSchoolName] = useState("");
 
     const [isLoading, setIsLoading] = useState(false);
+    const [isSuccessOpen, setIsSuccessOpen] = useState(false);
+    const [createdUser, setCreatedUser] = useState<User | null>(null);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -64,13 +67,22 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({
                 { school_name: schoolName },
                 password
             );
-            onSignUp(user);
+            setCreatedUser(user);
+            setIsSuccessOpen(true);
         } catch (error) {
             console.error(error);
             alert("회원가입에 실패했습니다.");
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const handleConfirm = () => {
+        if (createdUser) {
+            onSignUp?.(createdUser);
+        }
+        setIsSuccessOpen(false);
+        onSwitchToSignIn();
     };
 
     return (
@@ -193,6 +205,22 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({
                     로그인
                 </button>
             </div>
+
+            <StatusModal
+                isOpen={isSuccessOpen}
+                type="success"
+                title="회원가입이 완료되었습니다"
+                description="확인을 누르면 로그인 페이지로 이동합니다."
+                onClose={() => setIsSuccessOpen(false)}
+                primaryAction={{ label: "확인", onClick: handleConfirm }}
+            >
+                {createdUser?.email && (
+                    <div className="space-y-1">
+                        <p className="font-semibold text-slate-800">가입 정보</p>
+                        <p className="text-slate-600 text-sm">이메일: {createdUser.email}</p>
+                    </div>
+                )}
+            </StatusModal>
         </AuthLayout>
     );
 };
