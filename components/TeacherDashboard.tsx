@@ -56,7 +56,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
   const [backendErrors, setBackendErrors] = useState<BulkRowError[]>([]);
   const [bulkUploadSummary, setBulkUploadSummary] = useState<{ total: number; created: number; failed: number } | null>(null);
   const [isUploadingCsv, setIsUploadingCsv] = useState(false);
-  const [bulkSelectedFile, setBulkSelectedFile] = useState<File | null>(null);
+  const [bulkStudentsPayload, setBulkStudentsPayload] = useState<CreateStudentPayload[]>([]);
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
   const [isCreatingStudent, setIsCreatingStudent] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -267,7 +267,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
     setBulkPreview([]);
     setBackendErrors([]);
     setBulkUploadSummary(null);
-    setBulkSelectedFile(file);
+    setBulkStudentsPayload([]);
 
     const reader = new FileReader();
     reader.onload = () => {
@@ -284,6 +284,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
 
       const errors: string[] = [];
       const preview: GeneratedStudentAccount[] = [];
+      const payloads: CreateStudentPayload[] = [];
 
       dataLines.forEach((line, idx) => {
         // idx is 0-based for data lines; add 2 to get the original CSV row number (header = 1)
@@ -300,10 +301,18 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
           return;
         }
         preview.push({ name, school, gradeYear, major, classLabel });
+        payloads.push({
+          full_name: name,
+          school_name: school || currentUser.schoolName,
+          major_name: major,
+          class_name: classLabel || undefined,
+          grade_level: gradeYear,
+        });
       });
 
       setBulkErrors(errors);
       setBulkPreview(preview);
+      setBulkStudentsPayload(errors.length ? [] : payloads);
     };
     reader.onerror = () => {
       setBulkErrors(['CSV 파일을 불러오지 못했습니다.']);
@@ -312,15 +321,38 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
   };
 
   const submitBulkUpload = async () => {
-    if (!bulkSelectedFile) return;
+    if (!bulkStudentsPayload.length) {
+      addToast('업로드할 CSV를 선택하거나 내용이 올바른지 확인해주세요.', 'error');
+      return;
+    }
     setIsUploadingCsv(true);
     setBackendErrors([]);
     setBulkUploadSummary(null);
     try {
-      const res = await bulkCreateStudents(bulkSelectedFile);
+      const res = await bulkCreateStudents(bulkStudentsPayload);
       setBulkUploadSummary({ total: res.total, created: res.created, failed: res.failed });
       if (res.errors?.length) {
         setBackendErrors(res.errors);
+      }
+      if (res.students?.length) {
+        const createdSummaries: StudentSummary[] = res.students.map((s, idx) => {
+          const payload = bulkStudentsPayload[idx] || {};
+          const schoolName = payload.school_name || currentUser.schoolName || '';
+          return {
+            id: s.studentId,
+            name: payload.full_name || s.fullName || '이름 없음',
+            major: payload.major_name || '',
+            schoolName,
+            grade: payload.grade_level || 0,
+            latestScore: 0,
+            improvement: 0,
+            completed: false,
+            status: 'in_progress',
+            intent: 'university',
+            tempPassword: s.password,
+          };
+        });
+        setStudents((prev) => [...createdSummaries, ...prev]);
       }
       addToast(`CSV 업로드 완료: ${res.created}/${res.total}`, res.failed ? 'info' : 'success');
     } catch (err: any) {
@@ -452,7 +484,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
             activeStudentId={activeStudentId}
             onHighlightStudent={(id) => setActiveStudentId(id)}
             fileInputRef={fileInputRef}
-            canSubmitBulkUpload={Boolean(bulkSelectedFile) && !isUploadingCsv}
+            canSubmitBulkUpload={Boolean(bulkStudentsPayload.length) && !isUploadingCsv && bulkErrors.length === 0}
           />
         )}
       </Card>
