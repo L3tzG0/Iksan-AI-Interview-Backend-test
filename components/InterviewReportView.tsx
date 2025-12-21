@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import type { InterviewReport } from '../types';
 import Card from './Card';
-import { CheckCircleIcon, AlertTriangleIcon, BrainIcon, FileTextIcon, MicIcon, ShieldIcon } from './icons';
+import { CheckCircleIcon, AlertTriangleIcon, BrainIcon, FileTextIcon, MicIcon, ShieldIcon, ChevronDownIcon } from './icons';
 import Button from './ui/Button';
 
 interface InterviewReportViewProps {
@@ -284,6 +284,9 @@ const InterviewReportView: React.FC<InterviewReportViewProps> = ({ report }) => 
                     <p className="font-semibold text-slate-800 text-base">{questionText}</p>
                     <p className="text-slate-500 text-xs">문항별 평가</p>
                   </div>
+                  <div className="ml-auto flex-shrink-0">
+                    <ChevronDownIcon className="w-5 h-5 text-slate-400 transition-transform duration-200 transform group-open:rotate-180" />
+                  </div>
                 </summary>
                 <div className="space-y-3 px-6 pb-6">
                   <div className="bg-white/60 p-4 border border-slate-200 rounded-[14px]">
@@ -293,7 +296,7 @@ const InterviewReportView: React.FC<InterviewReportViewProps> = ({ report }) => 
                   <div className={`p-4 rounded-[14px] ${isCorrect ? 'bg-green-100/50' : 'bg-primary-lightest'}`}>
                     <div className="flex justify-between items-center mb-2">
                       <h4 className={`font-bold text-sm flex items-center gap-2 ${isCorrect ? 'text-green-800' : 'text-primary'}`}>
-                        <BrainIcon className="w-4 h-4" />
+                        {/* <BrainIcon className="w-4 h-4" /> */}
                         AI 피드백
                       </h4>
                       {score !== null && <span className="bg-white shadow-sm px-2 py-1 rounded font-bold text-sm">점수: {score}</span>}

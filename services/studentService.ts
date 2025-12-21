@@ -308,6 +308,59 @@ export const fetchAllSessionsForTeacherAndAdminRole = async (): Promise<SessionL
   };
 };
 
+export const fetchSessionsAll = async ({
+  page = 1,
+  pageSize = 20,
+  interviewType,
+  search,
+}: {
+  page?: number;
+  pageSize?: number;
+  interviewType?: string | undefined;
+  search?: string | undefined;
+} = {}): Promise<SessionListResult> => {
+  const skip = Math.max(0, (page - 1) * pageSize);
+  const params = new URLSearchParams();
+  params.set('skip', String(skip));
+  params.set('limit', String(pageSize));
+  if (interviewType) params.set('interview_type', interviewType);
+  if (search) params.set('search', search);
+
+  const response = await fetch(`${API_BASE}/api/v1/sessions/all?${params.toString()}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(),
+    },
+  });
+
+  let data: any = null;
+  try {
+    data = await response.json();
+  } catch {
+    // ignore parse errors
+  }
+
+  if (!response.ok) {
+    const msg = typeof data === 'string' ? data : data?.message || data?.error;
+    throw new Error(msg || '세션 목록을 불러오지 못했습니다.');
+  }
+
+  const rawSessions = (Array.isArray(data?.sessions) && data.sessions) || (Array.isArray(data?.data) && data.data) || [];
+
+  const normalized: NormalizedSessionSummary[] = Array.isArray(rawSessions)
+    ? rawSessions.map((session, idx) => normalizeSessionSummary(session as StudentSessionResponse, idx + 1))
+    : [];
+
+  const totalCount = data?.total_count ?? data?.total ?? normalized.length;
+
+  return {
+    sessions: normalized,
+    totalCount,
+    raw: data,
+  };
+};
+
 export const fetchStudentSessionDetail = async (sessionId: string) => {
   const response = await fetch(`${API_BASE}/api/v1/sessions/${sessionId}`, {
     method: 'GET',

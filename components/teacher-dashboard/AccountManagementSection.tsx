@@ -33,6 +33,9 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
 }) => {
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [userList, setUserList] = useState<User[]>([]);
+  const [page, setPage] = useState<number>(1);
+  const PAGE_SIZE = 20;
+  const [totalUsers, setTotalUsers] = useState<number | undefined>(undefined);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const dragCounter = useRef(0);
 
@@ -87,14 +90,17 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
       try {
         const result = await fetchUsers({
           role: 'student',
-          page: 1,
-          pageSize: 200,
+          page,
+          pageSize: PAGE_SIZE,
           search: searchTerm,
         });
         if (!isActive) return;
         setUserList(result.data ?? []);
+        setTotalUsers(typeof result.total === 'number' ? result.total : undefined);
       } catch (error) {
         console.error('학생 계정 목록을 불러오는 중 오류가 발생했습니다.', error);
+        setUserList([]);
+        setTotalUsers(undefined);
       } finally {
         if (isActive) {
           setIsLoadingUsers(false);
@@ -107,6 +113,12 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
     return () => {
       isActive = false;
     };
+  }, [searchTerm, page]);
+
+  // when search term changes, reset to first page
+  useEffect(() => {
+    if (page !== 1) setPage(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm]);
 
   const isStudentTableLoading = isLoadingUsers || isLoadingStudents;
@@ -341,6 +353,38 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
               )}
             </tbody>
           </table>
+        </div>
+        {/* Pagination Controls */}
+        <div className="px-4 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+          <div className="text-slate-500 text-xs">
+            {typeof totalUsers === 'number' ? (
+              (() => {
+                const start = totalUsers === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+                const end = Math.min(page * PAGE_SIZE, totalUsers);
+                return `표시 ${start} - ${end} / ${totalUsers}명`;
+              })()
+            ) : (
+              `페이지 ${page}`
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1 || isStudentTableLoading}
+            >
+              이전
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => setPage((p) => p + 1)}
+              disabled={
+                isStudentTableLoading || (typeof totalUsers === 'number' && page >= Math.ceil(totalUsers / PAGE_SIZE))
+              }
+            >
+              다음
+            </Button>
+          </div>
         </div>
       </div>
     </div>

@@ -568,7 +568,7 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
   }
 
   return (
-    <div className="relative bg-white min-h-screen overflow-hidden font-elice text-slate-700">
+    <div className="relative bg-white min-h-screen overflow-visible font-elice text-slate-700">
       {/* <div className="-top-24 -right-16 absolute bg-primary/10 blur-3xl rounded-full w-72 h-72 animate-pulseSlow pointer-events-none"></div>
       <div className="top-24 -left-24 absolute bg-primary-light/40 blur-3xl rounded-full w-80 h-80 animate-pulseSlow pointer-events-none"></div> */}
       <div className="z-10 relative">
@@ -588,7 +588,7 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
             defaultSchool={currentUser?.schoolName}
           />
         )}
-        <main className="mx-auto p-4 sm:p-6 lg:px-8 pt-8 pb-16 max-w-6xl">
+        <main className="mx-auto p-4 sm:p-6 lg:px-8 pt-8 pb-16 max-w-8xl">
           {/* AdminHeader removed */}
           {isLoading && (
             <div className="flex flex-col justify-center items-center h-[60vh] text-slate-700">

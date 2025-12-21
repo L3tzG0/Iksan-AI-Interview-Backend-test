@@ -218,7 +218,7 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({ report, onRetry, studentM
       </div>
 
       <div className="text-center pt-8 pb-12 no-print">
-        <Button onClick={handleDownloadPdf} variant="secondary" className="px-6 py-3 mb-4" disabled={isExporting}>
+        <Button onClick={handleDownloadPdf} variant="secondary" className="px-6 py-3 mr-4 mb-4" disabled={isExporting}>
           PDF 저장
         </Button>
         <Button onClick={onRetry} className="px-10 py-4 text-lg" disabled={isExporting}>
