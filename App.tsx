@@ -13,29 +13,11 @@ import AddStudentModal from './components/AddStudentModal';
 import { InterviewReport, Question, Answer, User, InterviewStartPayload } from './types';
 import { fetchStudentSessionsForStudentRole } from './services/studentService';
 import { initiateSession, submitSessionAnswers, fetchSessionStatus, fetchSessionDetail } from './services/sessionService';
-import { GraduationCapIcon } from './components/icons';
+// GraduationCapIcon removed (was only used by AdminHeader which is removed)
 import { clearStoredToken, fetchProfile, getStoredToken, getTokenExpiry, refreshAuthToken } from './services/authService';
 import Button from './components/ui/Button';
 
-interface AdminHeaderProps {
-    user?: User | null;
-}
-
-const AdminHeader: React.FC<AdminHeaderProps> = ({ user }) => (
-  <div className="flex justify-between items-center bg-white/90 shadow-soft mb-6 p-6 border border-white/70 rounded-[24px] animate-fadeIn">
-    <div className="flex items-center gap-4">
-      <div className="bg-primary-lightest shadow-inner shadow-white/60 p-4 rounded-2xl">
-        <GraduationCapIcon className="w-8 h-8 text-primary" />
-      </div>
-      <div>
-        <h2 className="font-bold text-slate-800 text-lg">교사용 개요</h2>
-        <p className="text-slate-600 text-sm">
-            {user?.grade ? `${user.grade}학년 ` : ''}{user?.major ? `${user.major} ` : ''}학생들의 AI 모의면접 성과를 한눈에 확인하세요.
-        </p>
-      </div>
-    </div>
-  </div>
-);
+// AdminHeader removed
 
 const AccessDenied: React.FC<{ onHome: () => void; message?: string }> = ({ onHome, message }) => (
   <div className="flex flex-col justify-center items-center min-h-[60vh] text-slate-700">
@@ -586,7 +568,7 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
   }
 
   return (
-    <div className="relative bg-white min-h-screen overflow-hidden font-elice text-slate-700">
+    <div className="relative bg-white min-h-screen overflow-visible font-elice text-slate-700">
       {/* <div className="-top-24 -right-16 absolute bg-primary/10 blur-3xl rounded-full w-72 h-72 animate-pulseSlow pointer-events-none"></div>
       <div className="top-24 -left-24 absolute bg-primary-light/40 blur-3xl rounded-full w-80 h-80 animate-pulseSlow pointer-events-none"></div> */}
       <div className="z-10 relative">
@@ -606,8 +588,8 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
             defaultSchool={currentUser?.schoolName}
           />
         )}
-        <main className="mx-auto p-4 sm:p-6 lg:px-8 pt-8 pb-16 max-w-6xl">
-          {isStaff && location.pathname.startsWith('/teacher') && <AdminHeader user={currentUser} />}
+        <main className="mx-auto p-4 sm:p-6 lg:px-8 pt-8 pb-16 max-w-8xl">
+          {/* AdminHeader removed */}
           {isLoading && (
             <div className="flex flex-col justify-center items-center h-[60vh] text-slate-700">
               <div className="border-4 border-primary border-dashed rounded-full w-16 h-16 animate-spin"></div>

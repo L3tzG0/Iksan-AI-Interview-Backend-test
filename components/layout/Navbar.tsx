@@ -66,7 +66,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, currentPath, onNavigate
                     onClick={() => onNavigate && onNavigate(item.path)}
                     className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all duration-200 ${
                       active
-                        ? 'bg-primary text-white shadow-elice shadow-primary/25'
+                        ? 'bg-primary text-white shadow-soft shadow-primary/10'
                         : 'text-slate-500 hover:text-primary hover:bg-primary-lightest/80'
                     } ${item.disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
                   >
@@ -111,7 +111,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, currentPath, onNavigate
                       <p className="text-xs text-slate-600 mt-0.5">
                         {user.grade ? `${user.grade}학년` : ''} {user.major ? `전공 ${user.major}` : ''}
                       </p>
-                      <p className="text-xs text-slate-400 mt-1 truncate">{user.email}</p>
+                      <p className="text-xs text-slate-400 mt-1 truncate">{user.id}</p>
                     </div>
                     {(user.role === 'teacher' || user.role === 'admin') && (
                       <div className="py-1">

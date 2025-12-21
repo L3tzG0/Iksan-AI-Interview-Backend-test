@@ -6,8 +6,9 @@ import type { StudentGoal, StudentSummary } from "../../types";
 import FilterControls from "./FilterControls";
 import SearchBar from "./SearchBar";
 import Spinner from "../Spinner";
+import Button from "../ui/Button";
 import {
-    fetchAllSessionsForTeacherAndAdminRole,
+    fetchSessionsAll,
     type NormalizedSessionSummary,
 } from "../../services/studentService";
 
@@ -49,6 +50,11 @@ const normalizeSessionToSummary = (
 const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({}) => {
     const [isLoading, setIsLoading] = useState(false);
     const [studentWithSessionList, setStudentWithSessionList] = useState<StudentSummary[]>([]);
+    const [page, setPage] = useState<number>(1);
+    const PAGE_SIZE = 20;
+    const [totalCount, setTotalCount] = useState<number | undefined>(undefined);
+    const [searchTerm, setSearchTerm] = useState<string>('');
+    const [goalFilter, setGoalFilter] = useState<'all' | 'work' | 'university'>('all');
 
     useEffect(() => {
         let isActive = true;
@@ -56,14 +62,23 @@ const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({}) => {
         const loadCompletedSessions = async () => {
             setIsLoading(true);
             try {
-                const { sessions } = await fetchAllSessionsForTeacherAndAdminRole();
+                const interviewTypeParam = goalFilter === 'work' ? 'job' : goalFilter === 'university' ? 'university' : undefined;
+                const { sessions, totalCount: tc } = await fetchSessionsAll({
+                    page,
+                    pageSize: PAGE_SIZE,
+                    interviewType: interviewTypeParam,
+                    search: searchTerm || undefined,
+                });
                 if (!isActive) return;
                 const normalized = sessions
                     .map(normalizeSessionToSummary)
                     .filter((student): student is StudentSummary => Boolean(student));
                 setStudentWithSessionList(normalized);
+                setTotalCount(typeof tc === 'number' ? tc : undefined);
             } catch (error) {
                 console.error("Failed to fetch completed sessions:", error);
+                setStudentWithSessionList([]);
+                setTotalCount(undefined);
             } finally {
                 if (isActive) {
                     setIsLoading(false);
@@ -75,19 +90,25 @@ const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({}) => {
         return () => {
             isActive = false;
         };
-    }, []);
+    }, [page, goalFilter, searchTerm]);
+
+    useEffect(() => {
+        if (page !== 1) setPage(1);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [goalFilter, searchTerm]);
 
     const navigate = useNavigate();
 
     return (
         <div className="space-y-4">
             <div className="flex lg:flex-row flex-col lg:items-center gap-4">
-                <SearchBar
-                    // value={searchTerm}
-                    // onChange={}
-                    placeholder="학생 이름 검색"
+                <SearchBar value={searchTerm} onChange={setSearchTerm} placeholder="학생 이름 검색" />
+                <FilterControls
+                    goalFilter={goalFilter}
+                    onGoalChange={(v) => setGoalFilter(v as typeof goalFilter)}
+                    compact
+                    showGrade={false}
                 />
-                {/* <FilterControls {...filterControlsProps} /> */}
             </div>
 
             {isLoading ? (
@@ -210,8 +231,8 @@ const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({}) => {
                                             }`}
                                         >
                                             {student.improvement >= 0
-                                                ? `+${student.improvement}%`
-                                                : `-${Math.abs(
+                                                ? `+ ${student.improvement}%`
+                                                : `- ${Math.abs(
                                                       student.improvement
                                                   )}%`}
                                         </td>
@@ -219,6 +240,20 @@ const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({}) => {
                                 ))}
                             </tbody>
                         </table>
+                    </div>
+                    {/* Pagination */}
+                    <div className="px-4 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+                        <div className="text-slate-500 text-xs">
+                            {typeof totalCount === 'number' ? (() => {
+                                const start = totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+                                const end = Math.min(page * PAGE_SIZE, totalCount);
+                                return `표시 ${start} - ${end} / ${totalCount}명`;
+                            })() : `페이지 ${page}`}
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <Button variant="secondary" disabled={page <= 1 || isLoading} onClick={() => setPage((p) => Math.max(1, p - 1))}>이전</Button>
+                            <Button variant="secondary" disabled={isLoading || (typeof totalCount === 'number' && page >= Math.ceil(totalCount / PAGE_SIZE))} onClick={() => setPage((p) => p + 1)}>다음</Button>
+                        </div>
                     </div>
                 </div>
             )}

@@ -49,7 +49,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
     const latestReport = history?.[0];
     const previousReport = history?.[1];
     const improvementRaw = getScore(latestReport) - getScore(previousReport);
-    const improvement = `${improvementRaw >= 0 ? '+' : ''}${Math.round(improvementRaw)}%`;
+    const improvement = `${improvementRaw >= 0 ? '+ ' : ''}${Math.round(improvementRaw)}%`;
 
     const now = Date.now();
     const weekAgo = now - 7 * 24 * 60 * 60 * 1000;
@@ -229,7 +229,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
             </div>
             <span className="inline-flex items-center gap-2 bg-primary-lightest px-3 py-1 rounded-full font-semibold text-primary text-xs">
               <UploadCloudIcon className="w-4 h-4" />
-              PDF/TXT
+              PDF/DOCX/TXT
             </span>
           </div>
           <textarea
@@ -240,7 +240,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
             disabled={!!fileData}
           />
           <p className="mt-2 text-slate-500 text-xs">
-            PDF / TXT ({MAX_SIZE_MB}MB 이하) 파일을 업로드할 수 있습니다. 표/특수문자, 이미지가 많은 경우 텍스트로 변환해 붙여넣으면 정확도가 높습니다.
+            PDF / DOCX / TXT ({MAX_SIZE_MB}MB 이하) 파일을 업로드할 수 있습니다. 표/특수문자, 이미지가 많은 경우 텍스트로 변환해 붙여넣으면 정확도가 높습니다.
           </p>
 
           <div className="flex justify-center items-center my-6 w-full">
@@ -268,7 +268,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
               <>
                 <UploadCloudIcon className="mb-3 w-12 h-12 text-slate-400 group-hover:text-primary transition-colors" />
                 <span className="font-medium text-slate-700">파일 업로드하기</span>
-                <span className="mt-2 text-slate-400 text-sm">PDF, TXT 파일을 업로드 할 수 있습니다.</span>
+                <span className="mt-2 text-slate-400 text-sm">PDF, DOCX, TXT 파일을 업로드 할 수 있습니다.</span>
                 <span className="mt-2 text-slate-400 text-sm">{intent === "work" ? `표, 이미지, 특수문자가 많은 자료는 일부 정보가 누락될 수 있습니다.` : '학생부를 기반으로, 면접에서 공유하려는 주요 경험(활동, 역량, 수상 등)이 담긴 자료를 업로드해주세요.'}</span>
               </>
             )}

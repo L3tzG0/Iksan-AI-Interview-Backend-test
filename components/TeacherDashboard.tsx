@@ -26,8 +26,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
   const tabFromRoute: 'completed' | 'manage' = tab === '2' ? 'manage' : 'completed';
   const showSchoolField = currentUser.role === 'admin';
 
-  const templateCsvContent =
-    '\ufeff이름,학교,학년,전공,반\n김학생,스프링필드고등학교,2,컴퓨터공학,A1\n박학생,리버데일고등학교,3,경영학,B2';
+  // Template CSV is served from public/teacher_bulk_template.csv
   const [activeTab, setActiveTab] = useState<'completed' | 'manage'>(tabFromRoute);
   const [newStudent, setNewStudent] = useState<NewStudentInput>({
     name: '',
@@ -54,13 +53,12 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
 
   const triggerCsvPicker = () => fileInputRef.current?.click();
   const downloadTemplate = () => {
-    const blob = new Blob([templateCsvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.href = url;
-    link.download = 'student_bulk_template.csv';
+    link.href = '/teacher_bulk_template.csv';
+    link.download = '교사_학생_템플릿.csv';
+    document.body.appendChild(link);
     link.click();
-    URL.revokeObjectURL(url);
+    document.body.removeChild(link);
   };
 
   const handleCreateStudent = async (e: React.FormEvent) => {

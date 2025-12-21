@@ -676,7 +676,6 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
   const progressLabel = `${currentQuestionIndex + 1} / ${questions.length} · 질문`;
   const quickTips = [
     { title: 'STAR 구조', description: '상황-과제-행동-결과 순서로 핵심만 또렷하게 설명해요.' },
-    { title: '30초 생각 시간', description: '질문을 들은 뒤 30초는 정리하고 10초 안에 말문을 여세요.' },
     { title: '감정 + 숫자', description: '느낀 점과 수치를 함께 말하면 설득력 있는 답변이 됩니다.' },
   ];
 
@@ -704,139 +703,98 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
           </div>
         </div>
       )}
-      <div className="space-y-8 w-full max-w-5xl">
-        <section className="relative bg-gradient-to-r from-primary-lightest via-white to-primary-lightest shadow-soft p-6 sm:p-8 border border-white/70 rounded-[28px] overflow-hidden">
-          <div className="-top-10 -right-10 hero-blob hero-blob--primary"></div>
-          <div className="bottom-0 -left-14 hero-blob hero-blob--secondary"></div>
-          <div className="z-10 relative space-y-4">
-            <div className="flex flex-wrap justify-between items-center gap-4">
-              <div>
-                <p className="mb-1 font-semibold text-primary-text text-xs uppercase tracking-[0.25em]">AI 면접 진행</p>
-                <div className="flex flex-wrap items-center gap-4">
-                  <span className="font-semibold text-slate-500 text-sm">
-                    질문 {currentQuestionIndex + 1} / {questions.length}
-                  </span>
-                  {/* <span className="bg-primary-lightest px-3 py-1 rounded-full font-semibold text-primary text-xs">{currentStepLabel}</span> */}
-                  {/* <span
-                    className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
-                      isResumeBased ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
-                    }`}
-                  >
-                    {isResumeBased ? '이력서 기반' : '즉흥 질문'}
-                  </span> */}
-                </div>
-              </div>
-              <div className="flex flex-col items-end gap-2 font-bold text-primary text-2xl">
-                {isTimerVisible ? (
-                  <div className="flex items-center gap-2" ref={inlineTimerRef}>
-                    <ClockIcon className={`w-6 h-6 ${isLowTime ? 'text-red-600' : ''}`} />
-                    <span className={isLowTime ? 'text-red-600' : ''}>{formatTime(timeLeft)}</span>
+      <div className="space-y-8 w-full max-w-9xl">
+        <div className="grid md:grid-cols-5 gap-6">
+          <aside className="md:col-span-1 self-start md:sticky md:top-20 z-20">
+            <div className="space-y-4">
+              <Card className="bg-gradient-to-r from-primary-lightest via-white to-white shadow-soft p-6">
+                <div className="flex flex-col items-start gap-3">
+                  <p className="mb-1 font-semibold text-primary-text text-xs uppercase tracking-[0.25em]">AI 면접 진행</p>
+                  <div className="w-full flex flex-col items-start">
+                    <div className="flex items-center gap-4">
+                      {/* <ClockIcon className={`w-10 h-10 sm:w-12 sm:h-12 ${isLowTime ? 'text-red-600' : 'text-primary'}`} /> */}
+                      <div className="font-extrabold text-slate-900">
+                        <div className={`text-5xl sm:text-6xl leading-tight ${isLowTime ? 'text-red-600' : ''}`}>{formatTime(timeLeft)}</div>
+                        <div className="mt-1 text-sm sm:text-base text-primary">질문 {currentQuestion?.questionOrder ?? currentQuestionIndex + 1} / {questions.length}</div>
+                      </div>
+                    </div>
                   </div>
-                ) : (
-                  <span className="font-semibold text-slate-500 text-xs">타이머가 숨겨져 있어요</span>
-                )}
-                <div className="flex items-center gap-2 font-semibold text-xs">
-                  {/* <button
-                    type="button"
-                    onClick={() => setIsTimerPaused((prev) => !prev)}
-                    className="bg-white px-3 py-1 border border-slate-200 hover:border-primary rounded-full text-slate-600"
-                  >
-                    {isTimerPaused ? '재개' : '일시정지'}
-                  </button> */}
-                  <button
-                    type="button"
-                    onClick={() => setIsTimerVisible((prev) => !prev)}
-                    className="bg-white px-3 py-1 border border-slate-200 hover:border-primary rounded-full text-slate-600"
-                  >
-                    {isTimerVisible ? '타이머 숨기기' : '타이머 보이기'}
-                  </button>
+                </div>
+              </Card>
+
+              <Card>
+                <p className="mb-1 font-semibold text-slate-400 text-xs uppercase">TIP 1</p>
+                <p className="font-semibold text-slate-800">{quickTips[0].title}</p>
+                <p className="mt-1 text-slate-500 text-xs leading-relaxed">{quickTips[0].description}</p>
+              </Card>
+
+              <Card>
+                <p className="mb-1 font-semibold text-slate-400 text-xs uppercase">TIP 2</p>
+                <p className="font-semibold text-slate-800">{quickTips[1].title}</p>
+                <p className="mt-1 text-slate-500 text-xs leading-relaxed">{quickTips[1].description}</p>
+              </Card>
+            </div>
+          </aside>
+
+          <main className="md:col-span-4 space-y-8">
+            <Card>
+              <p className="flex items-center gap-2 mb-4 font-semibold text-slate-500 text-sm uppercase tracking-wider">
+                AI 질문
+              </p>
+              <h2 className="font-bold text-slate-800 text-2xl leading-tight">{currentQuestion.text}</h2>
+              <p className="mt-2 text-slate-500 text-xs">각 답변은 1~2분 안에 핵심만 정리해 주세요.</p>
+            </Card>
+
+            <Card>
+              <div className="flex md:flex-row flex-col justify-between md:items-center gap-3 mb-4">
+                <p className="font-medium text-slate-600">답변</p>
+                <div className="flex items-center bg-yellow-100 px-3 py-1.5 rounded-full text-yellow-800 text-xs">
+                  <LightbulbIcon className="mr-1.5 w-4 h-4" />
+                  <span>TIP: 핵심 경험을 2~3문장으로 요약한 다음 세부 내용을 덧붙여요.</span>
                 </div>
               </div>
-            </div>
-            <div className="bg-white/70 shadow-inner shadow-white/60 rounded-full w-full h-3 overflow-hidden">
-              <div
-                className="bg-gradient-to-r from-primary via-primary-medium to-primary-dark rounded-full h-full transition-all animate-progressGlow duration-500"
-                style={{ width: `${progressPercentage}%` }}
-              ></div>
-            </div>
-            {/* <p className="font-semibold text-slate-500 text-xs">{progressLabel}</p> */}
-          </div>
-        </section>
 
-        <Card>
-          <p className="flex items-center gap-2 mb-4 font-semibold text-slate-500 text-sm uppercase tracking-wider">
-            <LightbulbIcon className="w-4 h-4 text-primary" />
-            AI 질문
-          </p>
-          <h2 className="font-bold text-slate-800 text-2xl leading-tight">{currentQuestion.text}</h2>
-          <p className="mt-2 text-slate-500 text-xs">각 답변은 1~2분 안에 핵심만 정리해 주세요.</p>
-        </Card>
+              <VoiceAnswerArea
+                currentAnswer={currentAnswer}
+                onChangeAnswer={setCurrentAnswer}
+                isRecording={isRecording}
+                onToggleRecording={toggleRecording}
+                isSpeechSupported={isSpeechSupported}
+                isReadOnly={isResumeBased}
+                recordingUrl={recordedAudioUrl}
+                onClearRecording={handleRetryAnswer}
+                inlineError={inlineError}
+                micPermission={micPermission}
+                onRequestMicPermission={requestMicPermission}
+                isRequestingMic={isRequestingMic}
+                answerPlaceholder={placeholderText}
+              />
 
-        <Card>
-          <div className="flex md:flex-row flex-col justify-between md:items-center gap-3 mb-4">
-            <p className="font-medium text-slate-600">A. 답변</p>
-            <div className="flex items-center bg-yellow-100 px-3 py-1.5 rounded-full text-yellow-800 text-xs">
-              <LightbulbIcon className="mr-1.5 w-4 h-4" />
-              <span>TIP: 핵심 경험을 2~3문장으로 요약한 다음 세부 내용을 덧붙여요.</span>
-            </div>
-          </div>
-
-          <VoiceAnswerArea
-            currentAnswer={currentAnswer}
-            onChangeAnswer={setCurrentAnswer}
-            isRecording={isRecording}
-            onToggleRecording={toggleRecording}
-            isSpeechSupported={isSpeechSupported}
-            isReadOnly={isResumeBased}
-            recordingUrl={recordedAudioUrl}
-            onClearRecording={handleRetryAnswer}
-            inlineError={inlineError}
-            micPermission={micPermission}
-            onRequestMicPermission={requestMicPermission}
-            isRequestingMic={isRequestingMic}
-            answerPlaceholder={placeholderText}
-          />
-
-          {(pauseEvents.length > 0 || sttSummary) && (
-            <div className="bg-slate-50 mt-3 p-3 border border-slate-200 rounded-[12px] text-slate-600 text-xs">
-              {pauseEvents.length > 0 && <p className="m-0">감지된 일시정지: {pauseEvents.length}회</p>}
-              {sttSummary && (
-                <p className="m-0 mt-1">
-                  최종 요약 · 단어 {sttSummary.wordCount ?? '-'}개 · 음성 {sttSummary.audioDurationSeconds ?? '-'}초 · 일시정지 {sttSummary.totalPauseCount ?? '-'}회
-                </p>
+              {(pauseEvents.length > 0 || sttSummary) && (
+                <div className="bg-slate-50 mt-3 p-3 border border-slate-200 rounded-[12px] text-slate-600 text-xs">
+                  {pauseEvents.length > 0 && <p className="m-0">감지된 일시정지: {pauseEvents.length}회</p>}
+                  {sttSummary && (
+                    <p className="m-0 mt-1">
+                      최종 요약 · 단어 {sttSummary.wordCount ?? '-'}개 · 음성 {sttSummary.audioDurationSeconds ?? '-'}초 · 일시정지 {sttSummary.totalPauseCount ?? '-'}회
+                    </p>
+                  )}
+                </div>
               )}
-            </div>
-          )}
 
-          <div className="space-y-4 mt-8">
-            <div className="flex flex-wrap justify-end items-center gap-3">
-              <span className="text-slate-500 text-xs">모든 질문에 답변하지 않아도 필요하면 건너뛸 수 있습니다.</span>
-              <Button onClick={handleSkipQuestion} variant="secondary" className="bg-white px-6 border border-slate-200 hover:border-primary text-slate-700">
-                건너뛰기
-              </Button>
-              <Button onClick={() => handleNext()} className="px-8">
-                {isLastQuestion ? '연습 마치고 결과 보기' : '다음 질문'}
-              </Button>
-            </div>
-            {/* {inlineError && <p className="font-semibold text-red-600 text-sm text-right">{inlineError}</p>} */}
-          </div>
-        </Card>
-
-        <Card>
-          <p className="flex items-center gap-2 mb-3 font-semibold text-slate-500 text-sm uppercase tracking-wider">
-            <LightbulbIcon className="w-4 h-4 text-primary" />
-            답변 팁
-          </p>
-          <div className="gap-4 grid md:grid-cols-3 w-full">
-            {quickTips.map((tip, index) => (
-              <div key={tip.title} className="bg-white/90 shadow-soft p-4 border border-primary-lightest/80 rounded-[16px]">
-                <p className="mb-1 font-semibold text-slate-400 text-xs uppercase">TIP {index + 1}</p>
-                <p className="font-semibold text-slate-800">{tip.title}</p>
-                <p className="mt-1 text-slate-500 text-xs leading-relaxed">{tip.description}</p>
+              <div className="space-y-4 mt-8">
+                <div className="flex flex-wrap justify-end items-center gap-3">
+                  <span className="text-slate-500 text-xs">모든 질문에 답변하지 않아도 필요하면 건너뛸 수 있습니다.</span>
+                  <Button onClick={handleSkipQuestion} variant="secondary" className="bg-white px-6 border border-slate-200 hover:border-primary text-slate-700">
+                    건너뛰기
+                  </Button>
+                  <Button onClick={() => handleNext()} className="px-8">
+                    {isLastQuestion ? '연습 마치고 결과 보기' : '다음 질문'}
+                  </Button>
+                </div>
               </div>
-            ))}
-          </div>
-        </Card>
+            </Card>
+          </main>
+        </div>
       </div>
 
       {showExitModal && (
