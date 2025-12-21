@@ -608,7 +608,8 @@ async def initiate_interview_session(
         
         # Step 5: ENQUEUE THE JOB
         job_payload = {
-            "job_type": "interview_generation", # Added job type for future expansion
+            # "job_type": "interview_generation",
+            "job_type": "interview_generation_gpt",
             "session_id": session_id,
             "student_id": student_id,
             "cv_text": cleaned_text_extracted,
@@ -771,7 +772,8 @@ async def initiate_university_prep_session(
         
         # Step 5: ENQUEUE THE JOB (Replaces all synchronous LLM/RAG/DB steps)
         job_payload = {
-            "job_type": "university_generation", # NEW job type
+            # "job_type": "university_generation",
+            "job_type": "university_generation_gpt",
             "session_id": session_id,
             "student_id": student_id,
             "student_record_text": cleaned_text_extracted,

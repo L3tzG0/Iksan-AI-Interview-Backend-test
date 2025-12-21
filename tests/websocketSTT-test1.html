@@ -81,8 +81,9 @@
 <script>
     // --- Configuration ---
     // Update this to your actual backend URL if not running on localhost:8000
-    const WEBSOCKET_URL = "ws://localhost:8000/api/v1/stt/live"; 
-    
+    // const WEBSOCKET_URL = "ws://localhost:8000/api/v1/stt/live"; 
+    const WEBSOCKET_URL = "wss://iksan-ai-interview-backend-production-8558.up.railway.app/api/v1/stt/live"; 
+
     const SAMPLE_RATE = 16000; // Must match the value in stt_service.py
     const BUFFER_SIZE = 4096; // Standard buffer size for ScriptProcessorNode
 
