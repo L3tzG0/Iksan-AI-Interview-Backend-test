@@ -76,7 +76,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, currentPath, onNavigate
                     onClick={() => onNavigate && onNavigate(item.path)}
                     className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all duration-200 ${
                       active
-                        ? 'bg-primary text-white shadow-soft shadow-primary/10'
+                        ? 'bg-primary text-white'
                         : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-700'
                     } ${item.disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
                   >

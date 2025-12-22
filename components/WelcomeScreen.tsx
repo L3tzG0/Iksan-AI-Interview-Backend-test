@@ -49,7 +49,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
     const latestReport = history?.[0];
     const previousReport = history?.[1];
     const improvementRaw = getScore(latestReport) - getScore(previousReport);
-    const improvement = `${improvementRaw >= 0 ? '+ ' : ''}${Math.round(improvementRaw)}%`;
+    const improvement = `${improvementRaw >= 0 ? '+' : ''}${Math.round(improvementRaw)}%`;
 
     const now = Date.now();
     const weekAgo = now - 7 * 24 * 60 * 60 * 1000;
@@ -184,19 +184,20 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
   };
 
   const hasBaseInput = !!fileData || !!resumeText.trim();
-  const hasUniversityGoal = intent === 'university' && universities.some((u) => u.trim()) && !!major.trim();
+  // For university intent we only require the upload (student record) and the per-question time.
+  // The previous UI asked for preferred universities and major; that form is commented out below.
+  const hasUniversityGoal = intent === 'university';
   const hasWorkGoal = intent === 'work' && !!workField.trim() && !!workIndustry;
   const isStartDisabled = !hasBaseInput || !intent || (intent === 'university' ? !hasUniversityGoal : !hasWorkGoal);
 
   return (
     <div className="space-y-10 animate-fadeIn">
-      <section className="relative bg-gradient-to-r from-primary-lightest via-white to-primary-lightest shadow-soft px-6 md:px-12 py-10 border border-white/70 rounded-[32px] overflow-hidden animate-softFadeUp">
-        <div className="-top-10 -right-10 hero-blob hero-blob--primary"></div>
-        <div className="bottom-0 -left-10 hero-blob hero-blob--secondary"></div>
+      <section className="relative px-6 md:px-8 py-10 overflow-hidden animate-softFadeUp">
+        {/* <div className="-top-10 -right-10 hero-blob hero-blob--primary"></div> */}
+        {/* <div className="bottom-0 -left-10 hero-blob hero-blob--secondary"></div> */}
         <div className="z-10 relative flex md:flex-row flex-col md:items-center gap-8">
           <div>
             <p className="flex items-center gap-2 mb-3 font-semibold text-primary-text text-sm uppercase tracking-[0.2em]">
-              <SparklesIcon className="w-4 h-4" />
               AI 모의면접 코치
             </p>
             <h1 className="mb-4 font-bold text-slate-900 text-3xl md:text-4xl leading-tight">
@@ -221,7 +222,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
       </section>
 
       <div className={`w-full mx-auto grid gap-8 ${hasHistory ? 'lg:grid-cols-[3fr_2fr]' : 'lg:grid-cols-1'}`}>
-        <div className="bg-white/95 shadow-elice p-6 sm:p-8 border border-white/70 rounded-[24px] animate-softFadeUp">
+        <div className="bg-white/95 shadow-soft p-6 sm:p-8 border border-white/70 rounded-[24px] animate-softFadeUp">
           <div className="flex justify-between items-center mb-6">
             <div>
               <h2 className="mb-1 font-bold text-slate-900 text-2xl">자기소개서·이력서·생활기록부 업로드</h2>
@@ -302,6 +303,10 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
               </button>
             </div>
 
+            {/* University preference form commented out.
+              We no longer ask for preferred universities or major here.
+              For university intent we only request the student record upload and per-question time selection.
+
             {intent === 'university' && (
               <div className="space-y-3 bg-primary-lightest/60 p-4 border border-primary/30 rounded-[16px]">
                 <div className="flex justify-between items-start gap-3">
@@ -358,6 +363,13 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
                   />
                   {intent === 'university' && !major.trim() && <p className="text-red-600 text-xs">전공을 입력하면 더 정교한 질문을 만들어요.</p>}
                 </div>
+              </div>
+            )}
+            */}
+
+            {intent === 'university' && (
+              <div className="space-y-3 bg-primary-lightest/60 p-4 border border-primary/30 rounded-[16px]">
+                <p className="text-slate-600 text-sm">대학 지원의 경우, 학생부 업로드와 응답 시간 선택만 필요합니다.</p>
               </div>
             )}
 
