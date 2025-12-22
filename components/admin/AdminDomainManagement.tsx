@@ -5,6 +5,7 @@ import SearchBar from '../teacher-dashboard/SearchBar';
 import Input from '../ui/Input';
 import { useToast } from '../ui/Toast';
 import { fetchDomains, createDomain, updateDomain, deleteDomain, type DomainRecord } from '../../services/domainService';
+import Spinner from '../Spinner';
 
 type ModalMode = 'add' | 'edit';
 
@@ -145,9 +146,7 @@ const AdminDomainManagement: React.FC = () => {
         </div>
 
         {isLoading ? (
-          <div className="rounded-2xl border border-slate-200 bg-white px-6 py-10 text-center text-sm text-slate-500">
-            불러오는 중...
-          </div>
+          <Spinner label="불러오는 중..." />
         ) : isEmpty ? (
           <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-10 text-center space-y-2">
             <p className="text-slate-700 font-semibold">등록된 도메인이 없습니다.</p>
