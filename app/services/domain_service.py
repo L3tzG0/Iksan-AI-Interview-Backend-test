@@ -25,51 +25,6 @@ class DomainService:
     def __init__(self, supabase: AsyncClient):
         self.supabase = supabase
 
-    # -------------------- Internal helpers --------------------
-    def _normalize_domain(self, domain: str) -> str:
-        """Normalize domain strings for consistent comparisons (lowercase + strip)."""
-        return domain.lower().strip()
-
-    def _to_allowed_domain_response(self, record: dict) -> AllowedDomainResponse:
-        """Convert a DB record dict to AllowedDomainResponse."""
-        return AllowedDomainResponse(**record)
-
-    async def _get_domain_by_name(self, domain: str, active_only: bool = False) -> Optional[AllowedDomainResponse]:
-        """Internal helper to fetch a domain by name. Returns AllowedDomainResponse or None."""
-        domain_name = self._normalize_domain(domain)
-        query = self.supabase.table("allowed_email_domains").select("*").eq("domain", domain_name)
-        if active_only:
-            query = query.eq("is_active", True)
-        # Use maybe_single() to get a dict or None for single-row queries.
-        response = await query.maybe_single().execute()
-        if response.data:
-            return self._to_allowed_domain_response(response.data)
-        return None
-
-    async def _get_domain_by_id(self, domain_id: int) -> Optional[AllowedDomainResponse]:
-        """Internal helper to fetch a domain by id. Returns AllowedDomainResponse or None."""
-        response = await (
-            self.supabase.table("allowed_email_domains")
-            .select("*")
-            .eq("id", domain_id)
-            .maybe_single()
-            .execute()
-        )
-        if response.data:
-            return self._to_allowed_domain_response(response.data)
-        return None
-
-    def _ensure_mutation_response(self, response, error_detail: str):
-        """Ensure mutation response contains data, otherwise raise 500 HTTPException."""
-        if not getattr(response, "data", None):
-            logger.error(f"Mutation failed or returned no data: {error_detail}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=error_detail
-            )
-        # return the first record (consistent with Supabase behaviour)
-        return response.data[0]
-
     async def get_all_domains(
         self,
         include_inactive: bool = False,
@@ -116,7 +71,17 @@ class DomainService:
             Domain details or None if not found
         """
         try:
-            return await self._get_domain_by_id(domain_id)
+            response = await (
+                self.supabase.table("allowed_email_domains")
+                .select("*")
+                .eq("id", domain_id)
+                .execute()
+            )
+            
+            if response.data and len(response.data) > 0:
+                return AllowedDomainResponse(**response.data[0])
+            return None
+            
         except Exception as e:
             logger.error(f"Error fetching domain {domain_id}: {str(e)}")
             raise HTTPException(
@@ -135,7 +100,17 @@ class DomainService:
             Domain details or None if not found
         """
         try:
-            return await self._get_domain_by_name(domain)
+            response = await (
+                self.supabase.table("allowed_email_domains")
+                .select("*")
+                .eq("domain", domain.lower())
+                .execute()
+            )
+            
+            if response.data and len(response.data) > 0:
+                return AllowedDomainResponse(**response.data[0])
+            return None
+            
         except Exception as e:
             logger.error(f"Error fetching domain {domain}: {str(e)}")
             raise HTTPException(
@@ -159,18 +134,17 @@ class DomainService:
             Created domain details
         """
         try:
-            # Normalize and check if domain already exists
-            normalized = self._normalize_domain(domain_data.domain)
-            existing = await self._get_domain_by_name(normalized)
+            # Check if domain already exists
+            existing = await self.get_domain_by_name(domain_data.domain)
             if existing:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
-                    detail=f"Domain '{normalized}' already exists"
+                    detail=f"Domain '{domain_data.domain}' already exists"
                 )
             
             # Insert domain
             insert_data = {
-                "domain": normalized,
+                "domain": domain_data.domain.lower(),
                 "description": domain_data.description,
                 "is_active": True,
                 "added_by": added_by,
@@ -182,10 +156,14 @@ class DomainService:
                 .execute()
             )
             
-            record = self._ensure_mutation_response(response, "Failed to create domain")
+            if not response.data:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to create domain"
+                )
             
-            logger.info(f"Created allowed domain: {normalized}")
-            return self._to_allowed_domain_response(record)
+            logger.info(f"Created allowed domain: {domain_data.domain}")
+            return AllowedDomainResponse(**response.data[0])
             
         except HTTPException:
             raise
@@ -225,10 +203,10 @@ class DomainService:
 
             # Allow updating domain name (rename)
             if getattr(domain_data, "domain", None) is not None:
-                new_domain = self._normalize_domain(domain_data.domain)
+                new_domain = domain_data.domain.lower()
                 # If the new domain is different, ensure it doesn't already exist
-                if new_domain != (existing.domain or "").lower():
-                    conflict = await self._get_domain_by_name(new_domain)
+                if new_domain != existing.domain:
+                    conflict = await self.get_domain_by_name(new_domain)
                     if conflict:
                         raise HTTPException(
                             status_code=status.HTTP_409_CONFLICT,
@@ -253,10 +231,14 @@ class DomainService:
                 .execute()
             )
             
-            record = self._ensure_mutation_response(response, "Failed to update domain")
+            if not response.data:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to update domain"
+                )
             
             logger.info(f"Updated domain ID {domain_id}")
-            return self._to_allowed_domain_response(record)
+            return AllowedDomainResponse(**response.data[0])
             
         except HTTPException:
             raise
@@ -337,9 +319,16 @@ class DomainService:
             True if domain is allowed, False otherwise
         """
         try:
-            domain_name = self._normalize_domain(domain)
-            domain_obj = await self._get_domain_by_name(domain_name, active_only=True)
-            return domain_obj is not None
+            domain_name = domain.lower()
+            response = await (
+                self.supabase.table("allowed_email_domains")
+                .select("id")
+                .eq("domain", domain_name)
+                .eq("is_active", True)
+                .maybe_single()
+                .execute()
+            )
+            return response.data is not None
         except Exception as e:
             logger.error(f"Error checking domain: {str(e)}")
             # Fail closed - don't allow if check fails
