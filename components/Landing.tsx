@@ -151,7 +151,7 @@ const Landing: React.FC<LandingProps> = ({
         {cards.map((card, index) => (
           <div
             key={card.title}
-            className={`bg-white rounded-[20px] border border-slate-100 shadow-soft p-5 flex flex-col gap-3 ${index === 0 ? 'animate-softFadeUp' : 'animate-softFadeUp-delayed'
+            className={`bg-white rounded-[20px] border border-slate-100 shadow-soft p-5 flex flex-col gap-3 justify-between ${index === 0 ? 'animate-softFadeUp' : 'animate-softFadeUp-delayed'
               }`}
           >
             <div className="flex items-center gap-3 font-bold text-primary text-lg">
