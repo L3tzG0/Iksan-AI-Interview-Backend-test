@@ -71,10 +71,15 @@ class DomainService:
             Domain details or None if not found
         """
         try:
-            response = await self.supabase.table("allowed_email_domains").select("*").eq("id", domain_id).maybe_single().execute()
+            response = await (
+                self.supabase.table("allowed_email_domains")
+                .select("*")
+                .eq("id", domain_id)
+                .execute()
+            )
             
-            if response.data:
-                return AllowedDomainResponse(**response.data)
+            if response.data and len(response.data) > 0:
+                return AllowedDomainResponse(**response.data[0])
             return None
             
         except Exception as e:
@@ -99,12 +104,11 @@ class DomainService:
                 self.supabase.table("allowed_email_domains")
                 .select("*")
                 .eq("domain", domain.lower())
-                .maybe_single()
                 .execute()
             )
             
-            if response.data:
-                return AllowedDomainResponse(**response.data)
+            if response.data and len(response.data) > 0:
+                return AllowedDomainResponse(**response.data[0])
             return None
             
         except Exception as e:
