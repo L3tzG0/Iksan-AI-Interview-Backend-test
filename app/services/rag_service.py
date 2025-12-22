@@ -24,7 +24,7 @@ OPENAI_API_BASE = settings.GPT_EMBED_BASE_URL
 # CONNECTION_STRING = f"postgresql://postgres.hjddiycvtlzgialqxcof:{DB_PASSWORD}@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres"
 CONNECTION_STRING = settings.RAG_DB_CONN_STRING
 
-HIGH_VALUE_TERMS_JOB = [
+HIGH_VALUE_TERMS_JOB_EN = [
     # --- Technical & Engineering (Hard Specs) ---
     'Python', 'FastAPI', 'React', 'TypeScript', 'SQL', 'PostgreSQL', 
     'Supabase', 'AWS', 'Azure', 'Kubernetes', 'Machine Learning', 
@@ -70,7 +70,53 @@ HIGH_VALUE_TERMS_JOB = [
     'Public Enterprise', 'Automotive', 'Department Store', 'Construction'
 ]
 
-HIGH_VALUE_TERMS_UNI = [
+HIGH_VALUE_TERMS_JOB = [
+    # --- 기술 및 엔지니어링 (하드 스펙) ---
+    'Python', 'FastAPI', 'React', 'TypeScript', 'SQL', 'PostgreSQL', 
+    'Supabase', 'AWS', 'Azure', 'Kubernetes', '머신러닝', 
+    '데이터 사이언스', '리드 엔지니어', 'DevOps', 'CI/CD', '애자일(Agile)', '스크럼(Scrum)',
+    '아키텍처', '인프라', '커널', '해킹', '프로그래밍 언어',
+    'C++', 'GET vs POST', '프로세스 vs 스레드', '유체역학', '열역학', 
+    '에너지 효율', '반도체', '전자기 유도', '렌츠의 법칙',
+
+    # --- 산업 및 비즈니스 도메인 ---
+    'SCM', '공급망 관리', '물류', '유통/리테일', '시장 조사', 
+    '브랜드 마케팅', '손익(P&L)', '금리', '보험', 
+    '증권', '리스 산업', '스마트 그리드', '공기업',
+    '사회 보장', '부대 수입', '담합/카르텔', '엔겔 지수',
+    '모바일 시장', '게임 기획', 'UX 디자인', '외식 산업', '생산 관리',
+
+    # --- 리더십 및 소프트 스킬 (커리어 가교 질문용) ---
+    '리더십', '팔로워십', '주도자', '갈등 관리', '조정', 
+    '설득', '커뮤니케이션/소통', '대인 관계', '관리 스타일', 
+    '멘토링', '피드백', '이해관계자', '팀워크', '의사결정',
+
+    # --- 상황 판단, 스트레스 및 윤리 ---
+    '관리자', '상사', '부당함', '법적 위반', '질책/꾸지람',
+    '불만/민원', '악성 민원인', '번아웃', '업무량', '과도함', 
+    '마감 기한', '위기 관리', '노사 갈등', '노동조합', '주 52시간 근무제', 
+    '비상 상황', '장비 고장', '일과 삶의 균형', '워라밸',
+
+    # --- 커리어 경로 및 개인 배경 ---
+    '입사 후 포부', '5년 후 모습', '직업 윤리', '가치관/철학', '핵심 가치',
+    '인턴십', '현장 실습', '휴학', '갭이어(Gap Year)', 
+    '석사 학위', '교환 학생', '봉사 활동', '경력 공백',
+    '병역/군 복무', '자격 요건', '학점(GPA)', '전공 적합성',
+
+    # --- 추상적 사고 및 창의성 트리거 ---
+    '창의성', '치열함', '헌신적인', '붉은 벽돌(창의성 테스트)', '정량적 추정',
+    '논리', '좌우명', '인생 목표', '독서', '신문', '기사', 
+    '영어 면접', '자기 PR', '1분 자기소개'
+
+    # --- 기업 앵커 (주요 기업명) ---
+    '넥슨', '삼성', '현대', 'LG', '신한', 'CJ', '카카오', 'SK하이닉스', '한국전력(KEPCO)',
+    
+    # --- 산업 앵커 (주요 산업군) ---
+    '게임', '유통/리테일', '반도체', '금융', '은행', '물류', 
+    '공기업', '자동차', '백화점', '건설'
+]
+
+HIGH_VALUE_TERMS_UNI_EN = [
     # --- Technical & Subject Anchors ---
     'Thermodynamics', 'Quantum Mechanics', "Hess's Law", 'Fourier Transform', 
     'Calculus III', 'Microeconomics', 'Organic Chemistry', 'Classical Physics', 
@@ -99,6 +145,37 @@ HIGH_VALUE_TERMS_UNI = [
     'Vision', 'Goals', '10 years', 'Ultimate Goal', 'Book', 'Memorable', 
     'Reading Experience', 'Graduating', 'Future Hope', 'Cultivate', 
     'Major-related skills', 'Enlightenment', 'Rewarding'
+]
+
+HIGH_VALUE_TERMS_UNI = [
+    # --- 기술 및 과목 앵커 (전공 지식) ---
+    '열역학', '양자역학', "헤스의 법칙", '푸리에 변환', 
+    '미적분학 III', '미시경제학', '유기화학', '고전물리학', 
+    '재무회계', '미분방정식', '선형대수학',
+    
+    # --- 학업 성취도 (한국 내신 시스템 반영) ---
+    '학점/내신(GPA)', '성적', '생활기록부(기록)', '1등급', '최상위 성적', '자기주도학습', 
+    '사교육', '학업 점수', '교과 성적', '성적 하락/추이',
+    
+    # --- 학과 및 지원 동기 (전공 적합성) ---
+    '지원 동기', '지원 과정', '전공', '학과', '역량', 
+    '학업 계획', '학업 역량 검증', '연구', '진로 계획',
+    '구체적 지원 목적', '학과 선택 이유',
+    
+    # --- 인성 및 성장 (극복 및 회복 탄력성) ---
+    '강점', '약점', '자기소개', '성격/인성', '극복 사례', 
+    '어려움/난관', '자신감', '아쉬운 점/후회', '역경', '자존감 저하',
+    '자기소개서(자소서)', '포부', '에피소드/경험', '성실성',
+    
+    # --- 창체 및 리더십 (학교 생활 기록부 핵심) ---
+    '동아리', '임원/회장', '리더십', '협력', '봉사 활동', '멘토링', 
+    '학생부 기록', '수상 경력', '교내 행사', '조직 적응력', 
+    '학교 생활', '생활기록부(생기부)', '창의적 체험활동', '역량 증명',
+    
+    # --- 비전 및 독서 (한국 대입 특화) ---
+    '비전', '목표', '10년 후 모습', '최종 목표', '도서/책', '감명 깊은', 
+    '독서 경험', '졸업 후 진로', '장래 희망', '함양/도모', 
+    '전공 관련 기술', '깨달음/통찰', '보람찬 경험'
 ]
 
 # --- RAG Initialization Check ---
