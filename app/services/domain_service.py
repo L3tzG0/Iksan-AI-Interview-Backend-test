@@ -145,7 +145,7 @@ class DomainService:
             # Insert domain
             insert_data = {
                 "domain": domain_data.domain.lower(),
-                "description": domain_data.description,
+                "organization_name": domain_data.organization_name,
                 "is_active": True,
                 "added_by": added_by,
             }
@@ -214,8 +214,8 @@ class DomainService:
                         )
                 update_data["domain"] = new_domain
 
-            if domain_data.description is not None:
-                update_data["description"] = domain_data.description
+            if domain_data.organization_name is not None:
+                update_data["organization_name"] = domain_data.organization_name
             if domain_data.is_active is not None:
                 update_data["is_active"] = domain_data.is_active
 

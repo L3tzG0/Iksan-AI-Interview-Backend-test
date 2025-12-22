@@ -95,7 +95,7 @@ async def create_domain(
     
     **Request Body:**
     - `domain`: Domain name (e.g., "example.com")
-    - `description`: Optional description
+    - `organization_name`: Optional organization name
     
     **Returns:**
     - Created domain details
@@ -110,7 +110,7 @@ async def create_domain(
     "/{domain_id}",
     response_model=AllowedDomainResponse,
     summary="Update domain details (including domain name)",
-    description="Update domain name, description or active status of an allowed domain.",
+    description="Update domain name, organization name or active status of an allowed domain.",
 )
 async def update_domain(
     domain_id: int,
@@ -128,7 +128,7 @@ async def update_domain(
     
     **Request Body:**
     - `domain`: New domain name (optional)
-    - `description`: Updated description (optional)
+    - `organization_name`: Updated organization name (optional)
     - `is_active`: Active status (optional)
     
     **Returns:**
