@@ -6,6 +6,7 @@ import InterviewSession from './components/InterviewSession';
 import ResultsScreen from './components/ResultsScreen';
 import TeacherDashboard from './components/TeacherDashboard';
 import StudentDetailView from './components/StudentDetailView';
+import AdminDomainManagement from './components/admin/AdminDomainManagement';
 import SignInScreen from './components/auth/SignInScreen';
 import SignUpScreen from './components/auth/SignUpScreen';
 import Navbar from './components/layout/Navbar';
@@ -734,6 +735,12 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
                 path="/teacher/students/:id"
                 element={
                   <ProtectedRoute allowed={['teacher', 'admin']} element={<InlineStudentDetail />} />
+                }
+              />
+              <Route
+                path="/admin/domains"
+                element={
+                  <ProtectedRoute allowed={['admin']} element={<AdminDomainManagement />} />
                 }
               />
               <Route path="*" element={<NotFound />} />
