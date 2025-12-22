@@ -231,30 +231,27 @@ export const signUp = async (
     },
     password: string
 ): Promise<User> => {
-    try {
-        const response = await fetch(`${API_BASE}/api/v1/auth/register`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                full_name,
-                email,
-                password,
-                role_id,
-                teacher_data,
-            }),
-        });
-        if (!response.ok) {
-            const text = await response.text();
-            throw new Error(text || "Sign up failed");
-        }
-        const data = await response.json();
-        const user = buildUserFromResponse(data, email);
-        if (user.authToken || user.refreshToken) saveTokens(user.authToken, user.refreshToken);
-        return user;
-    } catch (e) {
-        // fallback to login attempt
-        return signIn(email, password);
+    const response = await fetch(`${API_BASE}/api/v1/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            full_name,
+            email,
+            password,
+            role_id,
+            teacher_data,
+        }),
+    });
+
+    if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || "Sign up failed");
     }
+
+    const data = await response.json();
+    const user = buildUserFromResponse(data, email);
+    if (user.authToken || user.refreshToken) saveTokens(user.authToken, user.refreshToken);
+    return user;
 };
 
 export const refreshAuthToken = async () => {
