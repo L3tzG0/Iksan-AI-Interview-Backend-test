@@ -169,7 +169,7 @@ const AdminDomainManagement: React.FC = () => {
                 {domains.map((domain) => (
                   <tr key={domain.id} className="hover:bg-slate-50/70">
                     <td className="px-4 py-3 font-semibold text-slate-800">{domain.organizationName}</td>
-                    <td className="px-4 py-3 text-slate-600">{domain.domainEmail}</td>
+                    <td className="px-4 py-3 text-black">{domain.domainEmail}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-2">
                         <button
