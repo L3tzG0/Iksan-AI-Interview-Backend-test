@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { UploadCloudIcon, FileTextIcon, ClockIcon, SparklesIcon } from './icons';
+import { UploadCloudIcon, FileTextIcon, HistoryIcon, SparklesIcon } from './icons';
 import Button from './ui/Button';
 import type { InterviewReport, InterviewStartPayload, StudentGoal } from '../types';
 
@@ -427,7 +427,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
         {hasHistory ? (
           <div className="flex flex-col bg-white/90 shadow-soft p-6 border border-white/80 rounded-[24px] animate-softFadeUp-delayed">
             <h2 className="flex items-center gap-2 mb-1 font-bold text-slate-900 text-lg">
-              <ClockIcon className="w-5 h-5 text-primary" />
+              <HistoryIcon className="w-5 h-5 text-primary" />
               최근 연습 기록
             </h2>
             <p className="mb-4 text-slate-500 text-xs">지난 AI 면접 결과를 눌러 상세 피드백을 다시 확인해 보세요.</p>
