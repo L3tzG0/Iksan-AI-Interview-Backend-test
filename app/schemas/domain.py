@@ -38,9 +38,27 @@ class AllowedDomainCreate(AllowedDomainBase):
 
 
 class AllowedDomainUpdate(BaseModel):
-    """Schema for updating an allowed domain"""
+    """Schema for updating an allowed domain
+
+    `domain` is optional here to support renames. Validate the domain format
+    the same way as on create (lowercase, trimmed, basic format check).
+    """
+    domain: Optional[str] = Field(None, description="Updated domain name")
     description: Optional[str] = Field(None, description="Updated description")
     is_active: Optional[bool] = Field(None, description="Active status")
+
+    @validator("domain")
+    def validate_domain(cls, v):
+        """Validate domain format when provided"""
+        if v is None:
+            return v
+        v = v.lower().strip()
+        domain_pattern = r"^[a-z0-9.-]+\.[a-z]{2,}$"
+        if not re.match(domain_pattern, v):
+            raise ValueError(
+                "Invalid domain format. Domain must be lowercase and follow standard format (e.g., example.com)"
+            )
+        return v
 
 
 class AllowedDomainResponse(AllowedDomainBase):

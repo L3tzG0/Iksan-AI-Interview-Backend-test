@@ -109,8 +109,8 @@ async def create_domain(
 @router.patch(
     "/{domain_id}",
     response_model=AllowedDomainResponse,
-    summary="Update domain details",
-    description="Update description or active status of an allowed domain.",
+    summary="Update domain details (including domain name)",
+    description="Update domain name, description or active status of an allowed domain.",
 )
 async def update_domain(
     domain_id: int,
@@ -119,7 +119,7 @@ async def update_domain(
     _: RoleContext = Depends(require_role(["admin"]))
 ):
     """
-    Update an existing domain.
+    Update an existing domain (supports renaming the domain itself).
     
     **Permissions:** Admin only
     
@@ -127,6 +127,7 @@ async def update_domain(
     - `domain_id`: Domain ID
     
     **Request Body:**
+    - `domain`: New domain name (optional)
     - `description`: Updated description (optional)
     - `is_active`: Active status (optional)
     
