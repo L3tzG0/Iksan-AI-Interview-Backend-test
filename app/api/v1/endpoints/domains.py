@@ -1,7 +1,7 @@
 """API endpoints for managing allowed email domains."""
 
-from typing import Annotated, List
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Annotated, List, Optional
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from supabase import AsyncClient
 
 from app.api.dependencies import require_role, RoleContext
@@ -27,7 +27,14 @@ router = APIRouter()
 async def get_all_domains(
     supabase: Annotated[AsyncClient, Depends(get_supabase)],
     _: RoleContext = Depends(require_role(["admin"])),
-    include_inactive: bool = False,
+    # include_inactive: bool = Query(
+    #     default=False,
+    #     description="Include inactive domains"
+    # ),
+    search: Optional[str] = Query(
+        default=None,
+        description="Search by domain or organization name"
+    ),
 ):
     """
     Get all allowed email domains.
@@ -36,12 +43,16 @@ async def get_all_domains(
     
     **Query Parameters:**
     - `include_inactive`: If true, includes inactive domains (default: false)
+    - `search`: Optional search term to match domain or organization name (partial match)
     
     **Returns:**
     - List of allowed domains
     """
     domain_service = DomainService(supabase)
-    return await domain_service.get_all_domains(include_inactive=include_inactive)
+    return await domain_service.get_all_domains(
+        # include_inactive=include_inactive,
+        search=search,
+    )
 
 # commented out to simplify initial implementation
 # @router.get(

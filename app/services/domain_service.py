@@ -28,12 +28,14 @@ class DomainService:
     async def get_all_domains(
         self,
         include_inactive: bool = False,
+        search: Optional[str] = None,
     ) -> List[AllowedDomainResponse]:
         """
         Get all allowed email domains.
         
         Args:
             include_inactive: If True, includes inactive domains
+            search: Optional search term to filter by domain or organization name
         
         Returns:
             List of allowed domains
@@ -43,6 +45,14 @@ class DomainService:
             
             if not include_inactive:
                 query = query.eq("is_active", True)
+
+            if search:
+                sanitized_search = search.strip()
+                if sanitized_search:
+                    search_pattern = f"%{sanitized_search}%"
+                    query = query.or_(
+                        f"domain.ilike.{search_pattern},organization_name.ilike.{search_pattern}"
+                    )
             
             query = query.order("domain", desc=False)
             
