@@ -13,7 +13,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - U_Q_GEN_GPT5 - %(m
 
 # --- Internal LLM Output Wrapper ---
 class UniversityQuestionGenerationResponse(BaseModel):
-    """The complete JSON structure expected from the GPT-5 API for academic questions."""
+    """The complete JSON structure expected from the GPT-4o API for academic questions."""
     questions: List[GeneratedQuestion]
 
 # --- Configuration ---
@@ -46,7 +46,7 @@ async def generate_university_prep_questions_gpt(
     reference_questions: Optional[List[str]] = None
 ) -> List[GeneratedQuestion]:
     """
-    Calls the GPT-5 Proxy API to generate structured academic interview questions.
+    Calls the GPT-4o Proxy API to generate structured academic interview questions.
     """
     global global_client 
     
@@ -56,10 +56,10 @@ async def generate_university_prep_questions_gpt(
                 base_url=f"{settings.GPT_API_BASE_URL}/v1",
                 api_key=settings.ELICE_API_KEY
             )
-            logging.info("GPT-5 Async Client for University Prep successfully initialized.")
+            logging.info("GPT-4o Async Client for University Prep successfully initialized.")
         except Exception as e:
-            logging.error(f"FATAL: Could not initialize GPT-5 client: {e}")
-            raise Exception("GPT-5 API Client initialization failed.")
+            logging.error(f"FATAL: Could not initialize GPT-4o client: {e}")
+            raise Exception("GPT-4o API Client initialization failed.")
 
     # Incorporate RAG context
     rag_context_text = ""
@@ -99,10 +99,10 @@ async def generate_university_prep_questions_gpt(
         
         if not validated_response or len(validated_response.questions) != 10:
             count = len(validated_response.questions) if validated_response else 0
-            logging.warning(f"GPT-5 returned {count} academic questions, expected 10.")
+            logging.warning(f"GPT-4o returned {count} academic questions, expected 10.")
             
         return validated_response.questions if validated_response else []
 
     except Exception as e:
-        logging.error(f"GPT-5 Academic Generation Error: {e}")
-        raise Exception(f"Failed to generate university prep questions via GPT-5: {e}")
+        logging.error(f"GPT-4o Academic Generation Error: {e}")
+        raise Exception(f"Failed to generate university prep questions via GPT-4o: {e}")

@@ -601,7 +601,7 @@ async def initiate_interview_session(
         # --- END FILE PROCESSING LOGIC ---
         
         # Step 4: Save cleaned text to documents table
-        document_service.create_document(
+        document = await document_service.create_document(
             session_id=session_id,
             cleaned_text=cleaned_text_extracted
         )

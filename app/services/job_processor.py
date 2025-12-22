@@ -290,7 +290,7 @@ async def process_interview_job_gpt(
     supabase: AsyncClient
 ) -> List[GeneratedQuestion]:
     """
-    Executes the interview generation logic using GPT-5.
+    Executes the interview generation logic using GPT-4o.
     """
     session_id = job_data["session_id"]
     cv_text = job_data["cv_text"]
@@ -301,18 +301,18 @@ async def process_interview_job_gpt(
     feedback_service = FeedbackService(supabase)
 
     try:
-        logging.info(f"Session {session_id}: Starting GPT-5 generation job...")
+        logging.info(f"Session {session_id}: Starting GPT-4o generation job...")
         await session_service.update_session_status(session_id, status="generating")
 
         generated_questions_list = None
         for attempt in range(MAX_JOB_RETRIES):
             try:
-                logging.info(f"Session {session_id}: GPT-5 Attempt {attempt + 1}/{MAX_JOB_RETRIES}")
+                logging.info(f"Session {session_id}: GPT-4o Attempt {attempt + 1}/{MAX_JOB_RETRIES}")
                 
                 # RAG Context
                 rag_context = await retrieve_questions_from_rag(cv_text=cv_text, q_type="job", k=5)
 
-                # Call GPT-5 Service
+                # Call GPT-4o Service
                 generated_questions_list = await generate_interview_questions_gpt(
                     cv_text=cv_text,
                     field=field,
@@ -324,11 +324,11 @@ async def process_interview_job_gpt(
                 if attempt == MAX_JOB_RETRIES - 1:
                     raise
                 wait_time = INITIAL_BACKOFF_SECONDS * (2 ** attempt)
-                logging.warning(f"Session {session_id}: GPT-5 failed. Retrying in {wait_time}s. Error: {e}")
+                logging.warning(f"Session {session_id}: GPT-4o failed. Retrying in {wait_time}s. Error: {e}")
                 await asyncio.sleep(wait_time)
 
         if generated_questions_list is None:
-            raise Exception("GPT-5 Question generation failed after all retries.")
+            raise Exception("GPT-4o Question generation failed after all retries.")
             
         await feedback_service.create_detailed_feedbacks_batch(
             session_id=session_id,
@@ -336,11 +336,11 @@ async def process_interview_job_gpt(
         )
         
         await session_service.update_session_status(session_id, status="in_progress")
-        logging.info(f"Session {session_id}: Successfully processed with GPT-5.")
+        logging.info(f"Session {session_id}: Successfully processed with GPT-4o.")
         return generated_questions_list
 
     except Exception as e:
-        logging.error(f"Session {session_id}: GPT-5 Job failed. Error: {e}")
+        logging.error(f"Session {session_id}: GPT-4o Job failed. Error: {e}")
         await session_service.update_session_status(session_id, status="failed")
         return []
     
@@ -350,7 +350,7 @@ async def process_interview_uni_gpt(
     supabase: AsyncClient
 ) -> List[GeneratedQuestion]:
     """
-    Executes the university prep generation logic using GPT-5.
+    Executes the university prep generation logic using GPT-4o.
     """
     session_id = job_data["session_id"]
     student_record_text = job_data["student_record_text"]
@@ -361,18 +361,18 @@ async def process_interview_uni_gpt(
     feedback_service = FeedbackService(supabase)
 
     try:
-        logging.info(f"Session {session_id}: Starting GPT-5 University Prep job...")
+        logging.info(f"Session {session_id}: Starting GPT-4o University Prep job...")
         await session_service.update_session_status(session_id, status="generating")
 
         generated_questions_list = None
         for attempt in range(MAX_JOB_RETRIES):
             try:
-                logging.info(f"Session {session_id}: GPT-5 Uni Attempt {attempt + 1}/{MAX_JOB_RETRIES}")
+                logging.info(f"Session {session_id}: GPT-4o Uni Attempt {attempt + 1}/{MAX_JOB_RETRIES}")
                 
                 # RAG Context
                 academic_context = await retrieve_questions_from_rag(cv_text=student_record_text, q_type="uni", k=5)
 
-                # Call GPT-5 Service
+                # Call GPT-4o Service
                 generated_questions_list = await generate_university_prep_questions_gpt(
                     student_record_text=student_record_text,
                     universities=universities,
@@ -384,11 +384,11 @@ async def process_interview_uni_gpt(
                 if attempt == MAX_JOB_RETRIES - 1:
                     raise
                 wait_time = INITIAL_BACKOFF_SECONDS * (2 ** attempt)
-                logging.warning(f"Session {session_id}: GPT-5 Uni failed. Retrying in {wait_time}s. Error: {e}")
+                logging.warning(f"Session {session_id}: GPT-4o Uni failed. Retrying in {wait_time}s. Error: {e}")
                 await asyncio.sleep(wait_time)
 
         if generated_questions_list is None:
-            raise Exception("GPT-5 University Prep generation failed after all retries.")
+            raise Exception("GPT-4o University Prep generation failed after all retries.")
             
         await feedback_service.create_detailed_feedbacks_batch(
             session_id=session_id,
@@ -396,11 +396,11 @@ async def process_interview_uni_gpt(
         )
         
         await session_service.update_session_status(session_id, status="in_progress")
-        logging.info(f"Session {session_id}: Successfully processed University Prep with GPT-5.")
+        logging.info(f"Session {session_id}: Successfully processed University Prep with GPT-4o.")
         return generated_questions_list
 
     except Exception as e:
-        logging.error(f"Session {session_id}: GPT-5 University Prep job failed. Error: {e}")
+        logging.error(f"Session {session_id}: GPT-4o University Prep job failed. Error: {e}")
         await session_service.update_session_status(session_id, status="failed")
         return []
 
