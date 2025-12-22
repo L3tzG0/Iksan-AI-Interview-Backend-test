@@ -22,6 +22,8 @@ const SchoolSelect: React.FC<Props> = ({ label, value, onChange, required = fals
   const containerRef = useRef<HTMLDivElement | null>(null);
   const debounceRef = useRef<number | null>(null);
 
+  console.log('SchoolSelect render', { inputValue, suggestions, loading, error, open });
+
   useEffect(() => {
     // sync controlled value
     setInputValue(value || '');
@@ -139,9 +141,18 @@ const SchoolSelect: React.FC<Props> = ({ label, value, onChange, required = fals
           ))}
 
           {!suggestions.some((s) => s.school_name === inputValue) && inputValue.trim() !== '' && (
-            <div className="border-t px-2 py-2 text-sm text-slate-700">
-              <div>"{inputValue}"로 새 학교 사용</div>
-            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setInputValue(inputValue);
+                onChange(inputValue);
+                setOpen(false);
+              }}
+              className="w-full text-left border-t px-2 py-2 text-sm text-slate-700 hover:bg-slate-50"
+              aria-label={`Use "${inputValue}" as a new school`}
+            >
+              "{inputValue}"로 새 학교 사용
+            </button>
           )}
         </div>
       )}
