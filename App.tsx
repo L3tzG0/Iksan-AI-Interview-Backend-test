@@ -6,10 +6,12 @@ import InterviewSession from './components/InterviewSession';
 import ResultsScreen from './components/ResultsScreen';
 import TeacherDashboard from './components/TeacherDashboard';
 import StudentDetailView from './components/StudentDetailView';
+import AdminDomainManagement from './components/admin/AdminDomainManagement';
 import SignInScreen from './components/auth/SignInScreen';
 import SignUpScreen from './components/auth/SignUpScreen';
 import Navbar from './components/layout/Navbar';
 import AddStudentModal from './components/AddStudentModal';
+import Spinner from './components/Spinner';
 import { InterviewReport, Question, Answer, User, InterviewStartPayload } from './types';
 import { fetchStudentSessionsForStudentRole } from './services/studentService';
 import { initiateSession, submitSessionAnswers, fetchSessionStatus, fetchSessionDetail } from './services/sessionService';
@@ -507,8 +509,10 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
   };
 
   const renderRestoringShell = () => (
-    <div className="flex justify-center items-center min-h-screen text-slate-700">
-      <div className="border-4 border-primary border-dashed rounded-full w-16 h-16 animate-spin"></div>
+    <div className="relative flex justify-center items-center min-h-screen text-slate-700 overflow-hidden">
+      <div className="-top-24 -right-16 absolute bg-primary/10 blur-3xl rounded-full w-72 h-72 animate-pulseSlow pointer-events-none"></div>
+      <div className="top-32 -left-24 absolute bg-primary-light/40 blur-3xl rounded-full w-80 h-80 animate-pulseSlow pointer-events-none"></div>
+      <Spinner label="로딩 중..." />
     </div>
   );
 
@@ -591,9 +595,12 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
         <main className="mx-auto p-4 sm:p-6 lg:px-8 pt-8 pb-16 max-w-8xl">
           {/* AdminHeader removed */}
           {isLoading && (
-            <div className="flex flex-col justify-center items-center h-[60vh] text-slate-700">
-              <div className="border-4 border-primary border-dashed rounded-full w-16 h-16 animate-spin"></div>
-              <p className="mt-4 text-lg">AI가 준비를 마치고 있어요...</p>
+            <div className="relative flex flex-col justify-center items-center h-[60vh] text-slate-700 overflow-hidden rounded-3xl border border-white/70 bg-white/80 shadow-soft">
+              <div className="-top-20 -right-12 absolute bg-primary/10 blur-3xl rounded-full w-64 h-64 animate-pulseSlow pointer-events-none"></div>
+              <div className="top-16 -left-16 absolute bg-primary-light/40 blur-3xl rounded-full w-72 h-72 animate-pulseSlow pointer-events-none"></div>
+              <div className="scale-150 sm:scale-200">
+                <Spinner label="AI가 준비를 마치고 있어요..." />
+              </div>
             </div>
           )}
           {!isLoading && (
@@ -734,6 +741,12 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
                 path="/teacher/students/:id"
                 element={
                   <ProtectedRoute allowed={['teacher', 'admin']} element={<InlineStudentDetail />} />
+                }
+              />
+              <Route
+                path="/admin/domains"
+                element={
+                  <ProtectedRoute allowed={['admin']} element={<AdminDomainManagement />} />
                 }
               />
               <Route path="*" element={<NotFound />} />

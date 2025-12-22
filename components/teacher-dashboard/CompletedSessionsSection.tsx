@@ -29,7 +29,7 @@ const normalizeSessionToSummary = (
     const totalScore = typeof session.totalScore === "number" ? Math.round(session.totalScore) : 0;
     const statusValue = (session.status || "").toLowerCase();
     const completed = statusValue === "completed" || Boolean(session.completedAt);
-    const sessionIdValue = session.id ?? session.sessionId;
+    const sessionIdValue = session.id ?? (session as any).sessionId;
 
     return {
         id: String(identifier),
@@ -54,7 +54,14 @@ const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({}) => {
     const PAGE_SIZE = 20;
     const [totalCount, setTotalCount] = useState<number | undefined>(undefined);
     const [searchTerm, setSearchTerm] = useState<string>('');
+    const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>(searchTerm);
+    const SEARCH_DEBOUNCE_MS = 300;
     const [goalFilter, setGoalFilter] = useState<'all' | 'work' | 'university'>('all');
+
+    useEffect(() => {
+        const id = setTimeout(() => setDebouncedSearchTerm(searchTerm), SEARCH_DEBOUNCE_MS);
+        return () => clearTimeout(id);
+    }, [searchTerm]);
 
     useEffect(() => {
         let isActive = true;
@@ -67,7 +74,7 @@ const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({}) => {
                     page,
                     pageSize: PAGE_SIZE,
                     interviewType: interviewTypeParam,
-                    search: searchTerm || undefined,
+                    search: debouncedSearchTerm || undefined,
                 });
                 if (!isActive) return;
                 const normalized = sessions
@@ -90,19 +97,18 @@ const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({}) => {
         return () => {
             isActive = false;
         };
-    }, [page, goalFilter, searchTerm]);
+    }, [page, goalFilter, debouncedSearchTerm]);
 
     useEffect(() => {
         if (page !== 1) setPage(1);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [goalFilter, searchTerm]);
+    }, [goalFilter, debouncedSearchTerm]);
 
     const navigate = useNavigate();
 
     return (
         <div className="space-y-4">
             <div className="flex lg:flex-row flex-col lg:items-center gap-4">
-                <SearchBar value={searchTerm} onChange={setSearchTerm} placeholder="학생 이름 검색" />
+                {/* <SearchBar value={searchTerm} onChange={setSearchTerm} placeholder="학생 이름 검색" /> */}
                 <FilterControls
                     goalFilter={goalFilter}
                     onGoalChange={(v) => setGoalFilter(v as typeof goalFilter)}

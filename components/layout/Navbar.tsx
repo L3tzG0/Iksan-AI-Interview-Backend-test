@@ -31,6 +31,9 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, currentPath, onNavigate
 
     if (user.role === 'teacher' || user.role === 'admin') {
       base.push({ path: '/teacher/dashboard', label: '대시보드', icon: ChartIcon });
+      if (user.role === 'admin') {
+        base.push({ path: '/admin/domains', label: '도메인 관리', icon: UsersIcon });
+      }
     } else {
       base.push({ path: '/student/interview/start', label: '인터뷰 생성', icon: SparklesIcon });
     }
@@ -40,6 +43,9 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, currentPath, onNavigate
 
   const isNavActive = (path: string) => {
     if (path === '/teacher/dashboard' && (currentPath.startsWith('/teacher/students') || currentPath.startsWith('/teacher/dashboard'))) {
+      return true;
+    }
+    if (path === '/admin/domains' && currentPath.startsWith('/admin')) {
       return true;
     }
     return currentPath === path;
