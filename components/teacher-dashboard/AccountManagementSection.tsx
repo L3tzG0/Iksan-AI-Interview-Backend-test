@@ -26,8 +26,6 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
   onTemplateDownload,
   onCsvPicker,
   onBackendErrorDownload,
-  searchTerm,
-  onSearch,
   isLoadingStudents,
   fileInputRef,
   canSubmitBulkUpload,
@@ -38,6 +36,12 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
   const PAGE_SIZE = 20;
   const [totalUsers, setTotalUsers] = useState<number | undefined>(undefined);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+
+  // Search state (local to this section)
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>('');
+  const debounceTimer = useRef<number | null>(null);
+
   const dragCounter = useRef(0);
 
   const handleDragEnter = useCallback((e: DragEvent<HTMLDivElement>) => {
@@ -93,7 +97,7 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
           role: 'student',
           page,
           pageSize: PAGE_SIZE,
-          search: searchTerm,
+          search: debouncedSearchTerm,
         });
         if (!isActive) return;
         setUserList(result.data ?? []);
@@ -114,12 +118,29 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
     return () => {
       isActive = false;
     };
-  }, [searchTerm, page]);
+  }, [debouncedSearchTerm, page]);
 
-  // when search term changes, reset to first page
+  // when the debounced search term changes, reset to first page so the query starts at page 1
   useEffect(() => {
     if (page !== 1) setPage(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearchTerm]);
+
+  // debounce the search term to avoid spamming the API while typing
+  useEffect(() => {
+    if (debounceTimer.current) {
+      window.clearTimeout(debounceTimer.current);
+    }
+    debounceTimer.current = window.setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm.trim());
+    }, 350);
+
+    return () => {
+      if (debounceTimer.current) {
+        window.clearTimeout(debounceTimer.current);
+        debounceTimer.current = null;
+      }
+    };
   }, [searchTerm]);
 
   const isStudentTableLoading = isLoadingUsers || isLoadingStudents;
@@ -310,7 +331,7 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
       <div className="space-y-4">
         <p className="font-semibold text-slate-800 text-sm">전체 학생 목록</p>
         <div className="flex lg:flex-row flex-col lg:items-center gap-4">
-          <SearchBar value={searchTerm} onChange={onSearch} placeholder="학생 이름 검색" />
+          <SearchBar value={searchTerm} onChange={setSearchTerm} placeholder="학생 이름 검색" />
           {/* <FilterControls {...filterControlsProps} compact showGrade={false} showGoal={false} /> */}
         </div>
 
