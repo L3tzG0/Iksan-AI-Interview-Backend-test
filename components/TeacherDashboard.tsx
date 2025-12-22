@@ -54,8 +54,9 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
   const triggerCsvPicker = () => fileInputRef.current?.click();
   const downloadTemplate = () => {
     const link = document.createElement('a');
-    link.href = '/teacher_bulk_template.csv';
-    link.download = '교사_학생_템플릿.csv';
+    const isAdmin = currentUser.role === 'admin';
+    link.href = isAdmin ? '/admin_bulk_template.csv' : '/teacher_bulk_template.csv';
+    link.download = isAdmin ? '관리자_학생_템플릿.csv' : '교사_학생_템플릿.csv';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
