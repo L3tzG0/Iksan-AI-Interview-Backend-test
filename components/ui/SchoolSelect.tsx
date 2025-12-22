@@ -106,7 +106,7 @@ const SchoolSelect: React.FC<Props> = ({ label, value, onChange, required = fals
         />
       </div>
 
-      {loading && (
+      {/* {loading && (
         <div className="absolute right-3 top-9">
           <div className="w-6 h-6">
             <svg className="animate-spin text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -114,6 +114,12 @@ const SchoolSelect: React.FC<Props> = ({ label, value, onChange, required = fals
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 11-8 8z"></path>
             </svg>
           </div>
+        </div>
+      )} */}
+
+      {loading && (
+        <div className="absolute right-3 top-9">
+          <Spinner size="small" label="" />
         </div>
       )}
 
