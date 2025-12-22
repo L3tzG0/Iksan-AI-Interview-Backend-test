@@ -354,8 +354,8 @@ async def process_interview_uni_gpt(
     """
     session_id = job_data["session_id"]
     student_record_text = job_data["student_record_text"]
-    universities = job_data["universities"]
-    departments = job_data["departments"]
+    # universities = job_data["universities"]
+    # departments = job_data["departments"]
     
     session_service = InterviewSessionService(supabase)
     feedback_service = FeedbackService(supabase)
@@ -375,8 +375,8 @@ async def process_interview_uni_gpt(
                 # Call GPT-4o Service
                 generated_questions_list = await generate_university_prep_questions_gpt(
                     student_record_text=student_record_text,
-                    universities=universities,
-                    departments=departments,
+                    # universities=universities,
+                    # departments=departments,
                     reference_questions=academic_context.reference_questions
                 )
                 break

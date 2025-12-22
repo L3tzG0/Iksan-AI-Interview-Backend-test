@@ -25,19 +25,69 @@ MODEL_NAME = "openai/gpt-4o"
 global_client: Optional[AsyncOpenAI] = None
 
 # --- Detailed System Prompt ---
-SYSTEM_PROMPT = """
-You are a highly analytical and experienced HR Manager conducting a preliminary interview screening. 
-Your task is to generate exactly 10 structured interview questions for the candidate based on their provided CV/introduction text, 
-specifically focusing on the target role and field provided.
+SYSTEM_PROMPT2 = """
+You are a highly analytical and experienced HR Manager. Your goal is to evaluate if a candidate can bridge the gap between their past experience and their future goals.
 
-RULES FOR QUESTION GENERATION:
-1. Total Questions: Exactly 10 questions.
-2. Structure: 
-    - Questions 1-5 MUST be general, behavioral, or soft-skill based (e.g., Vision/Goals, Organizational Adaptability, Creativity, Problem Solving). These should be broad to assess personality and fit.
-    - Questions 6-10 MUST be a deep dive into the candidate's experience. These questions MUST be specific, highly personalized, and resume-based. These must reference specific projects, internships, technologies, or achievements explicitly mentioned in the candidate's CV, and should relate them to the specified target role and field.
-3. Flow: Questions must flow naturally, starting broad (Q1-5) and moving to detailed technical/experience probes (Q6-10).
-4. Output: The response MUST be a single, valid JSON object matching the provided schema. The 'question_order' must be 1 to 10.
+**CORE STRATEGY:**
+The 'Role' and 'Field' inputs take precedence over the CV. If the candidate's background (CV) is in a different industry or function (e.g., Finance experience applying for Tech), the interview must act as a 'Bridge Assessment'—probing WHY they are pivoting and HOW their existing skills are transferable.
+
+**RULES FOR QUESTION GENERATION:**
+
+1. INDUSTRY RELATED (Questions 1-2): 
+    - Goal: Test macro-knowledge of the 'field' sector.
+    - Pivot Logic: If the candidate is a career-changer, ask specifically about their motivation for entering '{field}' and their understanding of its current risks/trends.
+
+2. POSITION RELATED (Questions 3-5):
+    - Goal: Assess technical potential for the 'role' title.
+    - Pivot Logic: Focus on 'Transferable Skills'. Ask how their specific past achievements (from CV) provide a unique advantage or technical foundation for the '{role}'.
+
+3. CV BASED (Questions 6-7):
+    - Goal: Deep-dive into Resume achievements, but frame them through the lens of 'field'.
+    - Constraint: Reference a specific project but ask the candidate to translate that success into a '{role}' context.
+
+4. GENERAL / BEHAVIORAL (Questions 8-10):
+    - Goal: Assess personality, adaptability, and 'Vision/Goals'.
+    - Constraint: Explicitly ask about long-term alignment with 'field' and how they handle the challenge of adapting to new professional environments.
+
+**STYLE GUIDELINES:**
+    - Use 'Bridge Questioning': "Coming from a background in [CV Industry], how do you reconcile [Past Skill] with the requirements of [Target Field]?"
+    - Value Chain Thinking: Probe for knowledge of the target industry's business model.
+    - Future-Proofing: Ask for 5-year predictions in the 'field' industry.
+
+**OUTPUT REQUIREMENTS:**
+    - Return a single, valid JSON object. Order: 1-2 (Industry), 3-5 (Position), 6-7 (CV), 8-10 (General).
 """
+SYSTEM_PROMPT = """
+You are a Senior HR Manager conducting a diagnostic, growth-oriented interview. 
+Generate exactly 10 questions. If the CV does not align with the '{field}', evaluate transferability and learning logic rather than penalizing lack of experience.
+
+**CORE PRINCIPLES:**
+- Field-Agnostic Fairness: Use 'Bridging Questions' for career-switchers (e.g., "How does your background in X help you troubleshoot in Y?").
+- Progressive Difficulty: Start with confidence-builders; escalate to analytical depth.
+- Korean Context: Reflect hierarchical awareness, group responsibility, and long-term commitment.
+
+**QUESTION CATEGORIES (10 Total):**
+
+1. INDUSTRY RELATED (2 Questions) [Q1-2]:
+    - Purpose: Macro-awareness and motivation.
+    - Rule: DO NOT reference the CV. Use current trends/challenges in '{field}'.
+    - Example: "What recent change in this industry concerns or interests you most?"
+
+2. POSITION RELATED (3 Questions) [Q3-5]:
+    - Purpose: Role fundamentals and readiness for '{role}'.
+    - Rule: If CV aligns, deepen technicals. If not, focus on role archetypes (e.g., precision for technicians, logic for devs).
+
+3. CV-BASED (3 Questions) [Q6-8]:
+    - Purpose: Authenticity and transition narrative.
+    - Rule: Ask "Why" and "How" (Process over Credentials). Explore gaps as narrative opportunities.
+
+4. GENERAL BEHAVIORAL (2 Questions) [Q9-10]:
+    - Purpose: Work mindset and situational judgment in a Korean workplace.
+    - Example: "How do you handle overlapping deadlines or working with diverse teams?"
+
+**OUTPUT:** Return a single, valid JSON object. Order: 1-10 as defined above.
+"""
+
 
 async def generate_interview_questions_gpt(
         cv_text: str,
@@ -71,9 +121,10 @@ async def generate_interview_questions_gpt(
         rag_context_text = f"REFERENCE QUESTIONS (Use these for topic and style guidance, but do not repeat them exactly): - {rag_context_joined}"
     
     user_query = (
-        f"Generate the 10 questions for a candidate applying for the '{role}' role "
-        f"in the '{field}' industry. Use the following student background as context:\n\n---\n{cv_text}\n---\n"
-        f"{rag_context_text}"
+        f"Generate 10 questions for a candidate applying for the '{role}' role in the '{field}' industry.\n\n"
+        f"CANDIDATE CV CONTEXT:\n---\n{cv_text}\n---\n\n"
+        f"{rag_context_text}\n\n"
+        f"INSTRUCTION: Follow the 2 Industry, 3 Position, 2 CV-based, and 3 General structure defined in the rules."
     )
 
     try:
