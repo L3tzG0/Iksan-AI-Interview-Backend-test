@@ -33,8 +33,6 @@ const SchoolSelect: React.FC<Props> = ({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const debounceRef = useRef<number | null>(null);
 
-  console.log('SchoolSelect render', { inputValue, suggestions, loading, error, open });
-
   useEffect(() => {
     // sync controlled value
     setInputValue(value || '');

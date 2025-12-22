@@ -503,9 +503,10 @@ export const fetchUsers = async ({
   schoolId?: string;
   search?: string;
 } = {}): Promise<PaginatedUsers> => {
+  const skip = Math.max(0, (page - 1) * pageSize);
   const params = new URLSearchParams();
-  params.set('page', String(page));
-  params.set('page_size', String(pageSize));
+  params.set('skip', String(skip));
+  params.set('limit', String(pageSize));
   if (role && role !== 'all') params.set('role', role);
   if (schoolId) params.set('school_id', schoolId);
   if (search) params.set('search', search);
@@ -546,7 +547,7 @@ export const fetchUsers = async ({
       })) as User[]
     : [];
 
-  const derivedPageSize = data?.page_size ?? data?.limit ?? pageSize;
+  const derivedPageSize = data?.limit ?? data?.page_size ?? pageSize;
   const derivedPage =
     data?.page ?? (typeof data?.skip === 'number' && derivedPageSize ? Math.floor(data.skip / derivedPageSize) + 1 : page);
 
