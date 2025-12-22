@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import AuthLayout from "./AuthLayout";
 import Input from "../ui/Input";
+import SchoolSelect from "../ui/SchoolSelect";
 import Button from "../ui/Button";
 import StatusModal from "../ui/StatusModal";
 import {
@@ -129,11 +130,11 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({
                 />
 
                 {role === "teacher" && (
-                    <Input
+                    <SchoolSelect
                         label="학교"
                         placeholder="예: 익산고등학교"
                         value={schoolName}
-                        onChange={(e) => setSchoolName(e.target.value)}
+                        onChange={(v) => setSchoolName(v)}
                         required
                     />
                 )}
