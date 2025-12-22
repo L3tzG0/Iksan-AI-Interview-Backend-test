@@ -1,15 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import Card from '../Card';
 import Button from '../ui/Button';
 import SearchBar from '../teacher-dashboard/SearchBar';
 import Input from '../ui/Input';
 import { useToast } from '../ui/Toast';
-
-type DomainRecord = {
-  id: string;
-  organizationName: string;
-  domainEmail: string;
-};
+import { fetchDomains, createDomain, updateDomain, deleteDomain, type DomainRecord } from '../../services/domainService';
 
 type ModalMode = 'add' | 'edit';
 
@@ -19,19 +14,34 @@ const AdminDomainManagement: React.FC = () => {
   const [domains, setDomains] = useState<DomainRecord[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<ModalMode>('add');
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [formValues, setFormValues] = useState({ organizationName: '', domainEmail: '' });
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const filteredDomains = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
-    if (!term) return domains;
-    return domains.filter((domain) =>
-      `${domain.organizationName} ${domain.domainEmail}`.toLowerCase().includes(term)
-    );
-  }, [domains, searchTerm]);
+  const loadDomains = async () => {
+    setIsLoading(true);
+    try {
+      const backendDomains = await fetchDomains(searchTerm || undefined);
+      const records: DomainRecord[] = backendDomains.map(d => ({
+        id: d.id,
+        organizationName: d.organization_name,
+        domainEmail: `@${d.domain}`,
+      }));
+      setDomains(records);
+    } catch (error) {
+      console.error('Failed to fetch domains:', error);
+      addToast('도메인 목록을 불러오는데 실패했습니다.', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadDomains();
+  }, [searchTerm]);
 
   const openAddModal = () => {
     setModalMode('add');
@@ -54,7 +64,7 @@ const AdminDomainManagement: React.FC = () => {
     setFormError(null);
   };
 
-  const handleSave = (event: React.FormEvent) => {
+  const handleSave = async (event: React.FormEvent) => {
     event.preventDefault();
     const organizationName = formValues.organizationName.trim();
     const domainEmail = formValues.domainEmail.trim();
@@ -69,27 +79,25 @@ const AdminDomainManagement: React.FC = () => {
       return;
     }
 
-    if (modalMode === 'add') {
-      const newItem: DomainRecord = {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        organizationName,
-        domainEmail,
-      };
-      setDomains((prev) => [newItem, ...prev]);
-      addToast('도메인이 추가되었습니다.', 'success');
-    } else if (editingId) {
-      setDomains((prev) =>
-        prev.map((item) =>
-          item.id === editingId ? { ...item, organizationName, domainEmail } : item
-        )
-      );
-      addToast('도메인이 수정되었습니다.', 'success');
-    }
+    const domain = domainEmail.slice(1); // remove @
 
-    closeModal();
+    try {
+      if (modalMode === 'add') {
+        await createDomain({ domain, organization_name: organizationName });
+        addToast('도메인이 추가되었습니다.', 'success');
+      } else if (editingId) {
+        await updateDomain(editingId, { domain, organization_name: organizationName });
+        addToast('도메인이 수정되었습니다.', 'success');
+      }
+      loadDomains();
+      closeModal();
+    } catch (error) {
+      console.error('Failed to save domain:', error);
+      setFormError('저장 실패했습니다.');
+    }
   };
 
-  const openDeleteModal = (domainId: string) => {
+  const openDeleteModal = (domainId: number) => {
     setDeletingId(domainId);
     setIsDeleteOpen(true);
   };
@@ -99,16 +107,21 @@ const AdminDomainManagement: React.FC = () => {
     setIsDeleteOpen(false);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!deletingId) return;
-    setDomains((prev) => prev.filter((item) => item.id !== deletingId));
-    addToast('도메인이 삭제되었습니다.', 'success');
-    closeDeleteModal();
+    try {
+      await deleteDomain(deletingId);
+      addToast('도메인이 삭제되었습니다.', 'success');
+      loadDomains();
+      closeDeleteModal();
+    } catch (error) {
+      console.error('Failed to delete domain:', error);
+      addToast('도메인 삭제에 실패했습니다.', 'error');
+    }
   };
 
   const deletingDomain = domains.find((item) => item.id === deletingId);
   const isEmpty = domains.length === 0;
-  const hasNoSearchResults = !isEmpty && filteredDomains.length === 0;
 
   return (
     <div className="space-y-8 mx-auto animate-fadeIn">
@@ -131,17 +144,17 @@ const AdminDomainManagement: React.FC = () => {
           </Button>
         </div>
 
-        {isEmpty ? (
+        {isLoading ? (
+          <div className="rounded-2xl border border-slate-200 bg-white px-6 py-10 text-center text-sm text-slate-500">
+            불러오는 중...
+          </div>
+        ) : isEmpty ? (
           <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-10 text-center space-y-2">
             <p className="text-slate-700 font-semibold">등록된 도메인이 없습니다.</p>
             <p className="text-sm text-slate-500">도메인을 추가하면 업무용 이메일만 허용됩니다.</p>
             <Button type="button" variant="secondary" onClick={openAddModal} className="mt-2">
               도메인 추가
             </Button>
-          </div>
-        ) : hasNoSearchResults ? (
-          <div className="rounded-2xl border border-slate-200 bg-white px-6 py-10 text-center text-sm text-slate-500">
-            검색 결과가 없습니다.
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -154,7 +167,7 @@ const AdminDomainManagement: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredDomains.map((domain) => (
+                {domains.map((domain) => (
                   <tr key={domain.id} className="hover:bg-slate-50/70">
                     <td className="px-4 py-3 font-semibold text-slate-800">{domain.organizationName}</td>
                     <td className="px-4 py-3 text-slate-600">{domain.domainEmail}</td>
