@@ -290,32 +290,27 @@ class DomainService:
             AllowedDomainUpdate(is_active=is_active)
         )
 
-    async def is_domain_allowed(self, email: str) -> bool:
+    async def is_domain_allowed(self, domain: str) -> bool:
         """
-        Check if an email domain is allowed for registration.
+        Check if a domain name is allowed for registration.
         
         Args:
-            email: Email address to check
+            domain: Domain name to check (lowercased preferred)
         
         Returns:
             True if domain is allowed, False otherwise
         """
         try:
-            # Extract domain from email
-            domain = email.split("@")[-1].lower()
-            
-            # Check if domain exists and is active
+            domain_name = domain.lower()
             response = await (
                 self.supabase.table("allowed_email_domains")
                 .select("id")
-                .eq("domain", domain)
+                .eq("domain", domain_name)
                 .eq("is_active", True)
                 .maybe_single()
                 .execute()
             )
-            
             return response.data is not None
-            
         except Exception as e:
             logger.error(f"Error checking domain: {str(e)}")
             # Fail closed - don't allow if check fails

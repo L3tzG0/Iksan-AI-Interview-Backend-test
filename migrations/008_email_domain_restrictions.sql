@@ -167,7 +167,7 @@ CREATE POLICY "Anyone can view active domains"
     USING (is_active = true);
 
 -- Policy: Only authenticated admins can insert domains
--- Note: You'll need to define admin users appropriately
+-- Note: You'll need to define admin user_profiles appropriately
 -- Option 1: Check if user has admin role
 CREATE POLICY "Admins can insert domains"
     ON allowed_email_domains
@@ -175,7 +175,7 @@ CREATE POLICY "Admins can insert domains"
     TO authenticated
     WITH CHECK (
         EXISTS (
-            SELECT 1 FROM users u
+            SELECT 1 FROM user_profiles u
             WHERE u.id = auth.uid()
             AND u.role_id = 1  -- Assuming role_id 1 is admin
         )
@@ -188,14 +188,14 @@ CREATE POLICY "Admins can update domains"
     TO authenticated
     USING (
         EXISTS (
-            SELECT 1 FROM users u
+            SELECT 1 FROM user_profiles u
             WHERE u.id = auth.uid()
             AND u.role_id = 1  -- Assuming role_id 1 is admin
         )
     )
     WITH CHECK (
         EXISTS (
-            SELECT 1 FROM users u
+            SELECT 1 FROM user_profiles u
             WHERE u.id = auth.uid()
             AND u.role_id = 1
         )
@@ -208,7 +208,7 @@ CREATE POLICY "Admins can delete domains"
     TO authenticated
     USING (
         EXISTS (
-            SELECT 1 FROM users u
+            SELECT 1 FROM user_profiles u
             WHERE u.id = auth.uid()
             AND u.role_id = 1
         )
