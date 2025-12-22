@@ -189,33 +189,33 @@ class QuestionAnswerPair(BaseModel):
     Input structure for each question and answer, including required STT metrics.
     Replaces the simple QnAItem to capture objective fluency data.
     """
-    question_order: int = Field(..., description="The sequence number of the question.")
-    question_text: str = Field(..., description="The text of the question asked.")
-    answer_text: Optional[str] = Field(None, description="The student's full transcribed answer (input).")
+    question_order: int = Field(..., description="질문의 순번입니다.")
+    question_text: str = Field(..., description="진행된 질문의 텍스트입니다.")
+    answer_text: Optional[str] = Field(None, description="학생의 전사된 전체 답변(입력값)입니다.")
     
     # OPTIONAL INPUT 1: Measured duration from the client's recording timer
     audio_duration_seconds: Optional[float] = Field(
         None, 
-        description="The total duration of the recorded audio for this answer, in seconds.",
+        description="이 답변에 대해 녹음된 오디오의 총 시간(초 단위)입니다.",
         ge=0.0
     )
     
     # OPTIONAL INPUT 2: Explicit word count (essential for languages like Korean)
     word_count: Optional[int] = Field(
         None, 
-        description="The precise count of tokens/words in the transcribed answer.",
+        description="전사된 답변 내의 토큰 또는 단어의 정확한 개수입니다.",
         ge=0
     )
 
     total_pause_count: Optional[int] = Field(
         None,
-        description="Total number of detected pauses in the answer.",
+        description="답변에서 감지된 총 일시 정지(멈춤) 횟수입니다.",
         ge=0
     )
 
     total_pause_duration_seconds: Optional[float] = Field(
         None,
-        description="Total cumulative duration of all detected pauses in seconds.",
+        description="감지된 모든 일시 정지(멈춤)의 누적 시간(초 단위)입니다.",
         ge=0.0
     )
 
@@ -234,35 +234,35 @@ class SessionSubmitRequest(BaseModel):
 
 class OverallScores(BaseModel):
     """Maps to the overall interview_score table/summary fields."""
-    content_relevance_score: float = Field(..., description="Average score (0-10) for content relevance across all answers.")
-    structure_score: float = Field(..., description="Average score (0-10) for answer structure (STAR) across all answers.")
-    fluency_score: float = Field(..., description="Average score (0-10) for fluency and flow (low filler words, good pace).")
-    confidence_proxy_score: float = Field(..., description="Average score (0-10) for confidence proxy (simulated speech rate stability/consistency).")
-    overall_score: float = Field(..., description="The final aggregate score (0-100).")
+    content_relevance_score: float = Field(..., description="모든 답변에 대한 내용 관련성의 평균 점수 (0-10).")
+    structure_score: float = Field(..., description="모든 답변에 대한 답변 구조(STAR)의 평균 점수 (0-10).")
+    fluency_score: float = Field(..., description="유창성 및 흐름(낮은 불필요한 추임새 비율, 적절한 속도)에 대한 평균 점수 (0-10).")
+    confidence_proxy_score: float = Field(..., description="자신감 프록시(발화 속도의 안정성 및 일관성 시뮬레이션)에 대한 평균 점수 (0-10).")
+    overall_score: float = Field(..., description="최종 종합 집계 점수 (0-10).")
 
 class SessionSummary(BaseModel):
     """Maps to the summaries table."""
-    strength_text: str = Field(..., description="A 2-3 sentence paragraph summarizing the student's key strengths.")
-    areas_for_growth_text: str = Field(..., description="A 2-3 sentence paragraph summarizing the 2-3 most critical areas for growth.")
+    strength_text: str = Field(..., description="학생의 주요 강점을 요약하는 2~3문장 분량의 단락입니다.")
+    areas_for_growth_text: str = Field(..., description="가장 중요한 2~3가지 개선 필요 사항을 요약하는 2~3문장 분량의 단락입니다.")
 
 class NextStepItem(BaseModel):
     """Maps to the next_steps table."""
-    title: str = Field(..., description="A concise title for the suggested practice activity.")
-    description_text: str = Field(..., description="A 1-2 sentence description of the action the student should take.")
+    title: str = Field(..., description="권장되는 연습 활동에 대한 간결한 제목입니다")
+    description_text: str = Field(..., description="학생이 취해야 할 조치에 대한 1~2문장 분량의 설명입니다.")
 
 class DetailedEvaluationItem(BaseModel):
     """Detailed per-question feedback. Maps to the detailed_feedbacks update."""
-    question_order: int = Field(..., description="The sequence number of the question (1-10).")
+    question_order: int = Field(..., description="질문의 순번입니다 (1-10).")
     
     # Individual Scores (0-10)
-    content_relevance_score: float = Field(..., alias="cr_score", description="Content Relevance score (0-10).")
-    structure_score: float = Field(..., alias="st_score", description="Structure (STAR) score (0-10).")
-    fluency_score: float = Field(..., alias="fl_score", description="Fluency score (0-10).")
-    confidence_score: float = Field(..., alias="cp_score", description="Confidence Proxy score (0-10).")
-    overall_score: float = Field(..., description="Overall score for this specific question (0-10).")
+    content_relevance_score: float = Field(..., alias="cr_score", description="내용 관련성 점수 (0-10).")
+    structure_score: float = Field(..., alias="st_score", description="구조(STAR) 점수 (0-10).")
+    fluency_score: float = Field(..., alias="fl_score", description="유창성 점수 (0-10).")
+    confidence_score: float = Field(..., alias="cp_score", description="자신감 프록시 점수 (0-10).")
+    overall_score: float = Field(..., description="해당 질문에 대한 종합 점수 (0-10).")
 
-    evaluation_text: str = Field(..., description="A short, concise paragraph providing holistic feedback for THIS single question/answer.")
-    is_correct: bool = Field(..., description="True if the core facts/content were accurate and relevant.")
+    evaluation_text: str = Field(..., description="해당 단일 질문/답변에 대한 통합 피드백을 제공하는 짧고 간결한 단락입니다.")
+    is_correct: bool = Field(..., description="핵심 사실이나 내용이 정확하고 질문과 관련이 있는 경우 True로 표시됩니다.")
 
     class Config:
         # Allows accessing fields using both snake_case (Python) and alias (LLM output)
