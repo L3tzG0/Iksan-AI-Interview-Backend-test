@@ -5,6 +5,7 @@ import Button from '../ui/Button';
 import FilterControls from './FilterControls';
 import SearchBar from './SearchBar';
 import Spinner from '../Spinner';
+import SchoolSelect from '../ui/SchoolSelect';
 import { fetchUsers } from '../../services/studentService';
 
 const AccountManagementSection: FC<AccountManagementSectionProps> = ({
@@ -156,11 +157,11 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
         {showSchoolField && (
           <label className="space-y-1 font-semibold text-slate-700 text-sm">
             학교
-            <input
-              value={newStudent.school}
-              onChange={(e) => onUpdateNewStudent('school', e.target.value)}
-              className="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 w-full"
+            <SchoolSelect
+              value={newStudent.school || ''}
+              onChange={(v) => onUpdateNewStudent('school', v)}
               placeholder="예: 부산자동차고등학교"
+              className="w-full"
             />
           </label>
         )}
