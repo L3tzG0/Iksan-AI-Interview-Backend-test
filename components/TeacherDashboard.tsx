@@ -149,24 +149,46 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
         // idx is 0-based for data lines; add 2 to get the original CSV row number (header = 1)
         const rowNumber = idx + 2;
         const cols = line.split(',').map((c) => c.trim());
-        if (cols.length < 4) {
-          errors.push(`${rowNumber}행: 필수 컬럼 누락 (이름, 학교, 학년, 전공)`);
+        const minCols = showSchoolField ? 4 : 3;
+
+        if (cols.length < minCols) {
+          const missing = showSchoolField ? '이름, 학교, 학년, 전공' : '이름, 학년, 전공';
+          errors.push(`${rowNumber}행: 필수 컬럼 누락 (${missing})`);
           return;
         }
-        const [name, school, gradeStr, major, classLabel = ''] = cols;
-        const gradeYear = Number(gradeStr) as 1 | 2 | 3;
-        if (!name || !school || !major || ![1, 2, 3].includes(gradeYear)) {
-          errors.push(`${rowNumber}행: 데이터가 올바르지 않습니다.`);
-          return;
+
+        if (showSchoolField) {
+          const [name, school, gradeStr, major, classLabel = ''] = cols;
+          const gradeYear = Number(gradeStr) as 1 | 2 | 3;
+          if (!name || !school || !major || ![1, 2, 3].includes(gradeYear)) {
+            errors.push(`${rowNumber}행: 데이터가 올바르지 않습니다.`);
+            return;
+          }
+          const previewSchool = school || currentUser.schoolName || '';
+          preview.push({ name, school: previewSchool, gradeYear, major, classLabel });
+          payloads.push({
+            full_name: name,
+            school_name: previewSchool,
+            major_name: major,
+            class_name: classLabel || undefined,
+            grade_level: gradeYear,
+          });
+        } else {
+          const [name, gradeStr, major, classLabel = ''] = cols;
+          const gradeYear = Number(gradeStr) as 1 | 2 | 3;
+          if (!name || !major || ![1, 2, 3].includes(gradeYear)) {
+            errors.push(`${rowNumber}행: 데이터가 올바르지 않습니다.`);
+            return;
+          }
+          const previewSchool = currentUser.schoolName || '';
+          preview.push({ name, school: previewSchool, gradeYear, major, classLabel });
+          payloads.push({
+            full_name: name,
+            major_name: major,
+            class_name: classLabel || undefined,
+            grade_level: gradeYear,
+          });
         }
-        preview.push({ name, school, gradeYear, major, classLabel });
-        payloads.push({
-          full_name: name,
-          school_name: school || currentUser.schoolName,
-          major_name: major,
-          class_name: classLabel || undefined,
-          grade_level: gradeYear,
-        });
       });
 
       setBulkErrors(errors);
