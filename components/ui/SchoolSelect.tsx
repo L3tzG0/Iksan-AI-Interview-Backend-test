@@ -11,9 +11,20 @@ interface Props {
   required?: boolean;
   placeholder?: string;
   className?: string;
-}
+  spinnerPositionClassName?: string;
+  dropdownPositionClassName?: string;
+} 
 
-const SchoolSelect: React.FC<Props> = ({ label, value, onChange, required = false, placeholder = '선택하거나 입력하세요', className = '' }) => {
+const SchoolSelect: React.FC<Props> = ({
+  label,
+  value,
+  onChange,
+  required = false,
+  placeholder = '선택하거나 입력하세요',
+  className = '',
+  spinnerPositionClassName = 'absolute right-3 top-9',
+  dropdownPositionClassName = 'absolute left-0 right-0 mt-1',
+}) => { 
   const [inputValue, setInputValue] = useState(value || '');
   const [suggestions, setSuggestions] = useState<BackendSchool[]>([]);
   const [loading, setLoading] = useState(false);
@@ -120,15 +131,15 @@ const SchoolSelect: React.FC<Props> = ({ label, value, onChange, required = fals
       )} */}
 
       {loading && (
-        <div className="absolute right-3 top-9">
+        <div className={spinnerPositionClassName}>
           <Spinner size="small" label="" />
         </div>
-      )}
+      )} 
 
       {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
 
       {open && (suggestions.length > 0 || (!loading && inputValue)) && (
-        <div className="absolute left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg z-50 max-h-60 overflow-auto">
+        <div className={`${dropdownPositionClassName} bg-white border rounded-lg shadow-lg z-50 max-h-60 overflow-auto`}>
           {suggestions.map((s) => (
             <button
               key={s.id}
