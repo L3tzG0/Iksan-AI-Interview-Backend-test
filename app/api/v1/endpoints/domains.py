@@ -43,37 +43,37 @@ async def get_all_domains(
     domain_service = DomainService(supabase)
     return await domain_service.get_all_domains(include_inactive=include_inactive)
 
-
-@router.get(
-    "/{domain_id}",
-    response_model=AllowedDomainResponse,
-    summary="Get domain by ID",
-    description="Retrieve a specific allowed email domain by its ID.",
-)
-async def get_domain(
-    domain_id: int,
-    supabase: Annotated[AsyncClient, Depends(get_supabase)],
-    _: RoleContext = Depends(require_role(["admin"]))
-):
-    """
-    Get a specific domain by ID.
+# commented out to simplify initial implementation
+# @router.get(
+#     "/{domain_id}",
+#     response_model=AllowedDomainResponse,
+#     summary="Get domain by ID",
+#     description="Retrieve a specific allowed email domain by its ID.",
+# )
+# async def get_domain(
+#     domain_id: int,
+#     supabase: Annotated[AsyncClient, Depends(get_supabase)],
+#     _: RoleContext = Depends(require_role(["admin"]))
+# ):
+#     """
+#     Get a specific domain by ID.
     
-    **Permissions:** Admin only
+#     **Permissions:** Admin only
     
-    **Path Parameters:**
-    - `domain_id`: Domain ID
+#     **Path Parameters:**
+#     - `domain_id`: Domain ID
     
-    **Returns:**
-    - Domain details
-    """
-    domain_service = DomainService(supabase)
-    domain = await domain_service.get_domain_by_id(domain_id)
-    if not domain:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Domain with ID {domain_id} not found"
-        )
-    return domain
+#     **Returns:**
+#     - Domain details
+#     """
+#     domain_service = DomainService(supabase)
+#     domain = await domain_service.get_domain_by_id(domain_id)
+#     if not domain:
+#         raise HTTPException(
+#             status_code=status.HTTP_404_NOT_FOUND,
+#             detail=f"Domain with ID {domain_id} not found"
+#         )
+#     return domain
 
 
 @router.post(
@@ -105,7 +105,6 @@ async def create_domain(
         domain_data=domain_data,
         added_by=str(role_context.user.id),
     )
-
 
 @router.patch(
     "/{domain_id}",
@@ -168,102 +167,105 @@ async def delete_domain(
     return None
 
 
-@router.post(
-    "/{domain_id}/activate",
-    response_model=AllowedDomainResponse,
-    summary="Activate a domain",
-    description="Activate a previously deactivated domain.",
-)
-async def activate_domain(
-    domain_id: int,
-    supabase: Annotated[AsyncClient, Depends(get_supabase)],
-    _: RoleContext = Depends(require_role(["admin"]))
-):
-    """
-    Activate a domain.
+# commented out to simplify initial implementation
+# @router.post(
+#     "/{domain_id}/activate",
+#     response_model=AllowedDomainResponse,
+#     summary="Activate a domain",
+#     description="Activate a previously deactivated domain.",
+# )
+# async def activate_domain(
+#     domain_id: int,
+#     supabase: Annotated[AsyncClient, Depends(get_supabase)],
+#     _: RoleContext = Depends(require_role(["admin"]))
+# ):
+#     """
+#     Activate a domain.
     
-    **Permissions:** Admin only
+#     **Permissions:** Admin only
     
-    **Path Parameters:**
-    - `domain_id`: Domain ID
+#     **Path Parameters:**
+#     - `domain_id`: Domain ID
     
-    **Returns:**
-    - Updated domain details
-    """
-    domain_service = DomainService(supabase)
-    return await domain_service.toggle_domain_status(
-        domain_id=domain_id,
-        is_active=True,
-    )
+#     **Returns:**
+#     - Updated domain details
+#     """
+#     domain_service = DomainService(supabase)
+#     return await domain_service.toggle_domain_status(
+#         domain_id=domain_id,
+#         is_active=True,
+#     )
 
 
-@router.post(
-    "/{domain_id}/deactivate",
-    response_model=AllowedDomainResponse,
-    summary="Deactivate a domain",
-    description="Deactivate a domain to temporarily block registrations from it.",
-)
-async def deactivate_domain(
-    domain_id: int,
-    supabase: Annotated[AsyncClient, Depends(get_supabase)],
-    _: RoleContext = Depends(require_role(["admin"]))
-):
-    """
-    Deactivate a domain (soft delete).
+# commented out to simplify initial implementation
+# @router.post(
+#     "/{domain_id}/deactivate",
+#     response_model=AllowedDomainResponse,
+#     summary="Deactivate a domain",
+#     description="Deactivate a domain to temporarily block registrations from it.",
+# )
+# async def deactivate_domain(
+#     domain_id: int,
+#     supabase: Annotated[AsyncClient, Depends(get_supabase)],
+#     _: RoleContext = Depends(require_role(["admin"]))
+# ):
+#     """
+#     Deactivate a domain (soft delete).
     
-    **Permissions:** Admin only
+#     **Permissions:** Admin only
     
-    **Path Parameters:**
-    - `domain_id`: Domain ID
+#     **Path Parameters:**
+#     - `domain_id`: Domain ID
     
-    **Returns:**
-    - Updated domain details
+#     **Returns:**
+#     - Updated domain details
     
-    **Note:** This prevents new registrations from this domain but doesn't
-    affect existing users.
-    """
-    domain_service = DomainService(supabase)
-    return await domain_service.toggle_domain_status(
-        domain_id=domain_id,
-        is_active=False,
-    )
+#     **Note:** This prevents new registrations from this domain but doesn't
+#     affect existing users.
+#     """
+#     domain_service = DomainService(supabase)
+#     return await domain_service.toggle_domain_status(
+#         domain_id=domain_id,
+#         is_active=False,
+#     )
 
 
-@router.post(
-    "/check",
-    response_model=DomainCheckResponse,
-    summary="Check if email domain is allowed",
-    description="Check if an email address has an allowed domain. Useful for client-side validation.",
-)
-async def check_domain(
-    check_request: DomainCheckRequest,
-    supabase: Annotated[AsyncClient, Depends(get_supabase)],
-):
-    """
-    Check if an email domain is allowed for registration.
+# commented out to simplify initial implementation
+# @router.post(
+#     "/check",
+#     response_model=DomainCheckResponse,
+#     summary="Check if email domain is allowed",
+#     description="Check if an email address has an allowed domain. Useful for client-side validation.",
+# )
+# async def check_domain(
+#     check_request: DomainCheckRequest,
+#     supabase: Annotated[AsyncClient, Depends(get_supabase)],
+# ):
+#     """
+#     Check if an email domain is allowed for registration.
     
-    **Permissions:** Public (no authentication required)
+#     **Permissions:** Public (no authentication required)
     
-    **Request Body:**
-    - `email`: Email address to check
+#     **Request Body:**
+#     - `email`: Email address to check
     
-    **Returns:**
-    - Whether the domain is allowed
-    - Domain name
-    - Descriptive message
-    """
-    email = check_request.email
-    domain = email.split("@")[-1].lower()
-    domain_service = DomainService(supabase)
-    is_allowed = await domain_service.is_domain_allowed(domain)
+#     **Returns:**
+#     - Whether the domain is allowed
+#     - Domain name
+#     - Descriptive message
+#     """
+#     email = check_request.email
+#     domain = email.split("@")[-1].lower()
+#     domain_service = DomainService(supabase)
+#     is_allowed = await domain_service.is_domain_allowed(domain)
 
-    return DomainCheckResponse(
-        email=email,
-        domain=domain,
-        is_allowed=is_allowed,
-        message=(
-            "This email domain is allowed for registration"
-            if is_allowed
-            else "This email domain is not allowed for registration"
-        ),
-    )
+#     return DomainCheckResponse(
+#         email=email,
+#         domain=domain,
+#         is_allowed=is_allowed,
+#         message=(
+#             "This email domain is allowed for registration"
+#             if is_allowed
+#             else "This email domain is not allowed for registration"
+#         ),
+#     )
