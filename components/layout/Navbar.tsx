@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { User } from '../../types';
-import { LogOutIcon, ChevronDownIcon, GraduationCapIcon, HomeIcon, SparklesIcon, ChartIcon, UsersIcon } from '../icons';
+import { LogOutIcon, ChevronDownIcon, GraduationCapIcon, HomeIcon, SparklesIcon, ChartIcon, UsersIcon, FileTextIcon } from '../icons';
 
 interface NavbarProps {
   user: User;
@@ -31,6 +31,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, currentPath, onNavigate
 
     if (user.role === 'teacher' || user.role === 'admin') {
       base.push({ path: '/teacher/dashboard', label: '대시보드', icon: ChartIcon });
+      base.push({ path: '/teacher/interview/preview', label: '학생 미리보기', icon: FileTextIcon });
       if (user.role === 'admin') {
         base.push({ path: '/admin/domains', label: '도메인 관리', icon: UsersIcon });
       }
@@ -42,6 +43,9 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, currentPath, onNavigate
   }, [user.role, hasResults]);
 
   const isNavActive = (path: string) => {
+    if (path === '/' && (currentPath === '/' || currentPath === '/student/home' || currentPath === '/teacher/home')) {
+      return true;
+    }
     if (path === '/teacher/dashboard' && (currentPath.startsWith('/teacher/students') || currentPath.startsWith('/teacher/dashboard'))) {
       return true;
     }
@@ -73,7 +77,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, currentPath, onNavigate
                     className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all duration-200 ${
                       active
                         ? 'bg-primary text-white shadow-soft shadow-primary/10'
-                        : 'text-slate-500 hover:text-primary hover:bg-primary-lightest/80'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-700'
                     } ${item.disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
                   >
                     <Icon className={`w-4 h-4 ${active ? 'text-white' : 'text-primary'}`} />
