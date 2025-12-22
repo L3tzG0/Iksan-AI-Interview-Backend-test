@@ -431,14 +431,20 @@ export const fetchSchools = async (page = 1, pageSize = 20): Promise<PaginatedSc
 };
 
 export interface PaginatedMajors {
-  data: Major[];
+  items: Major[];
   total?: number;
   page?: number;
   pageSize?: number;
 }
 
-export const fetchMajors = async (page = 1, pageSize = 20): Promise<PaginatedMajors> => {
-  const response = await fetch(`${API_BASE}/api/v1/majors?page=${page}&page_size=${pageSize}`, {
+export const fetchMajors = async (page = 1, pageSize = 20, q?: string): Promise<PaginatedMajors> => {
+  const params = new URLSearchParams();
+  params.set('page', String(page));
+  params.set('page_size', String(pageSize));
+  if (q) params.set('search', q);
+
+  const url = `${API_BASE}/api/v1/majors${params.toString() ? `?${params.toString()}` : ''}`;
+  const response = await fetch(url, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
@@ -458,7 +464,7 @@ export const fetchMajors = async (page = 1, pageSize = 20): Promise<PaginatedMaj
     throw new Error(msg || '전공 목록을 불러오지 못했습니다.');
   }
 
-  const majors = data?.data || data?.majors || data || [];
+  const majors = data?.data || data?.majors || data.items || [];
   const total = data?.total ?? data?.total_count ?? data?.count;
   const normalized: Major[] = Array.isArray(majors)
     ? majors.map((m: any) => ({
