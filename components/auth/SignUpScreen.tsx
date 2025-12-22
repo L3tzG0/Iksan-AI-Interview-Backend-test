@@ -37,14 +37,52 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({
     const [isSuccessOpen, setIsSuccessOpen] = useState(false);
     const [createdUser, setCreatedUser] = useState<User | null>(null);
 
+    const [errorModal, setErrorModal] = useState<{ isOpen: boolean; title: string; description?: string }>({
+        isOpen: false,
+        title: "",
+        description: "",
+    });
+
+    const parseError = (err: any): string | undefined => {
+        const raw = err && (err.message ?? String(err)) ? String(err.message ?? err) : undefined;
+        if (!raw) return undefined;
+        // Try parse as JSON first (API sometimes returns JSON text)
+        try {
+            const parsed = JSON.parse(raw);
+            if (typeof parsed === 'string') return parsed;
+            if (parsed?.detail) return parsed.detail;
+            if (parsed?.message) return parsed.message;
+            if (parsed?.error) return parsed.error;
+            if (parsed?.errors) {
+                if (typeof parsed.errors === 'string') return parsed.errors;
+                if (Array.isArray(parsed.errors) && parsed.errors.length) return parsed.errors.join(', ');
+                if (typeof parsed.errors === 'object') {
+                    const vals = Object.values(parsed.errors).flat().map(String);
+                    return vals.join(', ');
+                }
+            }
+            const textValues = Object.values(parsed).filter(v => typeof v === 'string');
+            if (textValues.length) return textValues.join(' ');
+            return undefined;
+        } catch {
+            // not JSON
+        }
+        // Try extract known patterns
+        const match = raw.match(/Registration error:\s*(.+)/i);
+        if (match) return match[1];
+        // Strip surrounding braces/quotes and return trimmed text
+        const noBraces = raw.replace(/^[\s"'\{\[]+|[\s"'\}\]]+$/g, '').trim();
+        return noBraces || undefined;
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (password !== confirmPassword) {
-            alert("비밀번호가 일치하지 않습니다.");
+            setErrorModal({ isOpen: true, title: "비밀번호가 일치하지 않습니다.", description: "비밀번호를 다시 확인해주세요." });
             return;
         }
         if (role === "teacher" && !schoolName.trim()) {
-            alert("학교를 선택하거나 입력해주세요.");
+            setErrorModal({ isOpen: true, title: "학교를 선택하거나 입력해주세요." });
             return;
         }
         // if (role === 'admin' && !organization.trim()) {
@@ -72,7 +110,8 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({
             setIsSuccessOpen(true);
         } catch (error) {
             console.error(error);
-            alert("등록에 실패했습니다.");
+            const description = parseError(error) || '알 수 없는 오류가 발생했습니다.';
+            setErrorModal({ isOpen: true, title: "등록에 실패했습니다.", description });
         } finally {
             setIsLoading(false);
         }
@@ -222,6 +261,16 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({
                     </div>
                 )}
             </StatusModal>
+
+            
+            <StatusModal
+                isOpen={errorModal.isOpen}
+                type="error"
+                title={errorModal.title}
+                description={errorModal.description}
+                onClose={() => setErrorModal({ ...errorModal, isOpen: false })}
+                primaryAction={{ label: "확인", onClick: () => setErrorModal({ ...errorModal, isOpen: false }), variant: "danger" }}
+            />
         </AuthLayout>
     );
 };
