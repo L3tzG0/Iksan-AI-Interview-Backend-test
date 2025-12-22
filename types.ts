@@ -4,6 +4,20 @@ export interface School {
     name: string;
 }
 
+// Backend API representation for schools
+export interface BackendSchool {
+    id: number;
+    school_name: string;
+}
+
+export interface SchoolsResponse {
+    items: BackendSchool[];
+    total: number;
+    skip: number;
+    limit: number;
+    has_more: boolean;
+}
+
 export interface Major {
     id: string;
     name: string;
