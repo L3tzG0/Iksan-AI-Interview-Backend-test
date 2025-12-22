@@ -17,6 +17,7 @@ psycopg2-binary==2.9.11
 redis==7.1.0
 google-genai==1.55.0
 openai==2.14.0
+langchain-openai==1.1.6
 
 # Load Testing
 locust>=2.20.0

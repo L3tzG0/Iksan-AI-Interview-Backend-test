@@ -13,7 +13,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - Q_GEN_GPT5 - %(mes
 
 # --- Internal LLM Output Wrapper ---
 class QuestionGenerationResponse(BaseModel):
-    """The complete JSON structure expected from the GPT-5 API."""
+    """The complete JSON structure expected from the GPT-4o API."""
     questions: List[GeneratedQuestion]
 
 # --- Configuration ---
@@ -46,7 +46,7 @@ async def generate_interview_questions_gpt(
         reference_questions: Optional[List[str]] = None
 ) -> List[GeneratedQuestion]:
     """
-    Calls the GPT-5 Proxy API using the OpenAI SDK to generate 
+    Calls the GPT-4o Proxy API using the OpenAI SDK to generate 
     structured interview questions.
     """
     global global_client 
@@ -59,10 +59,10 @@ async def generate_interview_questions_gpt(
                 base_url=f"{settings.GPT_API_BASE_URL}/v1",
                 api_key=settings.ELICE_API_KEY
             )
-            logging.info("GPT-5 Async Client successfully initialized.")
+            logging.info("GPT-4o Async Client successfully initialized.")
         except Exception as e:
-            logging.error(f"FATAL: Could not initialize GPT-5 client: {e}")
-            raise Exception("GPT-5 API Client initialization failed.")
+            logging.error(f"FATAL: Could not initialize GPT-4o client: {e}")
+            raise Exception("GPT-4o API Client initialization failed.")
 
     # Incorporate RAG context
     rag_context_text = ""
@@ -91,10 +91,10 @@ async def generate_interview_questions_gpt(
         
         if not validated_response or len(validated_response.questions) != 10:
             count = len(validated_response.questions) if validated_response else 0
-            logging.warning(f"GPT-5 returned {count} questions, expected 10.")
+            logging.warning(f"GPT-4o returned {count} questions, expected 10.")
             
         return validated_response.questions if validated_response else []
 
     except Exception as e:
-        logging.error(f"GPT-5 API Error: {e}")
-        raise Exception(f"Failed to generate questions via GPT-5: {e}")
+        logging.error(f"GPT-4o API Error: {e}")
+        raise Exception(f"Failed to generate questions via GPT-4o: {e}")

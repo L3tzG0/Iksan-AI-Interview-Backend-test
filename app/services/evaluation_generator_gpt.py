@@ -126,11 +126,11 @@ To maintain a natural, conversational coaching flow, vary your opening sentence 
 **CRITICAL INITIAL TASK:** Deduce the candidate's target major or department (e.g., Business, Biology, Engineering). Use this for Guideline 1.
 
 #################### THE 5 CRITICAL COACHING GUIDELINES ####################
-1. DEPARTMENTAL ALIGNMENT: Compare answers against the deduced major. Flag lack of subject-matter curiosity.
-2. LOGICAL RIGOR: Admissions officers value critical thinking. Detail the 'Process' of the student's thought.
-3. SPECIFICITY OVER GENERALITY: Encourage specific mentions of books, projects, or research rather than vague lists.
-4. ACADEMIC SOPHISTICATION: Suggest advanced terminology related to their chosen field of study.
-5. INTELLECTUAL CHARACTER: Tie delivery/structure to scholarly traits (e.g., resilience, curiosity, or ethics).
+1. DEPARTMENTAL ALIGNMENT & SOPHISTICATION: Compare answers against the deduced major. Suggest advanced terminology and scholarly discourse. Flag lack of subject-matter curiosity or misalignment with departmental values.
+2. LOGICAL RIGOR, PROCESS OVER OUTCOME: Evaluate how the student thinks, not just the result. Detail the 'Process' of the student's thought. Admissions value the journey from premise to conclusion; reward intellectual rigor over simple success.
+3. SPECIFICITY & QUANTIFICATION PSYCHOLOGY: Actively nudge for metrics (%, $, time, scale) as credibility signals. Even for strong answers, explain that quantification is required to visualize impact and build trust.
+4. INTELLECTUAL CHARACTER: Tie delivery and structure to scholarly traits (resilience, curiosity, ethics). Evaluate if the student's persona matches the demands of high-level academia.
+5. CONSTRUCTIVE PERFECTIONISM: No answer is "perfect". Even at high scores, suggest advanced industry terminology. Congratulatory feedback without a "Next Step" is a failure.
 
 #################### SCORING RUBRIC (BARS 0.0 - 10.0) ####################
 
@@ -285,7 +285,7 @@ def _calculate_overall_scores(feedback_items: List[DetailedEvaluationItem]) -> O
     )
 
 async def generate_session_evaluation_gpt(qa_pairs: List[QuestionAnswerPair], q_type: str = "job") -> EvaluationBatchResponse:
-    """Calls GPT-5 via Proxy to generate structured evaluation."""
+    """Calls GPT-4o via Proxy to generate structured evaluation."""
     global global_client 
     
     if global_client is None:
@@ -294,10 +294,10 @@ async def generate_session_evaluation_gpt(qa_pairs: List[QuestionAnswerPair], q_
                 base_url=f"{settings.GPT_API_BASE_URL}/v1",
                 api_key=settings.ELICE_API_KEY
             )
-            logging.info("GPT-5 Async Client for Evaluation successfully initialized.")
+            logging.info("GPT-4o Async Client for Evaluation successfully initialized.")
         except Exception as e:
-            logging.error(f"FATAL: Could not initialize GPT-5 client: {e}")
-            raise Exception("GPT-5 API Client initialization failed.")
+            logging.error(f"FATAL: Could not initialize GPT-4o client: {e}")
+            raise Exception("GPT-4o API Client initialization failed.")
 
     print(f"Question type processed: {q_type.lower()}")
     
@@ -432,5 +432,5 @@ async def generate_session_evaluation_gpt(qa_pairs: List[QuestionAnswerPair], q_
         )
 
     except Exception as e:
-        logging.error(f"GPT-5 Evaluation Error: {e}")
+        logging.error(f"GPT-4o Evaluation Error: {e}")
         raise Exception(f"Failed to generate evaluation: {e}")

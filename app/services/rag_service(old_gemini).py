@@ -2,7 +2,7 @@ import os
 import re
 import asyncio
 from typing import List, Optional
-from langchain_openai import OpenAIEmbeddings
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_postgres.vectorstores import PGVector, DistanceStrategy
 from langchain_core.documents import Document
 from dotenv import load_dotenv
@@ -15,10 +15,10 @@ from app.core.config import settings
 load_dotenv() 
 
 # --- Configuration ---
-OPENAI_API_KEY = settings.ELICE_API_KEY
+GEMINI_API_KEY = settings.GEMINI_API_KEY
+DB_PASSWORD = settings.DB_PASSWORD
 COLLECTION_NAME_JOB = "interview_question_bank"
 COLLECTION_NAME_UNI = "uni_interview_question_bank"
-OPENAI_API_BASE = settings.GPT_EMBED_BASE_URL
 
 # NOTE: Using the TRANSACTION POOLER address (Port 6543) for maximum concurrency and scalability.
 # CONNECTION_STRING = f"postgresql://postgres.hjddiycvtlzgialqxcof:{DB_PASSWORD}@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres"
@@ -103,15 +103,14 @@ HIGH_VALUE_TERMS_UNI = [
 
 # --- RAG Initialization Check ---
 # Embeddings are initialized once globally as they are immutable and thread-safe.
-_embeddings: Optional[OpenAIEmbeddings] = None
+_embeddings: Optional[GoogleGenerativeAIEmbeddings] = None
 _rag_is_ready = False
 
 try:
-    if CONNECTION_STRING and OPENAI_API_KEY:
-        _embeddings = OpenAIEmbeddings(
-            model="text-embedding-3-large",
-            openai_api_key=OPENAI_API_KEY,
-            openai_api_base=OPENAI_API_BASE
+    if DB_PASSWORD and GEMINI_API_KEY:
+        _embeddings = GoogleGenerativeAIEmbeddings(
+            model="gemini-embedding-001",
+            google_api_key=GEMINI_API_KEY
         )
         _rag_is_ready = True
     else:
