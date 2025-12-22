@@ -9,7 +9,7 @@ const authHeaders = () => {
 
 export const getSchools = async (params?: { q?: string; limit?: number; skip?: number }): Promise<SchoolsResponse> => {
   const searchParams = new URLSearchParams();
-  if (params?.q) searchParams.append('q', params.q);
+  if (params?.q) searchParams.append('search', params.q);
   if (params?.limit != null) searchParams.append('limit', String(params.limit));
   if (params?.skip != null) searchParams.append('skip', String(params.skip));
 
