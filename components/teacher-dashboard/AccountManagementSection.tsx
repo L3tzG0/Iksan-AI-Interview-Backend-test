@@ -255,7 +255,7 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
                   <thead className="bg-slate-50 text-slate-500">
                     <tr>
                       <th className="px-2 py-1 text-left">이름</th>
-                      <th className="px-2 py-1 text-left">학교</th>
+                      {showSchoolField && <th className="px-2 py-1 text-left">학교</th>}
                       <th className="px-2 py-1 text-left">학년</th>
                       <th className="px-2 py-1 text-left">전공</th>
                       <th className="px-2 py-1 text-left">반</th>
@@ -265,7 +265,7 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
                     {bulkPreview.slice(0, 5).map((row, idx) => (
                       <tr key={`${row.name}-${idx}`}>
                         <td className="px-2 py-1">{row.name}</td>
-                        <td className="px-2 py-1">{row.school}</td>
+                        {showSchoolField && <td className="px-2 py-1">{row.school}</td>}
                         <td className="px-2 py-1">{row.gradeYear}</td>
                         <td className="px-2 py-1">{row.major}</td>
                         <td className="px-2 py-1">{row.classLabel}</td>
