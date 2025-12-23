@@ -3,6 +3,7 @@ import type { InterviewReport } from '../types';
 import InterviewReportView from './InterviewReportView';
 import Button from './ui/Button';
 import jsPDF from 'jspdf';
+import { ensurePdfFont } from '../utils/pdfFont';
 
 interface ResultsScreenProps {
   report: InterviewReport;
@@ -39,6 +40,7 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({ report, onRetry, studentM
     setIsExporting(true);
     try {
       const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+      await ensurePdfFont(pdf);
       const pageWidth =
         pdf.internal?.pageSize?.getWidth?.() ??
         (pdf.internal?.pageSize as any)?.width ??
@@ -69,7 +71,7 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({ report, onRetry, studentM
       ) => {
         if (!text) return;
         const lines = Array.isArray(text) ? text : [text];
-        pdf.setFont('helvetica', weight);
+        pdf.setFont('NotoSansKR', weight);
         pdf.setFontSize(size);
         const lineHeight = size * 0.5 + 3; // more spacing to avoid stacking
 
@@ -88,7 +90,7 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({ report, onRetry, studentM
 
       const addSectionTitle = (title: string) => {
         ensureSpace(10);
-        pdf.setFont('helvetica', 'bold');
+        pdf.setFont('NotoSansKR', 'bold');
         pdf.setFontSize(14);
         pdf.text(title, margin, cursorY);
         cursorY += 8;
@@ -98,12 +100,16 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({ report, onRetry, studentM
         cursorY += 6;
       };
 
-      const addKeyValue = (label: string, value?: string | number) => {
+      const addKeyValue = (
+        label: string,
+        value?: string | number,
+        options: { lineHeight?: number; gapAfter?: number } = {}
+      ) => {
         if (!value && value !== 0) return;
         const combined = `${label}: ${value}`;
-        const lineHeight = 8;
-        const gapAfter = 8;
-        pdf.setFont('helvetica', 'bold');
+        const lineHeight = options.lineHeight ?? 8;
+        const gapAfter = options.gapAfter ?? 8;
+        pdf.setFont('NotoSansKR', 'bold');
         pdf.setFontSize(11);
         const wrapped = pdf.splitTextToSize(combined, contentWidth);
         const totalHeight = wrapped.length * lineHeight;
@@ -115,61 +121,61 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({ report, onRetry, studentM
       };
 
       // Header
-      pdf.setFont('helvetica', 'bold');
+      pdf.setFont('NotoSansKR', 'bold');
       pdf.setFontSize(18);
-      pdf.text('AI Interview Report', margin, cursorY);
+      pdf.text('AI 면접 리포트', margin, cursorY);
       cursorY += 10;
 
       if (studentMeta) {
-        addSectionTitle('Student Information');
-        addKeyValue('Name', studentMeta.name || 'N/A');
-        addKeyValue('School', studentMeta.schoolName || 'N/A');
-        addKeyValue('Grade', studentMeta.grade ? `${studentMeta.grade}` : 'N/A');
-        addKeyValue('Major', studentMeta.major || 'N/A');
+        addSectionTitle('학생 정보');
+        addKeyValue('이름', studentMeta.name || 'N/A', { gapAfter: 4 });
+        addKeyValue('학교', studentMeta.schoolName || 'N/A', { gapAfter: 4 });
+        addKeyValue('학년', studentMeta.grade ? `${studentMeta.grade}` : 'N/A', { gapAfter: 4 });
+        addKeyValue('전공', studentMeta.major || 'N/A', { gapAfter: 6 });
       }
 
-      addSectionTitle('Scores');
-      addKeyValue('Overall Score', Math.round(totalScore));
-      addKeyValue('Content Relevance', Math.round(scores.contentRelevance));
+      addSectionTitle('점수');
+      addKeyValue('총점', Math.round(totalScore), { gapAfter: 4 });
+      addKeyValue('내용 적합성', Math.round(scores.contentRelevance), { gapAfter: 4 });
       cursorY += 2; // extra padding to prevent stacking on next line
-      addKeyValue('Structure', Math.round(scores.structure));
-      addKeyValue('Fluency', Math.round(scores.fluency));
-      addKeyValue('Confidence', Math.round(scores.confidence));
+      addKeyValue('구성', Math.round(scores.structure), { gapAfter: 4 });
+      addKeyValue('유창성', Math.round(scores.fluency), { gapAfter: 4 });
+      addKeyValue('자신감', Math.round(scores.confidence), { gapAfter: 6 });
 
       const strengths = report.summary?.strengths || report.strengthSummary;
       const growth = report.summary?.areasForGrowth || report.areasForGrowth;
       const steps = report.nextStepsDetailed?.map((s) => `${s.title}: ${s.description}`) || report.nextSteps;
 
       if (strengths) {
-        addSectionTitle('Strengths');
+        addSectionTitle('강점');
         addTextBlock(strengths, { size: 11 });
       }
 
       if (growth) {
-        addSectionTitle('Areas for Growth');
+        addSectionTitle('개선 영역');
         addTextBlock(growth, { size: 11 });
       }
 
       if (steps && steps.length) {
-        addSectionTitle('Next Steps');
+        addSectionTitle('다음 단계');
         addTextBlock(steps, { size: 11, bullet: true });
       }
 
       const feedback = report.detailedFeedback || [];
       if (feedback.length) {
-        addSectionTitle('Question Feedback');
+        addSectionTitle('문항별 피드백');
         feedback.forEach((item, idx) => {
           const questionLabel = item.question_order || idx + 1;
           addTextBlock(`Q${questionLabel}: ${item.question}`, { size: 12, weight: 'bold', gap: 3 });
-          if (item.answer) addTextBlock(`Student Answer: ${item.answer}`, { size: 11, gap: 3 });
-          if (item.evaluation) addTextBlock(`AI Feedback: ${item.evaluation}`, { size: 11, gap: 3 });
+          if (item.answer) addTextBlock(`학생 답변: ${item.answer}`, { size: 11, gap: 3 });
+          if (item.evaluation) addTextBlock(`AI 피드백: ${item.evaluation}`, { size: 11, gap: 3 });
           const sectionLine = [
-            `Content ${item.content_relevance_score ?? '-'} |`,
-            `Structure ${item.structure_score ?? '-'} |`,
-            `Fluency ${item.fluency_score ?? '-'} |`,
-            `Confidence ${item.confidence_score ?? '-'}`,
+            `내용 적합성 ${item.content_relevance_score ?? '-'} |`,
+            `구성 ${item.structure_score ?? '-'} |`,
+            `유창성 ${item.fluency_score ?? '-'} |`,
+            `자신감 ${item.confidence_score ?? '-'}`,
           ].join(' ');
-          addTextBlock(`Scores: ${sectionLine}`, { size: 10, gap: 8 });
+          addTextBlock(`점수: ${sectionLine}`, { size: 10, gap: 8 });
         });
       }
 
@@ -230,3 +236,4 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({ report, onRetry, studentM
 };
 
 export default ResultsScreen;
+
