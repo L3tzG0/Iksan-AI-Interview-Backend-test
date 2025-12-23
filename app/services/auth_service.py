@@ -194,8 +194,8 @@ class AuthService:
                 domain = register_data.email.split("@", 1)[1].lower() if "@" in register_data.email else "the provided email domain"
                 friendly_detail = (
                     # "Registration is restricted to approved email domains. "
-                    f'The domain "{domain}" is not authorized for registration. '
-                    "Contact your administrator for if you think this is a mistake."
+                    f'도메인 "{domain}"은 등록이 승인되지 않았습니다. '
+                    "실수라고 생각되면 조직 관리자에게 문의하세요."
                 )
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
