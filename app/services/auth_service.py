@@ -184,6 +184,23 @@ class AuthService:
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="A student with this student_id already exists."
                 )
+            # Surface a clearer message when the auth hook blocks disallowed domains
+            domain_hook_signatures = (
+                "before_user_created_hook",
+                "error running hook uri",
+                "registration is restricted to approved email domains",
+            )
+            if any(sig in error_message.lower() for sig in domain_hook_signatures):
+                domain = register_data.email.split("@", 1)[1].lower() if "@" in register_data.email else "the provided email domain"
+                friendly_detail = (
+                    # "Registration is restricted to approved email domains. "
+                    f'The domain "{domain}" is not authorized for registration. '
+                    "Contact your administrator for if you think this is a mistake."
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=friendly_detail
+                )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Registration error: {error_message}"
