@@ -70,6 +70,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
   const sttSocketRef = useRef<WebSocket | null>(null);
   const sttFinalTranscriptRef = useRef('');
   const sttInterimRef = useRef('');
+  const hiddenTranscriptionRef = useRef(''); // For even questions: store transcription without displaying
   const isRecordingRef = useRef(isRecording);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -367,10 +368,20 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
                 sttInterimRef.current = payload.transcript;
               }
               const combined = `${sttFinalTranscriptRef.current} ${sttInterimRef.current}`.trim();
-              setCurrentAnswer(combined);
+              
+              // For even questions, store transcription without displaying it
               const question = questions[currentQuestionIndex];
-              if (question) {
-                updateDraft(question.id, { text: combined });
+              const isOddQuestion = question?.questionOrder % 2 === 1;
+              
+              if (isOddQuestion) {
+                // Odd questions: display transcription normally
+                setCurrentAnswer(combined);
+                if (question) {
+                  updateDraft(question.id, { text: combined });
+                }
+              } else {
+                // Even questions: hide transcription, only store it
+                hiddenTranscriptionRef.current = combined;
               }
             }
           } catch {
@@ -497,9 +508,13 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
     if (!question) return;
 
     stopCurrentRecording();
-    const finalText = (sttSummary?.finalTranscript || currentAnswer).trim();
+    const isOddQuestion = question.questionOrder % 2 === 1;
+    // For even questions, merge hidden transcription with typed answer
+    const finalText = isOddQuestion 
+      ? (sttSummary?.finalTranscript || currentAnswer).trim()
+      : `${hiddenTranscriptionRef.current} ${currentAnswer}`.trim() || (sttSummary?.finalTranscript || '').trim();
     if (!options?.allowEmpty && !finalText) {
-      setInlineError('답변이 비어 있어요. 최소 한 문장을 작성해 주세요.');
+      setInlineError('답변이 비어 있어요. 답변을 주세요.');
       return;
     }
 
@@ -553,7 +568,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
   useEffect(() => {
     if (timeLeft === 0 && !isTimerPaused) {
       if (!currentAnswer.trim()) {
-        setInlineError('시간이 다 되었습니다. 답변을 작성해 주세요.');
+        setInlineError('시간이 다 되었습니다. 답변을 주세요.');
         setIsTimerPaused(true);
         return;
       }
@@ -615,6 +630,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
     const text = draft?.text || '';
     setCurrentAnswer(text);
     sttFinalTranscriptRef.current = text;
+    hiddenTranscriptionRef.current = ''; // Reset hidden transcription for new question
     setRecordedAudioUrl(draft?.audioUrl || null);
     setSttSummary(null);
       setSttMetricsByQuestion((prev) => {
@@ -679,7 +695,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
     { title: '감정 + 숫자', description: '느낀 점과 수치를 함께 말하면 설득력 있는 답변이 됩니다.' },
   ];
 
-  console.log('Render InterviewSession', { currentQuestion});
+  // console.log('Render InterviewSession', { currentQuestion});
 
   const defaultAnswerPlaceholder = '여기에 답을 적어주세요';
   const placeholderText = currentQuestion.questionOrder % 2 === 1 ? '이 질문은 음성 녹음으로 반드시 답변해야 합니다.' : defaultAnswerPlaceholder;
