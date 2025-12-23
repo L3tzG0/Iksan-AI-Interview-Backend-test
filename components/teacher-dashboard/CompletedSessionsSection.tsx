@@ -26,7 +26,7 @@ const normalizeSessionToSummary = (
     const identifier = session.studentIdentifier || session.studentName || session.id;
     if (!identifier) return null;
     const grade = typeof session.gradeLevel === "number" ? session.gradeLevel : 0;
-    const totalScore = typeof session.totalScore === "number" ? Math.round(session.totalScore) : 0;
+    const totalScore = typeof session.totalScore === "number" ? session.totalScore : 0;
     const statusValue = (session.status || "").toLowerCase();
     const completed = statusValue === "completed" || Boolean(session.completedAt);
     const sessionIdValue = session.id ?? (session as any).sessionId;
@@ -227,7 +227,7 @@ const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({}) => {
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 font-mono font-bold text-slate-800 text-center">
-                                            {student.latestScore}/100
+                                            {`${Number((student.latestScore).toFixed(2))}/10`}
                                         </td>
                                         <td
                                             className={`px-6 py-4 text-center font-mono font-bold ${
