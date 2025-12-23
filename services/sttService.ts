@@ -59,7 +59,7 @@ export const transcribeKorean = async (file: File): Promise<KoreanSttResponse> =
     };
 
     const timeoutId = setTimeout(() => {
-      closeWithError('?? ??? ??????. ?? ? ?? ??? ???.');
+      closeWithError('STT 요청이 시간 초과되었습니다. 잠시 후 다시 시도해 주세요.');
     }, 20000);
 
     ws.onopen = async () => {
@@ -67,7 +67,7 @@ export const transcribeKorean = async (file: File): Promise<KoreanSttResponse> =
         const buffer = await file.arrayBuffer();
         ws.send(buffer);
       } catch (err) {
-        closeWithError((err as Error)?.message || '?? ??? ????.');
+        closeWithError((err as Error)?.message || '파일 전송에 실패했습니다.');
       }
     };
 
@@ -91,12 +91,12 @@ export const transcribeKorean = async (file: File): Promise<KoreanSttResponse> =
     };
 
     ws.onerror = () => {
-      closeWithError('?? ??? ????. ?? ? ?? ??? ???.');
+      closeWithError('STT 연결에 실패했습니다. 잠시 후 다시 시도해 주세요.');
     };
 
     ws.onclose = () => {
       if (!settled) {
-        closeWithError('?? ??? ?? ??? ????.');
+        closeWithError('STT 연결이 끊어졌습니다.');
       }
       clearTimeout(timeoutId);
     };

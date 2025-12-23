@@ -37,6 +37,7 @@ const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
     selectedDeviceId,
     onSelectDevice,
     answerPlaceholder = '여기에 답을 적어주세요',
+    isOddQuestion = false,
 }) => {
     const handleRetry = () => {
         onChangeAnswer("");
@@ -45,38 +46,35 @@ const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
 
     return (
         <div className="z-10 relative flex md:flex-row flex-col gap-6">
-            <div className="flex flex-col gap-4 md:w-1/3">
+            <div className={`flex flex-col gap-4 ${isOddQuestion ? "md:w-1/2" : "md:w-1/3"}`}>
                 <div className="relative bg-gradient-to-b from-primary-lightest via-white to-white shadow-soft p-6 border border-white/40 rounded-[20px] text-center">
                     <span
-                        className={`absolute top-4 right-4 inline-flex items-center gap-1 text-xs font-semibold ${
-                            isRecording ? "text-red-500" : "text-slate-400"
-                        }`}
+                        className={`absolute top-4 right-4 inline-flex items-center gap-1 text-xs font-semibold ${isRecording ? "text-red-500" : "text-slate-400"
+                            }`}
                     >
                         <span
-                            className={`w-2 h-2 rounded-full ${
-                                isRecording
+                            className={`w-2 h-2 rounded-full ${isRecording
                                     ? "bg-red-500 animate-ping"
                                     : "bg-slate-300"
-                            }`}
+                                }`}
                         ></span>
                         {isRecording ? "REC" : "STANDBY"}
                     </span>
                     <div className="inline-flex top-4 left-4 absolute items-center gap-2 font-semibold text-[11px] text-slate-600">
                         <span
-                            className={`w-2 h-2 rounded-full ${
-                                micPermission === "granted"
+                            className={`w-2 h-2 rounded-full ${micPermission === "granted"
                                     ? "bg-green-500"
                                     : micPermission === "denied"
-                                    ? "bg-red-500"
-                                    : "bg-amber-400"
-                            }`}
+                                        ? "bg-red-500"
+                                        : "bg-amber-400"
+                                }`}
                         ></span>
                         <span>
                             {micPermission === "granted"
                                 ? "마이크 허용"
                                 : micPermission === "denied"
-                                ? "권한 차단됨"
-                                : "허용 대기"}
+                                    ? "권한 차단됨"
+                                    : "허용 대기"}
                         </span>
                     </div>
                     <button
@@ -86,17 +84,15 @@ const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
                             micPermission === "denied" ||
                             isRequestingMic
                         }
-                        className={`relative mx-auto flex items-center justify-center my-6 w-24 h-24 rounded-full transition-all duration-300 border-4 ${
-                            isRecording
+                        className={`relative mx-auto flex items-center justify-center my-6 w-24 h-24 rounded-full transition-all duration-300 border-4 ${isRecording
                                 ? "bg-red-500/10 border-red-300"
                                 : "bg-white border-primary-light hover:border-primary"
-                        } ${
-                            !isSpeechSupported ||
-                            micPermission === "denied" ||
-                            isRequestingMic
+                            } ${!isSpeechSupported ||
+                                micPermission === "denied" ||
+                                isRequestingMic
                                 ? "opacity-40 cursor-not-allowed"
                                 : ""
-                        }`}
+                            }`}
                         aria-label={isRecording ? "녹음 중지" : "녹음 시작"}
                         type="button"
                     >
@@ -110,19 +106,9 @@ const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
                         )}
                     </button>
 
-                    {/* <div className="mt-4 voice-wave">
-            {Array.from({ length: 10 }).map((_, idx) => (
-              <span
-                key={idx}
-                className={`voice-wave-bar ${!isRecording ? 'is-paused' : ''}`}
-                style={{ animationDelay: `${idx * 0.08}s` }}
-              />
-            ))}
-          </div> */}
                     <p
-                        className={`font-bold text-lg ${
-                            isRecording ? "text-red-500" : "text-slate-700"
-                        }`}
+                        className={`font-bold text-lg ${isRecording ? "text-red-500" : "text-slate-700"
+                            }`}
                     >
                         {isRecording ? "녹음 중..." : "음성 입력"}
                     </p>
@@ -130,8 +116,8 @@ const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
                         {!isSpeechSupported
                             ? "이 브라우저에서는 음성 입력이 지원되지 않습니다."
                             : isRecording
-                            ? "답변을 또렷하게 말해 주세요."
-                            : "시작을 누르고 답변을 말씀해주세요."}
+                                ? "답변을 또렷하게 말해 주세요."
+                                : "시작을 누르고 답변을 말씀해주세요."}
                     </p>
                     <p className="mt-2 text-[11px] text-slate-500">
                         다시 녹음하면 현재 답변이 대체됩니다.
@@ -181,7 +167,7 @@ const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
                 )}
             </div>
 
-            <div className="flex flex-col gap-4 md:w-2/3 h-full">
+            <div className={`flex flex-col gap-4 h-full ${isOddQuestion ? "md:w-1/2" : "md:w-2/3"}`}>
                 <div className="relative min-h-[260px] max-h-[440px]">
                     <textarea
                         value={currentAnswer}
@@ -189,11 +175,10 @@ const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
                         readOnly={isReadOnly}
                         placeholder={answerPlaceholder}
                         maxLength={800}
-                        className={`w-full min-h-[260px] max-h-[400px] p-5 pr-24 border rounded-[20px] resize-none text-slate-800 leading-relaxed focus:outline-none focus:ring-2 transition-colors overflow-auto ${
-                            isReadOnly
+                        className={`w-full min-h-[260px] max-h-[400px] p-5 pr-24 border rounded-[20px] resize-none text-slate-800 leading-relaxed focus:outline-none focus:ring-2 transition-colors overflow-auto ${isReadOnly
                                 ? "bg-slate-50 text-slate-600 border-slate-200 focus:ring-slate-200 cursor-not-allowed"
                                 : "bg-white border-slate-200 focus:ring-primary-focus focus:border-primary-focus shadow-inner shadow-slate-100"
-                        }`}
+                            }`}
                     />
                     <div className="top-5 right-5 absolute font-semibold text-slate-400 text-xs">
                         {currentAnswer.length}/800자

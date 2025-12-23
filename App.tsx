@@ -59,7 +59,6 @@ const App: React.FC = () => {
   const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
   const [isRestoring, setIsRestoring] = useState(true);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [sessionStatusMessage, setSessionStatusMessage] = useState<string | null>(null);
   const [isWaitingForQuestions, setIsWaitingForQuestions] = useState(false);
   const [isWaitingForResults, setIsWaitingForResults] = useState(false);
   const refreshTimerRef = React.useRef<number | null>(null);
@@ -243,7 +242,6 @@ const App: React.FC = () => {
     clearDrafts();
     setQuestions([]);
     setReport(null);
-    setSessionStatusMessage(null);
     setIsWaitingForResults(false);
     setIsWaitingForQuestions(true);
     setPerQuestionSeconds(input.perQuestionSeconds || 60);
@@ -255,10 +253,9 @@ const App: React.FC = () => {
         throw new Error('Session ID missing');
       }
       setSessionId(session.sessionId);
-      setSessionStatusMessage(session.message || 'Request queued. Generating questions...');
     } catch (err) {
       console.error('Failed to initiate interview session', err);
-      setError('?? ??? ???? ? ??????. ?? ? ?? ??? ???.');
+      setError('서버 오류로 인터뷰를 시작할 수 없습니다. 잠시 후 다시 시도해 주세요.');
       setIsWaitingForQuestions(false);
       setIsLoading(false);
     }
@@ -266,7 +263,7 @@ const App: React.FC = () => {
 
   const handleFinishInterview = useCallback(async (answers: Answer[]) => {
     if (!sessionId) {
-      setError('??? ???? ? ??????. ??? ????.');
+      setError('세션 ID가 없습니다. 다시 시도해 주세요.');
       return;
     }
     setIsLoading(true);
@@ -277,16 +274,15 @@ const App: React.FC = () => {
       );
       const hasMeaningfulAnswer = answered.some((answer) => (answer.text || '').trim().length > 2 || answer.audioUrl);
       if (!hasMeaningfulAnswer) {
-        setError('??? ?? ?? ??? ? ????. ?? ? ??? ??? ???.');
+        setError('답변이 너무 짧습니다. 최소 3글자 이상 입력해 주세요.');
         setIsLoading(false);
         return;
       }
 
       await submitSessionAnswers(sessionId, answered);
       setIsWaitingForResults(true);
-      setSessionStatusMessage('??? ?? ??. ?? ??? ?? ????.');
     } catch (err) {
-      setError('?? ??? ?? ???? ??????. ??? ????.');
+      setError('답변 제출에 실패했습니다. 다시 시도해 주세요.');
       console.error(err);
       setIsLoading(false);
     }
@@ -371,7 +367,6 @@ const App: React.FC = () => {
     const pollQuestions = async () => {
       try {
         const status = await fetchSessionStatus(sessionId);
-        if (status.message) setSessionStatusMessage(status.message);
         if (status.isReady) {
           const detail = await fetchSessionDetail(sessionId);
           console.log('Fetched session detail for questions', detail);
@@ -388,7 +383,7 @@ const App: React.FC = () => {
         }
       } catch (err) {
         console.error('Failed to poll questions', err);
-        setError('??? ??? ??????. ??? ????.');
+        setError('질문 생성에 실패했습니다. 다시 시도해 주세요.');
         setIsWaitingForQuestions(false);
         setIsLoading(false);
       }
@@ -404,7 +399,6 @@ const App: React.FC = () => {
     const pollResults = async () => {
       try {
         const status = await fetchSessionStatus(sessionId);
-        if (status.message) setSessionStatusMessage(status.message);
         if (status.isReady || status.status === 'completed') {
           const detail = await fetchSessionDetail(sessionId);
           const mappedReport = mapReportFromDetail(detail);
@@ -416,7 +410,7 @@ const App: React.FC = () => {
         }
       } catch (err) {
         console.error('Failed to poll results', err);
-        setError('?? ??? ?? ??????. ??? ????.');
+        setError('결과 생성에 실패했습니다. 다시 시도해 주세요.');
         setIsWaitingForResults(false);
         setIsLoading(false);
       }

@@ -297,7 +297,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
         socket.onopen = () => resolve();
         socket.onerror = (e) => {
           console.error('STT socket error', e);
-          reject(new Error('?? ??? ????.'));
+          reject(new Error('STT 연결에 실패했습니다.'));
         };
         socket.onclose = () => {
           sttSocketRef.current = null;
@@ -571,7 +571,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
 
   const toggleRecording = async () => {
     if (micPermission === 'denied') {
-      setInlineError('??? ??? ?????. ???? ???? ??? ???.');
+      setInlineError('마이크 권한이 거부되었습니다. 브라우저 설정을 확인해 주세요.');
       return;
     }
     if (micPermission === 'unknown') {
@@ -579,7 +579,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
         const ok = await requestMicPermission();
         if (!ok) return;
       } catch {
-        setInlineError('??? ?? ??? ??????.');
+        setInlineError('마이크 권한 요청에 실패했습니다.');
         return;
       }
     }
@@ -598,7 +598,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
         await startAudioRecording();
       } catch (err) {
         console.error('Audio/STT start failed', err);
-        setInlineError('?? ??? ??? ?? ??????.');
+        setInlineError('음성 녹음 시작에 실패했습니다.');
         setIsRecording(false);
         closeSttSocket();
       }
@@ -768,6 +768,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
                 onRequestMicPermission={requestMicPermission}
                 isRequestingMic={isRequestingMic}
                 answerPlaceholder={placeholderText}
+                isOddQuestion={currentQuestion.questionOrder % 2 === 1}
               />
 
               {(pauseEvents.length > 0 || sttSummary) && (
