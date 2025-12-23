@@ -242,7 +242,6 @@ const App: React.FC = () => {
     clearDrafts();
     setQuestions([]);
     setReport(null);
-    setSessionStatusMessage(null);
     setIsWaitingForResults(false);
     setIsWaitingForQuestions(true);
     setPerQuestionSeconds(input.perQuestionSeconds || 60);
@@ -254,7 +253,6 @@ const App: React.FC = () => {
         throw new Error('Session ID missing');
       }
       setSessionId(session.sessionId);
-      setSessionStatusMessage(session.message || 'Request queued. Generating questions...');
     } catch (err) {
       console.error('Failed to initiate interview session', err);
       setError('서버 오류로 인터뷰를 시작할 수 없습니다. 잠시 후 다시 시도해 주세요.');
@@ -369,7 +367,6 @@ const App: React.FC = () => {
     const pollQuestions = async () => {
       try {
         const status = await fetchSessionStatus(sessionId);
-        if (status.message) setSessionStatusMessage(status.message);
         if (status.isReady) {
           const detail = await fetchSessionDetail(sessionId);
           console.log('Fetched session detail for questions', detail);
@@ -402,7 +399,6 @@ const App: React.FC = () => {
     const pollResults = async () => {
       try {
         const status = await fetchSessionStatus(sessionId);
-        if (status.message) setSessionStatusMessage(status.message);
         if (status.isReady || status.status === 'completed') {
           const detail = await fetchSessionDetail(sessionId);
           const mappedReport = mapReportFromDetail(detail);
