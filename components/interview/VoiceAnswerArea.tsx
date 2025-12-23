@@ -46,7 +46,7 @@ const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
 
     return (
         <div className="z-10 relative flex md:flex-row flex-col gap-6">
-            <div className={`flex flex-col gap-4 ${isOddQuestion ? "md:w-1/2" : "md:w-1/3"}`}>
+            <div className={`flex flex-col gap-4 md:w-1/2`}>
                 <div className="relative bg-gradient-to-b from-primary-lightest via-white to-white shadow-soft p-6 border border-white/40 rounded-[20px] text-center">
                     <span
                         className={`absolute top-4 right-4 inline-flex items-center gap-1 text-xs font-semibold ${isRecording ? "text-red-500" : "text-slate-400"
@@ -54,8 +54,8 @@ const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
                     >
                         <span
                             className={`w-2 h-2 rounded-full ${isRecording
-                                    ? "bg-red-500 animate-ping"
-                                    : "bg-slate-300"
+                                ? "bg-red-500 animate-ping"
+                                : "bg-slate-300"
                                 }`}
                         ></span>
                         {isRecording ? "REC" : "STANDBY"}
@@ -63,10 +63,10 @@ const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
                     <div className="inline-flex top-4 left-4 absolute items-center gap-2 font-semibold text-[11px] text-slate-600">
                         <span
                             className={`w-2 h-2 rounded-full ${micPermission === "granted"
-                                    ? "bg-green-500"
-                                    : micPermission === "denied"
-                                        ? "bg-red-500"
-                                        : "bg-amber-400"
+                                ? "bg-green-500"
+                                : micPermission === "denied"
+                                    ? "bg-red-500"
+                                    : "bg-amber-400"
                                 }`}
                         ></span>
                         <span>
@@ -85,8 +85,8 @@ const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
                             isRequestingMic
                         }
                         className={`relative mx-auto flex items-center justify-center my-6 w-24 h-24 rounded-full transition-all duration-300 border-4 ${isRecording
-                                ? "bg-red-500/10 border-red-300"
-                                : "bg-white border-primary-light hover:border-primary"
+                            ? "bg-red-500/10 border-red-300"
+                            : "bg-white border-primary-light hover:border-primary"
                             } ${!isSpeechSupported ||
                                 micPermission === "denied" ||
                                 isRequestingMic
@@ -167,8 +167,14 @@ const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
                 )}
             </div>
 
-            <div className={`flex flex-col gap-4 h-full ${isOddQuestion ? "md:w-1/2" : "md:w-2/3"}`}>
+            <div className={`flex flex-col gap-4 h-full md:w-1/2`}>
                 <div className="relative min-h-[260px] max-h-[440px]">
+                    {isOddQuestion && (
+                        <>
+                            <div className="absolute inset-0 w-full min-h-[260px] max-h-[400px] p-5 pr-24 border rounded-[20px] bg-white border-slate-200 shadow-inner shadow-slate-100 z-10"></div>
+                            <p className="absolute top-5 left-5 text-slate-400 text-sm select-none pointer-events-none z-20">{answerPlaceholder}</p>
+                        </>
+                    )}
                     <textarea
                         value={currentAnswer}
                         onChange={(e) => onChangeAnswer(e.target.value)}
@@ -176,8 +182,8 @@ const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
                         placeholder={answerPlaceholder}
                         maxLength={800}
                         className={`w-full min-h-[260px] max-h-[400px] p-5 pr-24 border rounded-[20px] resize-none text-slate-800 leading-relaxed focus:outline-none focus:ring-2 transition-colors overflow-auto ${isReadOnly
-                                ? "bg-slate-50 text-slate-600 border-slate-200 focus:ring-slate-200 cursor-not-allowed"
-                                : "bg-white border-slate-200 focus:ring-primary-focus focus:border-primary-focus shadow-inner shadow-slate-100"
+                            ? "bg-slate-50 text-slate-600 border-slate-200 focus:ring-slate-200 cursor-not-allowed"
+                            : "bg-white border-slate-200 focus:ring-primary-focus focus:border-primary-focus shadow-inner shadow-slate-100"
                             }`}
                     />
                     <div className="top-5 right-5 absolute font-semibold text-slate-400 text-xs">
