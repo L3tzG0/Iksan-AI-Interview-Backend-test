@@ -601,7 +601,7 @@ async def initiate_interview_session(
         # --- END FILE PROCESSING LOGIC ---
         
         # Step 4: Save cleaned text to documents table
-        document_service.create_document(
+        document = await document_service.create_document(
             session_id=session_id,
             cleaned_text=cleaned_text_extracted
         )
@@ -654,8 +654,8 @@ async def initiate_university_prep_session(
     supabase: Annotated[AsyncClient, Depends(get_supabase)],
     file: Optional[UploadFile] = File(None, description="Student Record/Transcript file (PDF, DOCX, TXT, MD)"),
     raw_text: Optional[str] = Form(None, description="Raw student record text content"),
-    universities: str = Form(..., description="Comma-separated list of preferred universities (e.g., 'Stanford, MIT')"),
-    departments: str = Form(..., description="Comma-separated list of preferred academic departments (e.g., 'Computer Science, Electrical Engineering')"),
+    universities: Optional[str] = Form(None, description="Comma-separated list of preferred universities (e.g., 'Stanford, MIT')"),
+    departments: Optional[str] = Form(None, description="Comma-separated list of preferred academic departments (e.g., 'Computer Science, Electrical Engineering')"),
     role_context: RoleContext = Depends(require_role("student"))
 ):
     """
@@ -681,11 +681,11 @@ async def initiate_university_prep_session(
                 detail="Either 'file' or 'raw_text' must be provided (containing the student record)"
             )
         
-        if not universities or not departments:
-            raise HTTPException(
-                status_code=400,
-                detail="Preferred 'universities' and 'departments' must be provided for academic question generation."
-            )
+        # if not universities or not departments:
+        #     raise HTTPException(
+        #         status_code=400,
+        #         detail="Preferred 'universities' and 'departments' must be provided for academic question generation."
+        #     )
 
         # Step 1: User check
         student_details = await user_service.get_student_details(role_context.user.id)
@@ -777,8 +777,8 @@ async def initiate_university_prep_session(
             "session_id": session_id,
             "student_id": student_id,
             "student_record_text": cleaned_text_extracted,
-            "universities": universities,
-            "departments": departments,
+            # "universities": universities,
+            # "departments": departments,
             "timestamp": datetime.now().isoformat()
         }
         

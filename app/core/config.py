@@ -58,6 +58,9 @@ class Settings(BaseSettings):
     ELICE_API_KEY: str
     GPT_API_BASE_URL: str
 
+    RAG_DB_CONN_STRING: str
+    GPT_EMBED_BASE_URL: str
+
     # Student Registration
     STUDENT_PASSWORD_SALT: str = "iksan_student_pwd_"
     

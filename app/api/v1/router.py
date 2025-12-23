@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from app.api.v1.endpoints import (
     auth, users, students, classes, schools, majors, roles,
-    interview_sessions, stt, redis_test
+    interview_sessions, stt, redis_test, domains
 )
 
 api_router = APIRouter()
@@ -16,3 +16,4 @@ api_router.include_router(roles.router, prefix="/roles", tags=["roles"])
 api_router.include_router(interview_sessions.router, prefix="/sessions", tags=["sessions"])
 api_router.include_router(stt.router, prefix="/stt", tags=["Speech-to-Text"])
 api_router.include_router(redis_test.router, prefix="/redis", tags=["Internal"]) # NEW: Include the Redis test route
+api_router.include_router(domains.router, prefix="/admin/domains", tags=["Domain Management"])
