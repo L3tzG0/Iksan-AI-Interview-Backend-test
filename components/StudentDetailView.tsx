@@ -220,11 +220,15 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({ studentId, onBack
         cursorY += 6;
       };
 
-      const addKeyValue = (label: string, value?: string | number) => {
+      const addKeyValue = (
+        label: string,
+        value?: string | number,
+        options: { lineHeight?: number; gapAfter?: number } = {}
+      ) => {
         if (!value && value !== 0) return;
         const combined = `${label}: ${value}`;
-        const lineHeight = 8;
-        const gapAfter = 8;
+        const lineHeight = options.lineHeight ?? 8;
+        const gapAfter = options.gapAfter ?? 8;
         pdf.setFont('NotoSansKR', 'bold');
         pdf.setFontSize(11);
         const wrapped = pdf.splitTextToSize(combined, contentWidth);
@@ -243,19 +247,19 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({ studentId, onBack
 
       if (student) {
         addSectionTitle('학생 정보');
-        addKeyValue('이름', student.name || 'N/A');
-        addKeyValue('학교', student.schoolName || 'N/A');
-        addKeyValue('학년', student.grade ? `${student.grade}` : 'N/A');
-        addKeyValue('전공', student.major || 'N/A');
+        addKeyValue('이름', student.name || 'N/A', { gapAfter: 4 });
+        addKeyValue('학교', student.schoolName || 'N/A', { gapAfter: 4 });
+        addKeyValue('학년', student.grade ? `${student.grade}` : 'N/A', { gapAfter: 4 });
+        addKeyValue('전공', student.major || 'N/A', { gapAfter: 6 });
       }
 
       addSectionTitle('점수');
-      addKeyValue('총점', Math.round(totalScore));
-      addKeyValue('내용 적합성', Math.round(scores.contentRelevance));
+      addKeyValue('총점', Math.round(totalScore), { gapAfter: 4 });
+      addKeyValue('내용 적합성', Math.round(scores.contentRelevance), { gapAfter: 4 });
       cursorY += 2;
-      addKeyValue('구성', Math.round(scores.structure));
-      addKeyValue('유창성', Math.round(scores.fluency));
-      addKeyValue('자신감', Math.round(scores.confidence));
+      addKeyValue('구성', Math.round(scores.structure), { gapAfter: 4 });
+      addKeyValue('유창성', Math.round(scores.fluency), { gapAfter: 4 });
+      addKeyValue('자신감', Math.round(scores.confidence), { gapAfter: 6 });
 
       const strengths = report.summary?.strengths || report.strengthSummary;
       const growth = report.summary?.areasForGrowth || report.areasForGrowth;
