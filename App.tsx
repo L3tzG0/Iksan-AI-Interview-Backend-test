@@ -59,7 +59,6 @@ const App: React.FC = () => {
   const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
   const [isRestoring, setIsRestoring] = useState(true);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [sessionStatusMessage, setSessionStatusMessage] = useState<string | null>(null);
   const [isWaitingForQuestions, setIsWaitingForQuestions] = useState(false);
   const [isWaitingForResults, setIsWaitingForResults] = useState(false);
   const refreshTimerRef = React.useRef<number | null>(null);
@@ -258,7 +257,7 @@ const App: React.FC = () => {
       setSessionStatusMessage(session.message || 'Request queued. Generating questions...');
     } catch (err) {
       console.error('Failed to initiate interview session', err);
-      setError('?? ??? ???? ? ??????. ?? ? ?? ??? ???.');
+      setError('서버 오류로 인터뷰를 시작할 수 없습니다. 잠시 후 다시 시도해 주세요.');
       setIsWaitingForQuestions(false);
       setIsLoading(false);
     }
@@ -266,7 +265,7 @@ const App: React.FC = () => {
 
   const handleFinishInterview = useCallback(async (answers: Answer[]) => {
     if (!sessionId) {
-      setError('??? ???? ? ??????. ??? ????.');
+      setError('세션 ID가 없습니다. 다시 시도해 주세요.');
       return;
     }
     setIsLoading(true);
@@ -277,16 +276,15 @@ const App: React.FC = () => {
       );
       const hasMeaningfulAnswer = answered.some((answer) => (answer.text || '').trim().length > 2 || answer.audioUrl);
       if (!hasMeaningfulAnswer) {
-        setError('??? ?? ?? ??? ? ????. ?? ? ??? ??? ???.');
+        setError('답변이 너무 짧습니다. 최소 3글자 이상 입력해 주세요.');
         setIsLoading(false);
         return;
       }
 
       await submitSessionAnswers(sessionId, answered);
       setIsWaitingForResults(true);
-      setSessionStatusMessage('??? ?? ??. ?? ??? ?? ????.');
     } catch (err) {
-      setError('?? ??? ?? ???? ??????. ??? ????.');
+      setError('답변 제출에 실패했습니다. 다시 시도해 주세요.');
       console.error(err);
       setIsLoading(false);
     }
@@ -388,7 +386,7 @@ const App: React.FC = () => {
         }
       } catch (err) {
         console.error('Failed to poll questions', err);
-        setError('??? ??? ??????. ??? ????.');
+        setError('질문 생성에 실패했습니다. 다시 시도해 주세요.');
         setIsWaitingForQuestions(false);
         setIsLoading(false);
       }
@@ -416,7 +414,7 @@ const App: React.FC = () => {
         }
       } catch (err) {
         console.error('Failed to poll results', err);
-        setError('?? ??? ?? ??????. ??? ????.');
+        setError('결과 생성에 실패했습니다. 다시 시도해 주세요.');
         setIsWaitingForResults(false);
         setIsLoading(false);
       }
