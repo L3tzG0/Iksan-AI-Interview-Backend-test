@@ -768,6 +768,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
                 onRequestMicPermission={requestMicPermission}
                 isRequestingMic={isRequestingMic}
                 answerPlaceholder={placeholderText}
+                isOddQuestion={currentQuestion.questionOrder % 2 === 1}
               />
 
               {(pauseEvents.length > 0 || sttSummary) && (
