@@ -3,6 +3,7 @@ import type { InterviewReport } from '../types';
 import InterviewReportView from './InterviewReportView';
 import Button from './ui/Button';
 import jsPDF from 'jspdf';
+import { ensurePdfFont } from '../utils/pdfFont';
 
 interface ResultsScreenProps {
   report: InterviewReport;
@@ -39,6 +40,7 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({ report, onRetry, studentM
     setIsExporting(true);
     try {
       const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+      await ensurePdfFont(pdf);
       const pageWidth =
         pdf.internal?.pageSize?.getWidth?.() ??
         (pdf.internal?.pageSize as any)?.width ??
@@ -69,7 +71,7 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({ report, onRetry, studentM
       ) => {
         if (!text) return;
         const lines = Array.isArray(text) ? text : [text];
-        pdf.setFont('helvetica', weight);
+        pdf.setFont('NotoSansKR', weight);
         pdf.setFontSize(size);
         const lineHeight = size * 0.5 + 3; // more spacing to avoid stacking
 
@@ -88,7 +90,7 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({ report, onRetry, studentM
 
       const addSectionTitle = (title: string) => {
         ensureSpace(10);
-        pdf.setFont('helvetica', 'bold');
+        pdf.setFont('NotoSansKR', 'bold');
         pdf.setFontSize(14);
         pdf.text(title, margin, cursorY);
         cursorY += 8;
@@ -103,7 +105,7 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({ report, onRetry, studentM
         const combined = `${label}: ${value}`;
         const lineHeight = 8;
         const gapAfter = 8;
-        pdf.setFont('helvetica', 'bold');
+        pdf.setFont('NotoSansKR', 'bold');
         pdf.setFontSize(11);
         const wrapped = pdf.splitTextToSize(combined, contentWidth);
         const totalHeight = wrapped.length * lineHeight;
@@ -115,7 +117,7 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({ report, onRetry, studentM
       };
 
       // Header
-      pdf.setFont('helvetica', 'bold');
+      pdf.setFont('NotoSansKR', 'bold');
       pdf.setFontSize(18);
       pdf.text('AI Interview Report', margin, cursorY);
       cursorY += 10;
@@ -230,3 +232,4 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({ report, onRetry, studentM
 };
 
 export default ResultsScreen;
+
