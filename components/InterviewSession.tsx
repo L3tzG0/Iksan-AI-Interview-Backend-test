@@ -36,6 +36,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
   const [showExitModal, setShowExitModal] = useState(false);
   const [micDevices, setMicDevices] = useState<{ deviceId: string; label: string }[]>([]);
   const [selectedMicId, setSelectedMicId] = useState<string | undefined>(undefined);
+  const [isSoundDetected, setIsSoundDetected] = useState(false);
   const [sttSummary, setSttSummary] = useState<{
     finalTranscript?: string;
     audioDurationSeconds?: number;
@@ -78,6 +79,8 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const micSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
+  const soundDetectedRef = useRef(false);
+  const lastSoundTimestampRef = useRef(0);
   const finalSummaryTimeoutRef = useRef<number | null>(null);
   const inlineTimerRef = useRef<HTMLDivElement | null>(null);
   const devicesLoadedRef = useRef(false);
@@ -254,6 +257,10 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
       audioContextRef.current = null;
       ctx.close().catch(() => {});
     }
+
+    soundDetectedRef.current = false;
+    lastSoundTimestampRef.current = 0;
+    setIsSoundDetected(false);
   }, []);
 
   const closeSttSocket = useCallback(() => {
@@ -466,8 +473,24 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
       const processor = audioContext.createScriptProcessor(AUDIO_BUFFER_SIZE, 1, 1);
       processorRef.current = processor;
       processor.onaudioprocess = (e) => {
+        const inputData = e.inputBuffer.getChannelData(0);
+        let sumSquares = 0;
+        for (let i = 0; i < inputData.length; i++) {
+          const sample = inputData[i];
+          sumSquares += sample * sample;
+        }
+        const rms = Math.sqrt(sumSquares / inputData.length);
+        const now = performance.now();
+        if (rms > 0.015) {
+          lastSoundTimestampRef.current = now;
+        }
+        const isActive = now - lastSoundTimestampRef.current < 450;
+        if (soundDetectedRef.current !== isActive) {
+          soundDetectedRef.current = isActive;
+          setIsSoundDetected(isActive);
+        }
+
         if (sttSocketRef.current && sttSocketRef.current.readyState === WebSocket.OPEN) {
-          const inputData = e.inputBuffer.getChannelData(0);
           const resampled = resampleToTarget(inputData, audioContext.sampleRate);
           const pcm16 = convertFloat32ToInt16(resampled);
           sttSocketRef.current.send(pcm16);
@@ -785,6 +808,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
                 isRequestingMic={isRequestingMic}
                 answerPlaceholder={placeholderText}
                 isOddQuestion={currentQuestion.questionOrder % 2 === 1}
+                isSoundDetected={isSoundDetected}
               />
 
               {(pauseEvents.length > 0 || sttSummary) && (
@@ -848,5 +872,4 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({ questions, onFinish
 };
 
   export default InterviewSession;
-
 

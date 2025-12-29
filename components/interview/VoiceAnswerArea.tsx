@@ -18,6 +18,8 @@ interface VoiceAnswerAreaProps {
     selectedDeviceId?: string;
     onSelectDevice?: (deviceId: string) => void;
     answerPlaceholder?: string;
+    isSoundDetected?: boolean;
+    isOddQuestion?: boolean;
 }
 
 const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
@@ -37,6 +39,7 @@ const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
     selectedDeviceId,
     onSelectDevice,
     answerPlaceholder = '여기에 답을 적어주세요',
+    isSoundDetected = false,
     isOddQuestion = false,
 }) => {
     const handleRetry = () => {
@@ -105,6 +108,11 @@ const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
                             <span className="absolute inset-1 border border-red-400 rounded-full animate-pulseSlow"></span>
                         )}
                     </button>
+                    {isRecording && isSoundDetected && (
+                        <p className="mt-2 text-xs font-semibold text-emerald-600">
+                            귀하의 목소리가 녹음되고 있습니다
+                        </p>
+                    )}
 
                     <p
                         className={`font-bold text-lg ${isRecording ? "text-red-500" : "text-slate-700"
