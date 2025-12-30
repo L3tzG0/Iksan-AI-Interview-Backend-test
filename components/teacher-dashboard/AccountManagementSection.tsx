@@ -29,6 +29,7 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
   isLoadingStudents,
   fileInputRef,
   canSubmitBulkUpload,
+  refreshKey,
 }) => {
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [userList, setUserList] = useState<User[]>([]);
@@ -118,7 +119,7 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
     return () => {
       isActive = false;
     };
-  }, [debouncedSearchTerm, page]);
+  }, [debouncedSearchTerm, page, refreshKey]);
 
   // when the debounced search term changes, reset to first page so the query starts at page 1
   useEffect(() => {

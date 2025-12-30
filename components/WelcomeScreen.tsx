@@ -28,6 +28,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
   const [resumeText, setResumeText] = useState('');
   const [fileName, setFileName] = useState('');
   const [fileData, setFileData] = useState<{ data: string; mimeType: string } | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [intent, setIntent] = useState<StudentGoal | null>(null);
   const [universities, setUniversities] = useState<string[]>(['']);
@@ -86,35 +87,45 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
 
   const handleIncomingFile = useCallback((file?: File) => {
     if (!file) return;
+    const lowerName = file.name.toLowerCase();
+    const isPdf = file.type === 'application/pdf' || lowerName.endsWith('.pdf');
+    const isDocx =
+      file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+      lowerName.endsWith('.docx');
+    const isAllowed = isPdf || isDocx;
+    if (!isAllowed) {
+      setFileName('');
+      setFileData(null);
+      setFileError('PDF 또는 DOCX 파일만 업로드할 수 있습니다.');
+      return;
+    }
     if (file.size > MAX_SIZE_MB * 1024 * 1024) {
-      setResumeText(`파일 크기가 ${MAX_SIZE_MB}MB를 초과했습니다. 더 작은 파일을 업로드해주세요.`);
+      setFileName('');
+      setFileData(null);
+      setFileError(`파일 크기가 ${MAX_SIZE_MB}MB를 초과했습니다. 더 작은 파일을 업로드해주세요.`);
       return;
     }
 
     setFileName(file.name);
     setResumeText('');
     setFileData(null);
+    setFileError(null);
 
     const reader = new FileReader();
     reader.onload = (e) => {
       const result = e.target?.result as string;
-      if (file.type === 'application/pdf') {
-        const base64Data = result.split(',')[1];
-        setFileData({ data: base64Data, mimeType: file.type });
-        setResumeText(`PDF 파일 "${file.name}"을(를) 불러왔어요. 주요 내용을 분석한 뒤 질문을 생성합니다.`);
-      } else {
-        setResumeText(result);
-      }
+      const mimeType = isDocx
+        ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        : 'application/pdf';
+      const base64Data = result.split(',')[1];
+      setFileData({ data: base64Data, mimeType });
+      setResumeText(`파일 "${file.name}"을(를) 불러왔어요. 주요 내용을 분석한 뒤 질문을 생성합니다.`);
     };
     reader.onerror = () => {
       setResumeText(`오류: 파일 "${file.name}"을(를) 읽어오지 못했어요. 다시 시도해 주세요.`);
     };
 
-    if (file.type === 'application/pdf') {
-      reader.readAsDataURL(file);
-    } else {
-      reader.readAsText(file);
-    }
+    reader.readAsDataURL(file);
   }, []);
 
   const handleFileChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
@@ -138,6 +149,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setFileName('');
     setFileData(null);
+    setFileError(null);
     setResumeText(e.target.value);
   };
 
@@ -183,7 +195,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
     onStart(payload);
   };
 
-  const hasBaseInput = !!fileData || !!resumeText.trim();
+  const hasBaseInput = (!!fileData || !!resumeText.trim()) && !fileError;
   // For university intent we only require the upload (student record) and the per-question time.
   // The previous UI asked for preferred universities and major; that form is commented out below.
   const hasUniversityGoal = intent === 'university';
@@ -230,7 +242,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
             </div>
             <span className="inline-flex items-center gap-2 bg-primary-lightest px-3 py-1 rounded-full font-semibold text-primary text-xs">
               <UploadCloudIcon className="w-4 h-4" />
-              PDF/DOCX/TXT
+              PDF/DOCX
             </span>
           </div>
           <textarea
@@ -241,8 +253,9 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
             disabled={!!fileData}
           />
           <p className="mt-2 text-slate-500 text-xs">
-            PDF / DOCX / TXT ({MAX_SIZE_MB}MB 이하) 파일을 업로드할 수 있습니다. 표/특수문자, 이미지가 많은 경우 텍스트로 변환해 붙여넣으면 정확도가 높습니다.
+            PDF / DOCX ({MAX_SIZE_MB}MB 이하) 파일을 업로드할 수 있습니다. 표/특수문자, 이미지가 많은 경우 텍스트로 변환해 붙여넣으면 정확도가 높습니다.
           </p>
+          {fileError && <p className="mt-2 text-xs text-rose-600 font-semibold">{fileError}</p>}
 
           <div className="flex justify-center items-center my-6 w-full">
             <div className="flex-grow border-slate-200 border-t"></div>
@@ -269,12 +282,12 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
               <>
                 <UploadCloudIcon className="mb-3 w-12 h-12 text-slate-400 group-hover:text-primary transition-colors" />
                 <span className="font-medium text-slate-700">파일 업로드하기</span>
-                <span className="mt-2 text-slate-400 text-sm">PDF, DOCX, TXT 파일을 업로드 할 수 있습니다.</span>
+                <span className="mt-2 text-slate-400 text-sm">PDF, DOCX 파일을 업로드 할 수 있습니다.</span>
                 <span className="mt-2 text-slate-400 text-sm">{intent === "work" ? `표, 이미지, 특수문자가 많은 자료는 일부 정보가 누락될 수 있습니다.` : '학생부를 기반으로, 면접에서 공유하려는 주요 경험(활동, 역량, 수상 등)이 담긴 자료를 업로드해주세요.'}</span>
               </>
             )}
           </label>
-          <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleFileChange} accept=".txt,.pdf" />
+          <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleFileChange} accept=".pdf,.docx" />
           <div className="space-y-4 mt-8">
             <div className="gap-3 grid sm:grid-cols-2">
               <button

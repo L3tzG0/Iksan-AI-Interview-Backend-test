@@ -85,6 +85,7 @@ export interface AccountManagementSectionProps {
   onHighlightStudent: (studentId: string) => void;
   fileInputRef: RefObject<HTMLInputElement>;
   canSubmitBulkUpload: boolean;
+  refreshKey?: number;
 }
 
 export interface TeacherDashboardProps {

@@ -61,7 +61,9 @@ const App: React.FC = () => {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [isWaitingForQuestions, setIsWaitingForQuestions] = useState(false);
   const [isWaitingForResults, setIsWaitingForResults] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
   const refreshTimerRef = React.useRef<number | null>(null);
+  const progressTimerRef = React.useRef<number | null>(null);
 
   const clearDrafts = useCallback(() => {
     try {
@@ -193,6 +195,13 @@ const App: React.FC = () => {
     }
   }, []);
 
+  const clearProgressTimer = useCallback(() => {
+    if (progressTimerRef.current) {
+      window.clearInterval(progressTimerRef.current);
+      progressTimerRef.current = null;
+    }
+  }, []);
+
   useEffect(() => {
     if (!isAuthenticated) {
       clearRefreshTimer();
@@ -244,6 +253,7 @@ const App: React.FC = () => {
     setReport(null);
     setIsWaitingForResults(false);
     setIsWaitingForQuestions(true);
+    setLoadingProgress(0);
     setPerQuestionSeconds(input.perQuestionSeconds || 60);
     setSessionId(null);
 
@@ -258,6 +268,7 @@ const App: React.FC = () => {
       setError('서버 오류로 인터뷰를 시작할 수 없습니다. 잠시 후 다시 시도해 주세요.');
       setIsWaitingForQuestions(false);
       setIsLoading(false);
+      setLoadingProgress(0);
     }
   }, [clearDrafts]);
 
@@ -368,6 +379,8 @@ const App: React.FC = () => {
       try {
         const status = await fetchSessionStatus(sessionId);
         if (status.isReady) {
+          clearProgressTimer();
+          setLoadingProgress(100);
           const detail = await fetchSessionDetail(sessionId);
           console.log('Fetched session detail for questions', detail);
           const fetchedQuestions = mapQuestionsFromDetail(detail);
@@ -383,15 +396,39 @@ const App: React.FC = () => {
         }
       } catch (err) {
         console.error('Failed to poll questions', err);
-        setError('질문 생성에 실패했습니다. 다시 시도해 주세요.');
+        setError('?? ??? ??????. ?? ??? ???.');
         setIsWaitingForQuestions(false);
         setIsLoading(false);
+        setLoadingProgress(0);
       }
     };
     pollQuestions();
     timer = setInterval(pollQuestions, 3000);
     return () => clearInterval(timer);
-  }, [isWaitingForQuestions, sessionId, navigate, mapQuestionsFromDetail]);
+  }, [isWaitingForQuestions, sessionId, navigate, mapQuestionsFromDetail, clearProgressTimer]);
+
+  useEffect(() => {
+    if (!isWaitingForQuestions) {
+      clearProgressTimer();
+      setLoadingProgress(0);
+      return;
+    }
+
+    const tick = () => {
+      setLoadingProgress((prev) => {
+        if (prev >= 95) return prev;
+        let increment = 0.2 + Math.random() * 0.6;
+        if (prev < 70) increment = 0.8 + Math.random() * 1.6;
+        else if (prev < 90) increment = 0.4 + Math.random() * 0.8;
+        const next = Math.min(95, prev + increment);
+        return Math.round(next);
+      });
+    };
+
+    tick();
+    progressTimerRef.current = window.setInterval(tick, 500);
+    return () => clearProgressTimer();
+  }, [isWaitingForQuestions, clearProgressTimer]);
 
   useEffect(() => {
     if (!isWaitingForResults || !sessionId) return;
@@ -592,9 +629,20 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
             <div className="relative flex flex-col justify-center items-center h-[60vh] text-slate-700 overflow-hidden rounded-3xl border border-white/70 bg-white/80 shadow-soft">
               <div className="-top-20 -right-12 absolute bg-primary/10 blur-3xl rounded-full w-64 h-64 animate-pulseSlow pointer-events-none"></div>
               <div className="top-16 -left-16 absolute bg-primary-light/40 blur-3xl rounded-full w-72 h-72 animate-pulseSlow pointer-events-none"></div>
-              <div className="scale-150 sm:scale-200">
-                <Spinner label="AI가 준비를 마치고 있어요..." />
-              </div>
+              {isWaitingForQuestions ? (
+                <div className="flex flex-col items-center gap-4">
+                  <div className="scale-150 sm:scale-200">
+                    <Spinner label="AI가 맞춤형 면접 질문을 준비하고 있어요" />
+                  </div>
+                  <p className="text-sm font-semibold text-primary">
+                    {loadingProgress}%
+                  </p>
+                </div>
+              ) : (
+                <div className="scale-150 sm:scale-200">
+                  <Spinner label="AI가 맞춤형 면접 질문을 준비하고 있어요" />
+                </div>
+              )}
             </div>
           )}
           {!isLoading && (
@@ -754,3 +802,9 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
 };
 
 export default App;
+
+
+
+
+
+

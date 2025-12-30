@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import AuthLayout from './AuthLayout';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
+import StatusModal from '../ui/StatusModal';
 import { MailIcon, LockIcon, IdBadgeIcon } from '../icons';
 import { signIn } from '../../services/authService';
 import { User } from '../../types';
@@ -19,6 +20,19 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ onSignIn, onSwitchToSignUp,
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [inlineError, setInlineError] = useState<string | null>(null);
+  const [errorModal, setErrorModal] = useState<{ isOpen: boolean; title: string; description?: string }>({
+    isOpen: false,
+    title: '',
+    description: '',
+  });
+  const toFriendlyLoginError = (rawMessage?: string) => {
+    if (!rawMessage) return '아이디 또는 비밀번호를 다시 확인해주세요.';
+    const normalized = rawMessage.replace(/["{}[\]]/g, '').trim();
+    if (!normalized || normalized.includes(':') || normalized.length > 120) {
+      return '아이디 또는 비밀번호를 다시 확인해주세요.';
+    }
+    return normalized;
+  };
 
   const handleLoginIdChange = (value: string) => {
     if (mode === 'student') {
@@ -47,7 +61,12 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ onSignIn, onSwitchToSignUp,
       onSignIn(user);
     } catch (e) {
       console.error(e);
-      alert('로그인에 실패했습니다. 계정을 확인해주세요.');
+      const message = e instanceof Error ? e.message : '';
+      setErrorModal({
+        isOpen: true,
+        title: '로그인에 실패했습니다.',
+        description: toFriendlyLoginError(message),
+      });
     } finally {
       setIsLoading(false);
     }
@@ -119,6 +138,18 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ onSignIn, onSwitchToSignUp,
           </button>
         </div>
       )}
+      <StatusModal
+        isOpen={errorModal.isOpen}
+        type="error"
+        title={errorModal.title}
+        description={errorModal.description}
+        onClose={() => setErrorModal({ ...errorModal, isOpen: false })}
+        primaryAction={{
+          label: '확인',
+          onClick: () => setErrorModal({ ...errorModal, isOpen: false }),
+          variant: 'danger',
+        }}
+      />
     </AuthLayout>
   );
 };

@@ -44,6 +44,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
   const [isUploadingCsv, setIsUploadingCsv] = useState(false);
   const [bulkStudentsPayload, setBulkStudentsPayload] = useState<CreateStudentPayload[]>([]);
   const [isCreatingStudent, setIsCreatingStudent] = useState(false);
+  const [studentRefreshKey, setStudentRefreshKey] = useState(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { addToast } = useToast();
 
@@ -96,6 +97,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
         tempPassword: created.password || '',
       };
       setGeneratedAccount(account);
+      setStudentRefreshKey((prev) => prev + 1);
 
       const summary: StudentSummary = {
         id: created.studentId,
@@ -216,6 +218,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
       if (res.errors?.length) {
         setBackendErrors(res.errors);
       }
+      setStudentRefreshKey((prev) => prev + 1);
       addToast(`CSV 업로드 완료: ${res.created}/${res.total}`, res.failed ? 'info' : 'success');
     } catch (err: any) {
       const message = err?.message || 'CSV 업로드에 실패했습니다.';
@@ -292,6 +295,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
             onBackendErrorDownload={downloadBackendErrors}
             fileInputRef={fileInputRef}
             canSubmitBulkUpload={Boolean(bulkStudentsPayload.length) && !isUploadingCsv && bulkErrors.length === 0}
+            refreshKey={studentRefreshKey}
           />
         )}
       </Card>
