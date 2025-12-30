@@ -65,6 +65,7 @@ class StudentLoginResponse(BaseModel):
     school_name: Optional[str] = None
     major_name: Optional[str] = None
     class_name: Optional[str] = None
+    interview_session_quota: Optional[int] = None
     grade_level: Optional[int] = None
 
 

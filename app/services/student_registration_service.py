@@ -802,7 +802,7 @@ class StudentRegistrationService:
         """
         try:
             response = await self.supabase.table("students").select(
-                "id, user_id, student_id, "
+                "id, user_id, student_id, interview_session_quota, "
                 "user_profiles!user_id(full_name, role_id, roles!role_id(role_name)), "
                 "schools(id, school_name), "
                 "majors(id, major_name), "
