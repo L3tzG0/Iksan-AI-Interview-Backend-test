@@ -47,6 +47,7 @@ from app.services.interview_session_service import InterviewSessionService, Calc
 from app.services.text_extraction_service import TextExtractionService
 from app.services.feedback_service import FeedbackService
 from app.services.user_service import UserProfileService
+from app.services.student_service import StudentService
 from app.services.text_sanitizer import sanitize_qa_pairs, sanitize_json_string
 from app.schemas.summary import InterviewSummaryCreate
 from app.schemas.next_step import InterviewNextStepCreate
@@ -523,9 +524,11 @@ async def initiate_interview_session(
     document_service = DocumentService(supabase)
     extraction_service = TextExtractionService()
     user_service = UserProfileService(supabase)
+    student_service = StudentService(supabase)
     queue_service = QueueService(redis_conn)
     
     session_id: int | None = None
+    current_quota: int | None = None
     
     try:
         # Step 0: Validation 
@@ -549,6 +552,7 @@ async def initiate_interview_session(
                 detail="Current user is not associated with a student record"
             )
         student_id = student_details.get("id")
+        current_quota = _extract_and_validate_quota(student_details)
         
         # Step 2: Create session
         # NOTE: Status is set to "pending" instead of the synchronous "in_progress"
@@ -627,7 +631,9 @@ async def initiate_interview_session(
         
         queue_length = queue_service.enqueue_job(job_payload)
         
-        # Step 6: Build 202 response
+        # Step 6: Consume quota and build 202 response
+        await student_service.consume_session_quota(student_id, current_quota)
+
         response = SessionInitiateResponse(
             success=True,
             message=f"Request accepted and queued. Session ID: {session_id}. There are {queue_length - 1} pending jobs ahead of you.",
@@ -676,9 +682,11 @@ async def initiate_university_prep_session(
     document_service = DocumentService(supabase)
     extraction_service = TextExtractionService()
     user_service = UserProfileService(supabase)
+    student_service = StudentService(supabase)
     queue_service = QueueService(redis_conn) # ADDED
     
     session_id: int | None = None
+    current_quota: int | None = None
     
     try:
         # Step 0: Validate input presence
@@ -702,6 +710,7 @@ async def initiate_university_prep_session(
                 detail="Current user is not associated with a student record"
             )
         student_id = student_details.get("id")
+        current_quota = _extract_and_validate_quota(student_details)
         
         # Step 2: Create session with initial 'pending' status (CHANGED from "in_progress")
         session = await session_service.create_session(
@@ -791,7 +800,9 @@ async def initiate_university_prep_session(
         
         queue_length = queue_service.enqueue_job(job_payload)
         
-        # Step 6: Build 202 response
+        # Step 6: Consume quota and build 202 response
+        await student_service.consume_session_quota(student_id, current_quota)
+
         response = SessionInitiateResponse(
             success=True,
             # Message confirms the request is queued and gives queue length
@@ -830,3 +841,20 @@ async def _rollback_session_creation(
             await session_service.update_session_status(session_id, status="failed")
         except Exception as e:
             print(f"Warning: Failed to update session status during rollback: {str(e)}")
+
+
+def _extract_and_validate_quota(student_details: dict) -> int:
+    """Extract quota from student details and ensure it is available."""
+    raw_quota = student_details.get("interview_session_quota") if isinstance(student_details, dict) else None
+    try:
+        quota = int(raw_quota) if raw_quota is not None else 0
+    except (TypeError, ValueError):
+        quota = 0
+
+    if quota <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Interview session quota exhausted"
+        )
+
+    return quota
