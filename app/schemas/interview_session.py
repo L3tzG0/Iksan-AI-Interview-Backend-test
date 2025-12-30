@@ -147,6 +147,12 @@ class SessionStatusResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
+class NextStepItem(BaseModel):
+    """Maps to the next_steps table."""
+    title: str = Field(..., description="권장되는 연습 활동에 대한 간결한 제목입니다")
+    description_text: str = Field(..., description="학생이 취해야 할 조치에 대한 1~2문장 분량의 설명입니다.")
+
 class SessionDetailResponse(BaseModel):
     """Detailed view of a specific session with all feedback"""
     session_id: int
@@ -164,7 +170,7 @@ class SessionDetailResponse(BaseModel):
     strength_summary: Optional[str] = None
     areas_for_growth: Optional[str] = None
     detailed_feedback: Optional[List[FeedbackDetail]] = None
-    next_steps: Optional[List[str]] = None
+    next_steps: Optional[List[NextStepItem]] = None
 
     class Config:
         from_attributes = True
@@ -244,11 +250,6 @@ class SessionSummary(BaseModel):
     """Maps to the summaries table."""
     strength_text: str = Field(..., description="학생의 주요 강점을 요약하는 2~3문장 분량의 단락입니다.")
     areas_for_growth_text: str = Field(..., description="가장 중요한 2~3가지 개선 필요 사항을 요약하는 2~3문장 분량의 단락입니다.")
-
-class NextStepItem(BaseModel):
-    """Maps to the next_steps table."""
-    title: str = Field(..., description="권장되는 연습 활동에 대한 간결한 제목입니다")
-    description_text: str = Field(..., description="학생이 취해야 할 조치에 대한 1~2문장 분량의 설명입니다.")
 
 class DetailedEvaluationItem(BaseModel):
     """Detailed per-question feedback. Maps to the detailed_feedbacks update."""

@@ -460,11 +460,18 @@ async def get_session_detail(
         session.get("next_steps"),
         "next_step_order"
     )
+    # next_steps = [
+    #     ns.get("title") or ns.get("description_text") or ""
+    #     for ns in sorted_next_steps
+    # ]
     next_steps = [
-        ns.get("title") or ns.get("description_text") or ""
+        {
+            "title": ns.get("title", ""),
+            "description_text": ns.get("description_text", "")  # Map DB field to Frontend name
+        }
         for ns in sorted_next_steps
     ]
-    
+
     # Total score in DB is 0-100, use it for overall_score in response
     response = SessionDetailResponse(
         session_id=session["id"],
