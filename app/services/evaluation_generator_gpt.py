@@ -329,7 +329,9 @@ def _apply_weighted_per_question_scores(feedback_items: List[DetailedEvaluationI
                 item.fluency_score * weights["fl_score"] +
                 item.confidence_score * weights["cp_score"]
             )
-            item.overall_score = round(weighted_score, 2)
+            item.overall_score = round(weighted_score, 1)
+        
+        item.is_correct = item.overall_score >= 5.0
             
     return feedback_items
 
