@@ -38,7 +38,7 @@ const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
     devices = [],
     selectedDeviceId,
     onSelectDevice,
-    answerPlaceholder = '여기에 답을 적어주세요',
+    answerPlaceholder = "여기에 답을 적어주세요",
     isSoundDetected = false,
     isOddQuestion = false,
 }) => {
@@ -48,36 +48,39 @@ const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
     };
 
     return (
-        <div className="z-10 relative flex md:flex-row flex-col gap-6">
+        <div className="z-10 relative flex md:flex-row flex-col md:justify-center gap-6">
             <div className={`flex flex-col gap-4 md:w-1/2`}>
-                <div className="relative bg-gradient-to-b from-primary-lightest via-white to-white shadow-soft p-6 border border-white/40 rounded-[20px] text-center">
+                <div className="relative text-center">
                     <span
-                        className={`absolute top-4 right-4 inline-flex items-center gap-1 text-xs font-semibold ${isRecording ? "text-red-500" : "text-slate-400"
-                            }`}
+                        className={`absolute top-4 right-4 inline-flex items-center gap-1 text-xs font-semibold ${
+                            isRecording ? "text-red-500" : "text-slate-400"
+                        }`}
                     >
                         <span
-                            className={`w-2 h-2 rounded-full ${isRecording
-                                ? "bg-red-500 animate-ping"
-                                : "bg-slate-300"
-                                }`}
+                            className={`w-2 h-2 rounded-full ${
+                                isRecording
+                                    ? "bg-red-500 animate-ping"
+                                    : "bg-slate-300"
+                            }`}
                         ></span>
                         {isRecording ? "REC" : "STANDBY"}
                     </span>
                     <div className="inline-flex top-4 left-4 absolute items-center gap-2 font-semibold text-[11px] text-slate-600">
                         <span
-                            className={`w-2 h-2 rounded-full ${micPermission === "granted"
-                                ? "bg-green-500"
-                                : micPermission === "denied"
+                            className={`w-2 h-2 rounded-full ${
+                                micPermission === "granted"
+                                    ? "bg-green-500"
+                                    : micPermission === "denied"
                                     ? "bg-red-500"
                                     : "bg-amber-400"
-                                }`}
+                            }`}
                         ></span>
                         <span>
                             {micPermission === "granted"
                                 ? "마이크 허용"
                                 : micPermission === "denied"
-                                    ? "권한 차단됨"
-                                    : "허용 대기"}
+                                ? "권한 차단됨"
+                                : "허용 대기"}
                         </span>
                     </div>
                     <button
@@ -87,15 +90,17 @@ const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
                             micPermission === "denied" ||
                             isRequestingMic
                         }
-                        className={`relative mx-auto flex items-center justify-center my-6 w-24 h-24 rounded-full transition-all duration-300 border-4 ${isRecording
-                            ? "bg-red-500/10 border-red-300"
-                            : "bg-white border-primary-light hover:border-primary"
-                            } ${!isSpeechSupported ||
-                                micPermission === "denied" ||
-                                isRequestingMic
+                        className={`relative mx-auto flex items-center justify-center my-6 w-24 h-24 rounded-full transition-all duration-300 border-4 ${
+                            isRecording
+                                ? "bg-red-500/10 border-red-300"
+                                : "bg-white border-primary-light hover:border-primary"
+                        } ${
+                            !isSpeechSupported ||
+                            micPermission === "denied" ||
+                            isRequestingMic
                                 ? "opacity-40 cursor-not-allowed"
                                 : ""
-                            }`}
+                        }`}
                         aria-label={isRecording ? "녹음 중지" : "녹음 시작"}
                         type="button"
                     >
@@ -109,23 +114,20 @@ const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
                         )}
                     </button>
                     {isRecording && isSoundDetected && (
-                        <p className="mt-2 text-xs font-semibold text-emerald-600">
+                        <p className="mt-2 font-semibold text-emerald-600 text-xs">
                             귀하의 목소리가 녹음되고 있습니다
                         </p>
                     )}
-
+                    {/* 
                     <p
                         className={`font-bold text-lg ${isRecording ? "text-red-500" : "text-slate-700"
                             }`}
                     >
                         {isRecording ? "녹음 중..." : "음성 입력"}
-                    </p>
+                    </p> */}
                     <p className="mt-1 text-slate-500 text-sm">
-                        {!isSpeechSupported
-                            ? "이 브라우저에서는 음성 입력이 지원되지 않습니다."
-                            : isRecording
-                                ? "답변을 또렷하게 말해 주세요."
-                                : "시작을 누르고 답변을 말씀해주세요."}
+                        {!isSpeechSupported &&
+                            "이 브라우저에서는 음성 입력이 지원되지 않습니다."}
                     </p>
                     <p className="mt-2 text-[11px] text-slate-500">
                         다시 녹음하면 현재 답변이 대체됩니다.
@@ -175,76 +177,45 @@ const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
                 )}
             </div>
 
-            <div className={`flex flex-col gap-4 h-full md:w-1/2`}>
-                <div className="relative min-h-[260px] max-h-[440px]">
-                    {isOddQuestion && (
+            {!isOddQuestion && (
+                <div className={`flex flex-col gap-4 h-full md:w-1/2`}>
+                    <div className="relative min-h-[260px] max-h-[440px]">
+                        {/* {isOddQuestion && (
                         <>
-                            <div className="absolute inset-0 w-full min-h-[260px] max-h-[400px] p-5 pr-24 border rounded-[20px] bg-white border-slate-200 shadow-inner shadow-slate-100 z-10"></div>
-                            <p className="absolute top-5 left-5 text-slate-400 text-sm select-none pointer-events-none z-20">{answerPlaceholder}</p>
+                            <div className="z-10 absolute inset-0 bg-white shadow-inner shadow-slate-100 p-5 pr-24 border border-slate-200 rounded-[20px] w-full min-h-[260px] max-h-[400px]"></div>
+                            <p className="top-5 left-5 z-20 absolute text-slate-400 text-sm pointer-events-none select-none">{answerPlaceholder}</p>
                         </>
-                    )}
-                    <textarea
-                        value={currentAnswer}
-                        onChange={(e) => onChangeAnswer(e.target.value)}
-                        readOnly={isReadOnly}
-                        placeholder={answerPlaceholder}
-                        maxLength={800}
-                        className={`w-full min-h-[260px] max-h-[400px] p-5 pr-24 border rounded-[20px] resize-none text-slate-800 leading-relaxed focus:outline-none focus:ring-2 transition-colors overflow-auto ${isReadOnly
-                            ? "bg-slate-50 text-slate-600 border-slate-200 focus:ring-slate-200 cursor-not-allowed"
-                            : "bg-white border-slate-200 focus:ring-primary-focus focus:border-primary-focus shadow-inner shadow-slate-100"
+                    )} */}
+
+                        <textarea
+                            value={currentAnswer}
+                            onChange={(e) => onChangeAnswer(e.target.value)}
+                            readOnly={isReadOnly}
+                            placeholder={answerPlaceholder}
+                            maxLength={800}
+                            className={`w-full min-h-[260px] max-h-[400px] p-5 pr-24 border rounded-[20px] resize-none text-slate-800 leading-relaxed focus:outline-none focus:ring-2 transition-colors overflow-auto ${
+                                isReadOnly
+                                    ? "bg-slate-50 text-slate-600 border-slate-200 focus:ring-slate-200 cursor-not-allowed"
+                                    : "bg-white border-slate-200 focus:ring-primary-focus focus:border-primary-focus shadow-inner shadow-slate-100"
                             }`}
-                    />
-                    <div className="top-5 right-5 absolute font-semibold text-slate-400 text-xs">
-                        {currentAnswer.length}/800자
-                    </div>
-                    {isReadOnly && (
-                        <div className="right-5 bottom-5 absolute bg-slate-100 px-3 py-1 rounded-full text-slate-500 text-xs">
-                            읽기 전용
+                        />
+
+                        <div className="top-5 right-5 absolute font-semibold text-slate-400 text-xs">
+                            {currentAnswer.length}/800자
                         </div>
-                    )}
-                </div>
-                {inlineError && (
-                    <p className="mt-2 font-semibold text-red-600 text-sm">
-                        {inlineError}
-                    </p>
-                )}
-                {/* <div className="bg-slate-50 mt-4 p-3 border border-slate-200 rounded-[14px]">
-                    <div className="flex justify-between items-center">
-                        <p className="font-semibold text-slate-700 text-sm">
-                            작성/녹음 내용
-                        </p>
-                        <button
-                            type="button"
-                            onClick={handleRetry}
-                            className="bg-white px-3 py-1 border border-primary-light rounded-full font-semibold text-primary hover:text-primary-dark text-xs"
-                        >
-                            다시 쓰기
-                        </button>
-                    </div>
-                    <p className="mt-1 text-slate-500 text-xs">
-                        작성한 텍스트와 녹음 내용을 함께 저장할 수 있습니다.
-                        필요하면 다시 시도하세요.
-                    </p>
-                    <div className="space-y-3 bg-white mt-2 p-3 border border-slate-200 rounded-[10px] min-h-[64px] text-slate-700 text-sm whitespace-pre-wrap">
-                        <p className="m-0">
-                            {currentAnswer ||
-                                "작성한 답변이 여기에 표시됩니다."}
-                        </p>
-                        {recordingUrl && (
-                            <div className="flex flex-col gap-1 bg-slate-50 p-2 border border-slate-200 rounded-[10px]">
-                                <span className="font-semibold text-slate-500 text-xs">
-                                    녹음 파일
-                                </span>
-                                <audio
-                                    src={recordingUrl}
-                                    controls
-                                    className="w-full"
-                                />
+                        {isReadOnly && (
+                            <div className="right-5 bottom-5 absolute bg-slate-100 px-3 py-1 rounded-full text-slate-500 text-xs">
+                                읽기 전용
                             </div>
                         )}
                     </div>
-                </div> */}
-            </div>
+                    {inlineError && (
+                        <p className="mt-2 font-semibold text-red-600 text-sm">
+                            {inlineError}
+                        </p>
+                    )}
+                </div>
+            )}
         </div>
     );
 };

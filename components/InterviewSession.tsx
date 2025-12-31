@@ -926,19 +926,6 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
                         </Card>
 
                         <Card>
-                            <div className="flex md:flex-row flex-col justify-between md:items-center gap-3 mb-4">
-                                <p className="font-medium text-slate-600">
-                                    답변
-                                </p>
-                                <div className="flex items-center bg-yellow-100 px-3 py-1.5 rounded-full text-yellow-800 text-xs">
-                                    <LightbulbIcon className="mr-1.5 w-4 h-4" />
-                                    <span>
-                                        TIP: 핵심 경험을 2~3문장으로 요약한 다음
-                                        세부 내용을 덧붙여요.
-                                    </span>
-                                </div>
-                            </div>
-
                             <VoiceAnswerArea
                                 currentAnswer={currentAnswer}
                                 onChangeAnswer={setCurrentAnswer}
