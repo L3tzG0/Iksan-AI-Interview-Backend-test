@@ -61,10 +61,14 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, currentPath, onNavigate
       <div className="w-full px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16 items-center gap-4">
           <div className="flex items-center gap-8">
-            <div className="flex-shrink-0 flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => onNavigate && onNavigate('/')}
+              className="flex-shrink-0 flex items-center gap-3 hover:opacity-90 transition-opacity"
+            >
               <img src="/logo.png" alt="익산 AI 인터뷰" className="h-14 w-auto object-contain" />
               <span className="text-xl font-bold text-slate-800 tracking-tight">AI 모의 면접</span>
-            </div>
+            </button>
             <div className="hidden md:flex items-center gap-2">
               {navItems.map((item) => {
                 const Icon = item.icon;
@@ -118,11 +122,9 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, currentPath, onNavigate
                 <div className="origin-top-right absolute right-0 mt-3 w-64 rounded-2xl shadow-soft bg-white/95 border border-white/70 focus:outline-none animate-fadeIn overflow-hidden z-50">
                   <div className="py-1 divide-y divide-slate-100">
                     <div className="px-5 py-4 bg-primary-lightest/60">
-                      <p className="text-sm text-slate-900 font-bold">{user.schoolName}</p>
-                      <p className="text-xs text-slate-600 mt-0.5">
-                        {user.grade ? `${user.grade}학년` : ''} {user.major ? `전공 ${user.major}` : ''}
-                      </p>
-                      <p className="text-xs text-slate-400 mt-1 truncate">{user.id}</p>
+                      <p className="text-sm text-slate-900 font-bold">{user.name}</p>
+                      <p className="text-xs text-slate-600 mt-0.5">{user.schoolName}</p>
+                      <p className="text-xs text-slate-400 mt-1 truncate">학번: {user.studentId || user.id}</p>
                     </div>
                     {(user.role === 'teacher' || user.role === 'admin') && (
                       <div className="py-1">

@@ -170,6 +170,7 @@ export interface User {
     refreshToken?: string;
   studentId?: string;
   tempPassword?: string;
+  interviewSessionQuota?: number;
 }
 
 export interface StudentAccountInput {
