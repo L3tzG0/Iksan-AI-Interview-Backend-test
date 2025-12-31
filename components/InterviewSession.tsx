@@ -913,19 +913,19 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
             <div className="space-y-8 w-full max-w-9xl">
                 <div className="gap-6 grid md:grid-cols-4">
                     <main className="space-y-8 md:col-span-3">
-                        <Card>
-                            <p className="flex items-center gap-2 mb-4 font-semibold text-slate-500 text-sm uppercase tracking-wider">
+                        <div>
+                            {/* <p className="flex items-center gap-2 mb-4 font-semibold text-slate-500 text-sm uppercase tracking-wider">
                                 AI 질문
-                            </p>
-                            <h2 className="font-bold text-slate-800 text-2xl leading-tight">
+                            </p> */}
+                            <h2 className="font-bold text-slate-800 text-2xl text-center leading-tight">
                                 {currentQuestion.text}
                             </h2>
-                            <p className="mt-2 text-slate-500 text-xs">
+                            {/* <p className="mt-2 text-slate-500 text-xs">
                                 각 답변은 1~2분 안에 핵심만 정리해 주세요.
-                            </p>
-                        </Card>
+                            </p> */}
+                        </div>
 
-                        <Card>
+                        <div>
                             <VoiceAnswerArea
                                 currentAnswer={currentAnswer}
                                 onChangeAnswer={setCurrentAnswer}
@@ -968,12 +968,12 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
                                     )}
                                 </div>
                             )}
-                        </Card>
+                        </div>
                     </main>
 
                     <aside className="md:top-20 z-20 md:sticky self-start md:col-span-1">
                         <div className="flex flex-col gap-4">
-                            <Card className="bg-gradient-to-r from-primary-lightest via-white to-white shadow-soft p-6">
+                            <Card >
                                 <div className="flex flex-col items-start gap-3">
                                     <p className="mb-1 font-semibold text-primary-text text-xs uppercase tracking-[0.25em]">
                                         AI 면접 진행
