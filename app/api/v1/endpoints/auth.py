@@ -229,6 +229,7 @@ async def student_login(
             school_name=school_info.get("school_name") if school_info else None,
             major_name=major_info.get("major_name") if major_info else None,
             class_name=class_info.get("class_name") if class_info else None,
+            interview_session_quota=student.get("interview_session_quota") if student else None,
             grade_level=class_info.get("grade_level") if class_info else None
         )
         

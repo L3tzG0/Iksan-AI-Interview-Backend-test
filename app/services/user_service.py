@@ -28,7 +28,7 @@ USER_FULL_CONTEXT_QUERY = """
     id, email, full_name, role_id, created_at, updated_at,
     roles(id, role_name),
     students!user_id(
-        id, user_id, school_id, major_id, current_class_id, created_at, updated_at,
+        id, user_id, school_id, major_id, current_class_id, interview_session_quota, created_at, updated_at,
         schools(id, school_name),
         majors(id, major_name),
         classes(id, class_name, grade_level)
@@ -118,7 +118,7 @@ class UserProfileService:
         """Get student details by user_id with related information in single query"""
         try:
             response = await self.supabase.table('students').select(
-                """id, user_id, school_id, major_id, current_class_id, created_at, updated_at,
+                """id, user_id, school_id, major_id, current_class_id, interview_session_quota, created_at, updated_at,
                    schools(id, school_name),
                    majors(id, major_name),
                    classes(id, class_name, grade_level)"""
