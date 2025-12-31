@@ -6,6 +6,7 @@ import InterviewSession from './components/InterviewSession';
 import ResultsScreen from './components/ResultsScreen';
 import TeacherDashboard from './components/TeacherDashboard';
 import StudentDetailView from './components/StudentDetailView';
+import StudentHistory from './components/StudentHistory';
 import AdminDomainManagement from './components/admin/AdminDomainManagement';
 import SignInScreen from './components/auth/SignInScreen';
 import SignUpScreen from './components/auth/SignUpScreen';
@@ -683,7 +684,6 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
                       <WelcomeScreen
                         onStart={handleStartInterview}
                         history={studentHistory}
-                        onViewReport={handleViewHistoryReport}
                       />
                     }
                   />
@@ -730,6 +730,15 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
                         <Navigate to="/student/home" replace />
                       )
                     }
+                  />
+                }
+              />
+              <Route
+                path="/student/history"
+                element={
+                  <ProtectedRoute
+                    allowed={['student']}
+                    element={<StudentHistory history={studentHistory} onViewReport={handleViewHistoryReport} />}
                   />
                 }
               />
@@ -802,7 +811,4 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
 };
 
 export default App;
-
-
-
 

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { User } from '../../types';
-import { LogOutIcon, ChevronDownIcon, GraduationCapIcon, HomeIcon, SparklesIcon, ChartIcon, UsersIcon, FileTextIcon } from '../icons';
+import { LogOutIcon, ChevronDownIcon, GraduationCapIcon, HomeIcon, SparklesIcon, ChartIcon, UsersIcon, FileTextIcon, HistoryIcon } from '../icons';
 
 interface NavbarProps {
   user: User;
@@ -37,6 +37,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, currentPath, onNavigate
       }
     } else {
       base.push({ path: '/student/interview/start', label: '인터뷰 생성', icon: SparklesIcon });
+      base.push({ path: '/student/history', label: '면접 기록', icon: HistoryIcon });
     }
 
     return base;
