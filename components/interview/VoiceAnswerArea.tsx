@@ -235,7 +235,7 @@ const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
             )}
 
             {!isOddQuestion && inputMode === "text" && (
-                <div className={`flex flex-col gap-4 h-full md:w-1/2`}>
+                <div className={`flex flex-col gap-4 h-full w-full mx-4`}>
                     <div className="relative min-h-[260px] max-h-[440px]">
                         {/* {isOddQuestion && (
                         <>
