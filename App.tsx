@@ -623,7 +623,7 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
             defaultSchool={currentUser?.schoolName}
           />
         )}
-        <main className="mx-auto p-4 sm:p-6 lg:px-8 pt-8 pb-16 max-w-8xl">
+        <main className="mx-auto p-4 sm:p-6 lg:px-8 pt-8 pb-16 max-w-7xl">
           {/* AdminHeader removed */}
           {isLoading && (
             <div className="relative flex flex-col justify-center items-center h-[60vh] text-slate-700 overflow-hidden rounded-3xl border border-white/70 bg-white/80 shadow-soft">
@@ -802,8 +802,6 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
 };
 
 export default App;
-
-
 
 
 
