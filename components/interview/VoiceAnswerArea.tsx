@@ -235,7 +235,7 @@ const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
             )}
 
             {!isOddQuestion && inputMode === "text" && (
-                <div className={`flex flex-col gap-4 h-full w-full mx-4`}>
+                <div className={`flex flex-col gap-4 h-full w-full px-24`}>
                     <div className="relative min-h-[260px] max-h-[440px]">
                         {/* {isOddQuestion && (
                         <>
@@ -266,12 +266,12 @@ const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
                             </div>
                         )}
                     </div>
-                    {inlineError && (
-                        <p className="mt-2 font-semibold text-red-600 text-sm">
-                            {inlineError}
-                        </p>
-                    )}
                 </div>
+            )}
+            {inlineError && (
+                <p className="mt-2 font-semibold text-red-600 text-sm">
+                    {inlineError}
+                </p>
             )}
 
             {canToggleInput && (
