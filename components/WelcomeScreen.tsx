@@ -1,12 +1,11 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { UploadCloudIcon, FileTextIcon, HistoryIcon, SparklesIcon } from './icons';
+import { UploadCloudIcon, FileTextIcon, SparklesIcon } from './icons';
 import Button from './ui/Button';
 import type { InterviewReport, InterviewStartPayload, StudentGoal } from '../types';
 
 interface WelcomeScreenProps {
   onStart: (input: InterviewStartPayload) => void;
   history?: InterviewReport[];
-  onViewReport?: (report: InterviewReport) => void;
 }
 
 const MAX_SIZE_MB = 5;
@@ -24,7 +23,7 @@ const industries = [
 '자동차',
 ];
 
-const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewReport }) => {
+const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history }) => {
   const [resumeText, setResumeText] = useState('');
   const [fileName, setFileName] = useState('');
   const [fileData, setFileData] = useState<{ data: string; mimeType: string } | null>(null);
@@ -36,8 +35,6 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
   const [workIndustry, setWorkIndustry] = useState('');
   const [workField, setWorkField] = useState('');
   const [perQuestionSeconds, setPerQuestionSeconds] = useState(60);
-  const hasHistory = Array.isArray(history) && history.length > 0;
-
   const stats = useMemo(() => {
     const getScore = (r?: InterviewReport) => {
       if (!r) return 0;
@@ -233,7 +230,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
         </div>
       </section>
 
-      <div className={`w-full mx-auto grid gap-8 ${hasHistory ? 'lg:grid-cols-[3fr_2fr]' : 'lg:grid-cols-1'}`}>
+      <div className="w-full mx-auto grid gap-8 lg:grid-cols-1">
         <div className="bg-white/95 shadow-soft p-6 sm:p-8 border border-white/70 rounded-[24px] animate-softFadeUp">
           <div className="flex justify-between items-center mb-6">
             <div>
@@ -449,38 +446,6 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, onViewR
           </div>
         </div>
 
-        {hasHistory ? (
-          <div className="flex flex-col bg-white/90 shadow-soft p-6 border border-white/80 rounded-[24px] animate-softFadeUp-delayed">
-            <h2 className="flex items-center gap-2 mb-1 font-bold text-slate-900 text-lg">
-              <HistoryIcon className="w-5 h-5 text-primary" />
-              최근 연습 기록
-            </h2>
-            <p className="mb-4 text-slate-500 text-xs">지난 AI 면접 결과를 눌러 상세 피드백을 다시 확인해 보세요.</p>
-            <div className="flex-1 divide-y divide-slate-100 overflow-auto">
-              {history!.map((item, index) => (
-                <button
-                  key={index}
-                  onClick={() => onViewReport && onViewReport(item)}
-                  className="group flex justify-between items-center hover:bg-primary-lightest/50 px-2 py-4 rounded-[12px] w-full text-left transition-all"
-                >
-                  <div>
-                    <p className="font-semibold text-slate-700 group-hover:text-primary transition-colors">
-                      {item.date || '날짜 정보 없음'}
-                    </p>
-                    <div className="flex items-center gap-3 mt-1 text-slate-500 text-xs">
-                      <span className="inline-flex items-center gap-1 bg-green-50 px-2 py-0.5 rounded-full font-semibold text-green-600">
-                        총점 <strong className="ml-2 text-slate-900">{item.totalScore.toFixed(1)}</strong>/10
-                      </span>
-                    </div>
-                  </div>
-                  <div className="font-semibold text-primary text-sm">
-                    결과 열기 →
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : null}
       </div>
     </div>
   );

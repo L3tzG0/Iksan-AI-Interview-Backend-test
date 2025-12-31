@@ -6,6 +6,7 @@ import InterviewSession from './components/InterviewSession';
 import ResultsScreen from './components/ResultsScreen';
 import TeacherDashboard from './components/TeacherDashboard';
 import StudentDetailView from './components/StudentDetailView';
+import StudentHistory from './components/StudentHistory';
 import AdminDomainManagement from './components/admin/AdminDomainManagement';
 import SignInScreen from './components/auth/SignInScreen';
 import SignUpScreen from './components/auth/SignUpScreen';
@@ -623,7 +624,7 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
             defaultSchool={currentUser?.schoolName}
           />
         )}
-        <main className="mx-auto p-4 sm:p-6 lg:px-8 pt-8 pb-16 max-w-8xl">
+        <main className="mx-auto p-4 sm:p-6 lg:px-8 pt-8 pb-16 max-w-7xl">
           {/* AdminHeader removed */}
           {isLoading && (
             <div className="relative flex flex-col justify-center items-center h-[60vh] text-slate-700 overflow-hidden rounded-3xl border border-white/70 bg-white/80 shadow-soft">
@@ -683,7 +684,6 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
                       <WelcomeScreen
                         onStart={handleStartInterview}
                         history={studentHistory}
-                        onViewReport={handleViewHistoryReport}
                       />
                     }
                   />
@@ -730,6 +730,15 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
                         <Navigate to="/student/home" replace />
                       )
                     }
+                  />
+                }
+              />
+              <Route
+                path="/student/history"
+                element={
+                  <ProtectedRoute
+                    allowed={['student']}
+                    element={<StudentHistory history={studentHistory} onViewReport={handleViewHistoryReport} />}
                   />
                 }
               />
@@ -802,9 +811,4 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
 };
 
 export default App;
-
-
-
-
-
 

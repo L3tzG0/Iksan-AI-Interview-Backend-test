@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { User } from '../../types';
-import { LogOutIcon, ChevronDownIcon, GraduationCapIcon, HomeIcon, SparklesIcon, ChartIcon, UsersIcon, FileTextIcon } from '../icons';
+import { LogOutIcon, ChevronDownIcon, GraduationCapIcon, HomeIcon, SparklesIcon, ChartIcon, UsersIcon, FileTextIcon, HistoryIcon } from '../icons';
 
 interface NavbarProps {
   user: User;
@@ -37,6 +37,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, currentPath, onNavigate
       }
     } else {
       base.push({ path: '/student/interview/start', label: '인터뷰 생성', icon: SparklesIcon });
+      base.push({ path: '/student/history', label: '면접 기록', icon: HistoryIcon });
     }
 
     return base;
@@ -57,7 +58,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, currentPath, onNavigate
 
   return (
     <nav className="bg-white/80 backdrop-blur-xl border-b border-white/70 shadow-sm sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="w-full px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16 items-center gap-4">
           <div className="flex items-center gap-8">
             <div className="flex-shrink-0 flex items-center gap-3">
