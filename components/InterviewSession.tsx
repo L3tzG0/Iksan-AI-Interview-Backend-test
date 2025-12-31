@@ -918,7 +918,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
                                 AI 질문
                             </p> */}
                             <h2 className="font-bold text-slate-800 text-2xl text-center leading-tight">
-                                {currentQuestion.text}
+                                Q{currentQuestion?.questionOrder ?? currentQuestionIndex + 1}. {currentQuestion.text}
                             </h2>
                             {/* <p className="mt-2 text-slate-500 text-xs">
                                 각 답변은 1~2분 안에 핵심만 정리해 주세요.
@@ -976,7 +976,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
                     <aside className="md:top-20 z-20 md:sticky self-start md:col-span-1">
                         <div className="flex flex-col gap-4">
                             <Card >
-                                <div className="flex flex-col items-start gap-3">
+                                <div className="flex flex-col items-start gap-2">
                                     <p className="mb-1 font-semibold text-primary-text text-xs uppercase tracking-[0.25em]">
                                         남은 시간
                                     </p>
@@ -985,7 +985,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
                                             {/* <ClockIcon className={`w-10 h-10 sm:w-12 sm:h-12 ${isLowTime ? 'text-red-600' : 'text-primary'}`} /> */}
                                             <div className="font-extrabold text-slate-900">
                                                 <div
-                                                    className={`text-5xl sm:text-6xl leading-tight ${
+                                                    className={`text-4xl sm:text-5xl leading-tight ${
                                                         isLowTime
                                                             ? "text-red-600"
                                                             : ""
@@ -993,13 +993,13 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
                                                 >
                                                     {formatTime(timeLeft)}
                                                 </div>
-                                                <div className="mt-1 text-primary text-sm sm:text-base">
+                                                {/* <div className="mt-1 text-primary text-sm sm:text-base">
                                                     질문{" "}
                                                     {currentQuestion?.questionOrder ??
                                                         currentQuestionIndex +
                                                             1}{" "}
                                                     / {questions.length}
-                                                </div>
+                                                </div> */}
                                             </div>
                                         </div>
                                     </div>
