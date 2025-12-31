@@ -21,6 +21,7 @@ interface VoiceAnswerAreaProps {
     isSoundDetected?: boolean;
     isOddQuestion?: boolean;
     questionKey?: string | number;
+    perQuestionSeconds: number;
 }
 
 const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
@@ -43,12 +44,46 @@ const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
     isSoundDetected = false,
     isOddQuestion = false,
     questionKey,
+    perQuestionSeconds = 60,
 }) => {
     const [inputMode, setInputMode] = useState<"voice" | "text">("voice");
+    const [recordingSeconds, setRecordingSeconds] = useState(0);
 
     useEffect(() => {
         setInputMode("voice");
     }, [isOddQuestion, questionKey]);
+
+    useEffect(() => {
+        setRecordingSeconds(0);
+    }, [questionKey]);
+
+    useEffect(() => {
+        let timerId: ReturnType<typeof window.setInterval> | null = null;
+        if (isRecording) {
+            setRecordingSeconds(0);
+            timerId = window.setInterval(() => {
+                setRecordingSeconds((prev) => prev + 1);
+            }, 1000);
+        }
+        return () => {
+            if (timerId) {
+                window.clearInterval(timerId);
+            }
+        };
+    }, [isRecording]);
+
+    const formatRecordedTime = (seconds: number) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins}:${secs.toString().padStart(2, "0")}`;
+    };
+
+    const hasReachedLimit = recordingSeconds >= perQuestionSeconds;
+    const timerColorClass = hasReachedLimit
+        ? "text-red-500"
+        : isRecording
+        ? "text-slate-900"
+        : "text-slate-400 opacity-70";
 
     const canToggleInput = !isOddQuestion;
     const isVoiceMode = isOddQuestion || inputMode === "voice";
@@ -63,20 +98,24 @@ const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
             {isVoiceMode && (
                 <div className={`flex flex-col gap-4 md:w-1/2`}>
                     <div className="relative text-center">
-                        <span
-                            className={`absolute top-4 right-4 inline-flex items-center gap-1 text-xs font-semibold ${
-                                isRecording ? "text-red-500" : "text-slate-400"
-                            }`}
-                        >
+                        {isRecording && (
                             <span
-                                className={`w-2 h-2 rounded-full ${
+                                className={`absolute top-4 right-4 inline-flex items-center gap-1 text-xs font-semibold ${
                                     isRecording
-                                        ? "bg-red-500 animate-ping"
-                                        : "bg-slate-300"
+                                        ? "text-red-500"
+                                        : "text-slate-400"
                                 }`}
-                            ></span>
-                            {isRecording ? "REC" : "STANDBY"}
-                        </span>
+                            >
+                                <span
+                                    className={`w-2 h-2 rounded-full ${
+                                        isRecording
+                                            ? "bg-red-500 animate-ping"
+                                            : "bg-slate-300"
+                                    }`}
+                                ></span>
+                                {isRecording && "REC"}
+                            </span>
+                        )}
                         <div className="inline-flex top-4 left-4 absolute items-center gap-2 font-semibold text-[11px] text-slate-600">
                             <span
                                 className={`w-2 h-2 rounded-full ${
@@ -94,6 +133,18 @@ const VoiceAnswerArea: React.FC<VoiceAnswerAreaProps> = ({
                                     ? "권한 차단됨"
                                     : "허용 대기"}
                             </span>
+                        </div>
+                        <div className="flex flex-col items-center gap-1 mt-6">
+                            <span
+                                className={`text-2xl font-semibold tracking-wide transition-colors duration-200 ${timerColorClass}`}
+                                aria-live="polite"
+                            >
+                                {formatRecordedTime(recordingSeconds)} /{" "}
+                                {formatRecordedTime(perQuestionSeconds)}
+                            </span>
+                            {/* <span className="text-[10px] text-slate-400 uppercase tracking-[0.3em]">
+                                녹음 시간
+                            </span> */}
                         </div>
                         <button
                             onClick={onToggleRecording}

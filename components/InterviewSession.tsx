@@ -912,7 +912,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
             )}
             <div className="space-y-8 w-full max-w-9xl">
                 <div className="gap-6 grid md:grid-cols-4">
-                    <main className="flex flex-col gap-4 md:col-span-3 my-auto">
+                    <main className="flex flex-col gap-4 md:col-span-3 mx-4 my-auto">
                         <div>
                             {/* <p className="flex items-center gap-2 mb-4 font-semibold text-slate-500 text-sm uppercase tracking-wider">
                                 AI 질문
@@ -944,6 +944,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
                                     currentQuestion.questionOrder % 2 === 1
                                 }
                                 isSoundDetected={isSoundDetected}
+                                perQuestionSeconds={perQuestionSeconds}
                                 questionKey={currentQuestion.id}
                             />
 
