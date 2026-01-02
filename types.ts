@@ -88,10 +88,16 @@ export interface InterviewReport {
   sessionId?: string;
   status?: string;
   overallScore?: number;
+  overall_score?: number; // backend raw
+  total_score?: number; // backend raw
   strengthSummary?: string;
+  strength_summary?: string; // backend raw
   areasForGrowth?: string;
+  areas_for_growth?: string; // backend raw
   detailedFeedback?: QuestionFeedback[];
+  detailed_feedback?: QuestionFeedback[]; // backend raw
   nextSteps?: string[];
+  next_steps?: any[]; // backend raw
   date?: string; // legacy/history support
   scores?: {
     contentRelevance: number;
@@ -108,6 +114,14 @@ export interface InterviewReport {
     title: string;
     description: string;
   }[];
+  student_name?: string;
+  grade_level?: number | string;
+  major_name?: string;
+  school_name?: string;
+  content_relevance_score?: number;
+  structure_score?: number;
+  fluency_score?: number;
+  confidence_score?: number;
 }
 
 

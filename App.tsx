@@ -11,7 +11,6 @@ import AdminDomainManagement from './components/admin/AdminDomainManagement';
 import SignInScreen from './components/auth/SignInScreen';
 import SignUpScreen from './components/auth/SignUpScreen';
 import Navbar from './components/layout/Navbar';
-import AddStudentModal from './components/AddStudentModal';
 import Spinner from './components/Spinner';
 import { InterviewReport, Question, Answer, User, InterviewStartPayload } from './types';
 import { fetchStudentSessionsForStudentRole } from './services/studentService';
@@ -325,27 +324,31 @@ const App: React.FC = () => {
 
   const mapReportFromDetail = useCallback((detail: any): InterviewReport => {
     const feedback = Array.isArray(detail?.detailed_feedback) ? detail.detailed_feedback : [];
-    const overallScore = detail?.overall_score ?? detail?.overallScore;
-    return {
+    const overallScore = detail?.overall_score ?? detail?.overallScore ?? detail?.total_score;
+    const scoresFromFeedback = feedback.length
+      ? {
+          contentRelevance: feedback.reduce((sum: number, item: any) => sum + (item.content_relevance_score || 0), 0) / feedback.length || 0,
+          structure: feedback.reduce((sum: number, item: any) => sum + (item.structure_score || 0), 0) / feedback.length || 0,
+          fluency: feedback.reduce((sum: number, item: any) => sum + (item.fluency_score || 0), 0) / feedback.length || 0,
+          confidence: feedback.reduce((sum: number, item: any) => sum + (item.confidence_score || 0), 0) / feedback.length || 0,
+        }
+      : undefined;
+
+    const mapped: InterviewReport = {
+      ...detail,
       sessionId: detail?.session_id || detail?.sessionId,
       status: detail?.status,
       overallScore,
-      strengthSummary: detail?.strength_summary,
-      areasForGrowth: detail?.areas_for_growth,
+      totalScore: detail?.total_score ?? overallScore,
+      strengthSummary: detail?.strength_summary ?? detail?.strengthSummary,
+      areasForGrowth: detail?.areas_for_growth ?? detail?.areasForGrowth,
       detailedFeedback: feedback,
-      nextSteps: detail?.next_steps,
-      scores: feedback.length
-        ? {
-            contentRelevance: feedback.reduce((sum: number, item: any) => sum + (item.content_relevance_score || 0), 0) / feedback.length || 0,
-            structure: feedback.reduce((sum: number, item: any) => sum + (item.structure_score || 0), 0) / feedback.length || 0,
-            fluency: feedback.reduce((sum: number, item: any) => sum + (item.fluency_score || 0), 0) / feedback.length || 0,
-            confidence: feedback.reduce((sum: number, item: any) => sum + (item.confidence_score || 0), 0) / feedback.length || 0,
-          }
-        : undefined,
-      totalScore: overallScore,
-      summary: detail?.strength_summary || detail?.areas_for_growth
-        ? { strengths: detail.strength_summary || '', areasForGrowth: detail.areas_for_growth || '' }
-        : undefined,
+      nextSteps: detail?.next_steps ?? detail?.nextSteps,
+      scores: scoresFromFeedback,
+      summary:
+        detail?.strength_summary || detail?.areas_for_growth
+          ? { strengths: detail.strength_summary || '', areasForGrowth: detail.areas_for_growth || '' }
+          : undefined,
       nextStepsDetailed: Array.isArray(detail?.next_steps)
         ? detail.next_steps.map((step: any) =>
             typeof step === 'string'
@@ -357,6 +360,8 @@ const App: React.FC = () => {
           )
         : undefined,
     };
+
+    return mapped;
   }, []);
 
   const openReportBySessionId = useCallback(
@@ -544,7 +549,7 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
   const InlineStudentDetail: React.FC = () => {
     const { id } = useParams();
     if (!id) return <Navigate to="/teacher/dashboard" replace />;
-    return <StudentDetailView studentId={id} onBack={() => navigate('/teacher/dashboard')} />;
+    return <StudentDetailView studentId={id} />;
   };
 
   const renderRestoringShell = () => (
