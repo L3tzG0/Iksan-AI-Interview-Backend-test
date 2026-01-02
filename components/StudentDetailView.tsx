@@ -54,7 +54,14 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({ studentId, onBack
           ? { strengths: detail.strength_summary || '', areasForGrowth: detail.areas_for_growth || '' }
           : undefined,
       nextStepsDetailed: Array.isArray(detail?.next_steps)
-        ? detail.next_steps.map((step: string) => ({ title: step, description: step }))
+        ? detail.next_steps.map((step: any) =>
+            typeof step === 'string'
+              ? { title: step, description: step }
+              : {
+                  title: step?.title || step?.title_text || step?.label || '',
+                  description: step?.description || step?.description_text || step?.body || '',
+                }
+          )
         : undefined,
     };
   }, []);

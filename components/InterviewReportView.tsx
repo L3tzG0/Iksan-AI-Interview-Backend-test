@@ -156,8 +156,13 @@ const InterviewReportView: React.FC<InterviewReportViewProps> = ({ report }) => 
   const nextSteps = useMemo(() => {
     if (Array.isArray(report.nextStepsDetailed) && report.nextStepsDetailed.length) return report.nextStepsDetailed;
     if (Array.isArray(report.nextSteps) && report.nextSteps.length) {
-      return report.nextSteps.map((step) =>
-        typeof step === 'string' ? { title: step, description: step } : { title: step.title, description: step.description }
+      return report.nextSteps.map((step: any) =>
+        typeof step === 'string'
+          ? { title: step, description: step }
+          : {
+              title: step?.title || step?.title_text || step?.label || '',
+              description: step?.description || step?.description_text || step?.body || '',
+            }
       );
     }
     return [] as { title: string; description: string }[];
@@ -284,8 +289,8 @@ const InterviewReportView: React.FC<InterviewReportViewProps> = ({ report }) => 
                     <p className="font-semibold text-slate-800 text-base">{questionText}</p>
                     <p className="text-slate-500 text-xs">문항별 평가</p>
                   </div>
-                  <div className="ml-auto flex-shrink-0">
-                    <ChevronDownIcon className="w-5 h-5 text-slate-400 transition-transform duration-200 transform group-open:rotate-180" />
+                  <div className="flex-shrink-0 ml-auto">
+                    <ChevronDownIcon className="w-5 h-5 text-slate-400 group-open:rotate-180 transition-transform duration-200 transform" />
                   </div>
                 </summary>
                 <div className="space-y-3 px-6 pb-6">

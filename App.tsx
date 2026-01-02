@@ -347,7 +347,14 @@ const App: React.FC = () => {
         ? { strengths: detail.strength_summary || '', areasForGrowth: detail.areas_for_growth || '' }
         : undefined,
       nextStepsDetailed: Array.isArray(detail?.next_steps)
-        ? detail.next_steps.map((step: string) => ({ title: step, description: step }))
+        ? detail.next_steps.map((step: any) =>
+            typeof step === 'string'
+              ? { title: step, description: step }
+              : {
+                  title: step?.title || step?.title_text || step?.label || '',
+                  description: step?.description || step?.description_text || step?.body || '',
+                }
+          )
         : undefined,
     };
   }, []);
@@ -541,7 +548,7 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
   };
 
   const renderRestoringShell = () => (
-    <div className="relative flex justify-center items-center min-h-screen text-slate-700 overflow-hidden">
+    <div className="relative flex justify-center items-center min-h-screen overflow-hidden text-slate-700">
       <div className="-top-24 -right-16 absolute bg-primary/10 blur-3xl rounded-full w-72 h-72 animate-pulseSlow pointer-events-none"></div>
       <div className="top-32 -left-24 absolute bg-primary-light/40 blur-3xl rounded-full w-80 h-80 animate-pulseSlow pointer-events-none"></div>
       <Spinner label="로딩 중..." />
@@ -627,7 +634,7 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
         <main className="mx-auto p-4 sm:p-6 lg:px-8 pt-8 pb-16 max-w-7xl">
           {/* AdminHeader removed */}
           {isLoading && (
-            <div className="relative flex flex-col justify-center items-center h-[60vh] text-slate-700 overflow-hidden rounded-3xl border border-white/70 bg-white/80 shadow-soft">
+            <div className="relative flex flex-col justify-center items-center bg-white/80 shadow-soft border border-white/70 rounded-3xl h-[60vh] overflow-hidden text-slate-700">
               <div className="-top-20 -right-12 absolute bg-primary/10 blur-3xl rounded-full w-64 h-64 animate-pulseSlow pointer-events-none"></div>
               <div className="top-16 -left-16 absolute bg-primary-light/40 blur-3xl rounded-full w-72 h-72 animate-pulseSlow pointer-events-none"></div>
               {isWaitingForQuestions ? (
@@ -635,7 +642,7 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
                   <div className="scale-150 sm:scale-200">
                     <Spinner label="AI가 맞춤형 면접 질문을 준비하고 있어요" />
                   </div>
-                  <p className="text-sm font-semibold text-primary">
+                  <p className="font-semibold text-primary text-sm">
                     {loadingProgress}%
                   </p>
                 </div>
