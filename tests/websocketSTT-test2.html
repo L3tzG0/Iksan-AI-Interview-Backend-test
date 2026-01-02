@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Korean Speech-to-Text (Whisper)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f7f9fb; }
+        .container { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="bg-white shadow-xl p-8 rounded-xl w-full max-w-4xl">
+        <h1 class="mb-6 font-bold text-gray-800 text-3xl text-center">🎙️ Live Whisper STT</h1>
+        <p class="mb-8 text-gray-600 text-center">Streams audio to the company Whisper-large-v3 server.</p>
+
+        <div class="flex flex-col items-center space-y-4">
+            <button id="recordButton" 
+                    class="bg-indigo-600 hover:bg-indigo-700 focus:ring-opacity-50 shadow-lg px-8 py-3 rounded-full focus:outline-none focus:ring-4 focus:ring-indigo-500 font-semibold text-white text-lg hover:scale-105 transition duration-150 ease-in-out transform"
+                    onclick="toggleRecording()">
+                Start Interview
+            </button>
+            <div id="statusIndicator" class="font-medium text-gray-500 text-sm">Status: Idle</div>
+            <div id="loader" class="hidden flex items-center space-x-2 text-indigo-600 animate-pulse">
+                <span>Processing complete interview... please wait.</span>
+            </div>
+        </div>
+
+        <div class="gap-6 grid grid-cols-1 lg:grid-cols-2 mt-10 pt-6 border-t">
+            <div>
+                <h2 class="mb-4 font-semibold text-gray-800 text-xl">Final Transcript:</h2>
+                <div id="transcriptOutput" class="bg-gray-50 p-4 border border-gray-200 rounded-lg h-48 overflow-y-auto text-gray-700 whitespace-pre-wrap">
+                    <p class="text-gray-400 italic">The transcript will appear here after you stop recording.</p>
+                </div>
+            </div>
+
+            <div>
+                <h2 class="flex justify-between items-center mb-4 font-semibold text-gray-800 text-xl">
+                    Pause Analysis
+                    <span id="pauseCount" class="font-medium text-red-500 text-sm">Total: 0</span>
+                </h2>
+                <div id="pauseOutput" class="bg-gray-50 p-4 border border-gray-200 rounded-lg h-48 overflow-y-auto text-gray-600 text-sm">
+                    <p class="text-gray-400 italic">Pause metrics will appear here.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-8 pt-4 border-t">
+            <h2 class="mb-2 font-semibold text-gray-800 text-xl">Technical Summary (JSON):</h2>
+            <pre id="rawOutput" class="bg-gray-800 p-3 rounded-lg h-48 overflow-x-auto text-green-300 text-xs"></pre>
+        </div>
+    </div>
+</div>
+
+<script>
+    const WEBSOCKET_URL = "ws://localhost:8000/api/v1/stt/live-whisper"; 
+    const SAMPLE_RATE = 16000;
+    const BUFFER_SIZE = 4096;
+
+    let ws = null;
+    let audioContext = null;
+    let microphone = null;
+    let processor = null;
+    let isRecording = false;
+
+    const recordButton = document.getElementById('recordButton');
+    const statusIndicator = document.getElementById('statusIndicator');
+    const transcriptOutput = document.getElementById('transcriptOutput');
+    const pauseOutput = document.getElementById('pauseOutput');
+    const rawOutput = document.getElementById('rawOutput');
+    const pauseCount = document.getElementById('pauseCount');
+    const loader = document.getElementById('loader');
+
+    function updateUI(recordingState) {
+        isRecording = recordingState;
+        if (isRecording) {
+            recordButton.textContent = 'Stop Interview';
+            recordButton.classList.replace('bg-indigo-600', 'bg-red-600');
+            statusIndicator.innerHTML = '<span class="text-green-500 animate-pulse">● Recording...</span>';
+            transcriptOutput.innerHTML = '<p class="text-gray-400">Recording audio in real-time...</p>';
+            loader.classList.add('hidden');
+        } else {
+            recordButton.textContent = 'Start Interview';
+            recordButton.classList.replace('bg-red-600', 'bg-indigo-600');
+            statusIndicator.textContent = 'Status: Idle';
+        }
+    }
+
+    function toggleRecording() {
+        if (isRecording) {
+            stopMicrophone();
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                loader.classList.remove('hidden');
+                statusIndicator.textContent = 'Status: Transcribing...';
+                ws.send(JSON.stringify({ type: "CLOSE_SIGNAL" }));
+            }
+        } else {
+            connectWebSocket();
+        }
+    }
+
+    function connectWebSocket() {
+        ws = new WebSocket(WEBSOCKET_URL);
+        ws.onopen = () => {
+            updateUI(true);
+            startMicrophone();
+        };
+
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data.type === 'FINAL_SUMMARY') {
+                loader.classList.add('hidden');
+                updateUI(false);
+                rawOutput.textContent = JSON.stringify(data, null, 2);
+                transcriptOutput.innerHTML = `<p class="font-medium">${data.final_transcript}</p>`;
+                pauseCount.textContent = `Total: ${data.total_pause_count}`;
+                pauseOutput.innerHTML = (data.all_detected_pauses || []).map(p => `
+                    <div class="bg-yellow-50 mb-2 p-2 border-yellow-400 border-l-4 rounded">
+                        <strong>Pause: ${p.gap_seconds}s</strong><br>
+                        <span class="text-gray-500 text-xs">Before: "${p.before_word}"</span>
+                    </div>
+                `).join('') || '<p>No significant pauses detected.</p>';
+                ws.close();
+            } else if (data.type === 'ERROR') {
+                alert("Error: " + data.message);
+                updateUI(false);
+                loader.classList.add('hidden');
+            }
+        };
+    }
+
+    async function startMicrophone() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            // CRITICAL FIX: Explicitly set sampleRate to 16000
+            audioContext = new (window.AudioContext || window.webkitAudioContext)({
+                sampleRate: SAMPLE_RATE,
+            });
+            
+            microphone = audioContext.createMediaStreamSource(stream);
+            processor = audioContext.createScriptProcessor(BUFFER_SIZE, 1, 1);
+
+            processor.onaudioprocess = (e) => {
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    const inputData = e.inputBuffer.getChannelData(0);
+                    const pcm16 = convertFloat32ToInt16(inputData);
+                    ws.send(pcm16);
+                }
+            };
+
+            microphone.connect(processor);
+            processor.connect(audioContext.destination);
+        } catch (err) {
+            console.error("Microphone access failed", err);
+            alert("Microphone access denied or not supported.");
+            updateUI(false);
+        }
+    }
+
+    function stopMicrophone() {
+        if (processor) processor.disconnect();
+        if (microphone && microphone.mediaStream) {
+            microphone.mediaStream.getTracks().forEach(t => t.stop());
+        }
+        if (audioContext) audioContext.close();
+    }
+
+    function convertFloat32ToInt16(buffer) {
+        let l = buffer.length;
+        let buf = new Int16Array(l);
+        while (l--) {
+            let s = Math.max(-1, Math.min(1, buffer[l]));
+            buf[l] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+        }
+        return buf.buffer;
+    }
+</script>
+</body>
+</html>
