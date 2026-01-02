@@ -621,7 +621,6 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
           onToggleRole={handleRoleToggle}
           currentPath={location.pathname}
           onNavigate={(path) => navigate(path)}
-          hasResults={!!report}
           onOpenAddStudent={isStaff ? () => setIsAddStudentOpen(true) : undefined}
         />
         {isStaff && (

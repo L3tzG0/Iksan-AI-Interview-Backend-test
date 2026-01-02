@@ -33,11 +33,6 @@ export interface DashboardHeroProps {
   averageScore: number;
 }
 
-export interface TabSwitcherProps {
-  activeTab: DashboardTab;
-  onChange: (tab: DashboardTab) => void;
-}
-
 export type NewStudentInput = {
   name: string;
   school: string;

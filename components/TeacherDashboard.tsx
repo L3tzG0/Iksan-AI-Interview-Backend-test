@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import type { GeneratedStudentAccount, StudentSummary, User } from '../types';
 import type {
   AccountManagementSectionProps,
+  DashboardTab,
   NewStudentInput,
   TeacherDashboardProps,
 } from '../types/teacherDashboard';
@@ -18,16 +19,14 @@ import {
 import AccountManagementSection from './teacher-dashboard/AccountManagementSection';
 import CompletedSessionsSection from './teacher-dashboard/CompletedSessionsSection';
 import DashboardHero from './teacher-dashboard/DashboardHero';
-import TabSwitcher from './teacher-dashboard/TabSwitcher';
 
 const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
   const navigate = useNavigate();
   const { tab } = useParams<{ tab?: string }>();
-  const tabFromRoute: 'completed' | 'manage' = tab === '2' ? 'manage' : 'completed';
+  const activeTab: DashboardTab = tab === '2' ? 'manage' : 'completed';
   const showSchoolField = currentUser.role === 'admin';
 
   // Template CSV is served from public/teacher_bulk_template.csv
-  const [activeTab, setActiveTab] = useState<'completed' | 'manage'>(tabFromRoute);
   const [newStudent, setNewStudent] = useState<NewStudentInput>({
     name: '',
     school: currentUser.schoolName || '',
@@ -47,10 +46,6 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
   const [studentRefreshKey, setStudentRefreshKey] = useState(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { addToast } = useToast();
-
-  useEffect(() => {
-    setActiveTab(tabFromRoute);
-  }, [tabFromRoute]);
 
   const triggerCsvPicker = () => fileInputRef.current?.click();
   const downloadTemplate = () => {
@@ -247,12 +242,6 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
     URL.revokeObjectURL(url);
   };
 
-  const handleTabChange = (nextTab: 'completed' | 'manage') => {
-    setActiveTab(nextTab);
-    const tabSegment = nextTab === 'manage' ? '2' : '1';
-    navigate(`/teacher/dashboard/${tabSegment}`, { replace: true });
-  };
-
   const handleNewStudentChange: AccountManagementSectionProps['onUpdateNewStudent'] = (field, value) => {
     setNewStudent((prev) => ({ ...prev, [field]: value }));
   };
@@ -268,8 +257,6 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
       /> */}
 
       <Card className="space-y-6">
-        <TabSwitcher activeTab={activeTab} onChange={handleTabChange} />
-
         {activeTab === 'completed' && (
           <CompletedSessionsSection />
         )}
