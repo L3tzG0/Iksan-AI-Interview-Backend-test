@@ -255,9 +255,9 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
           <span className="inline-flex items-center gap-2"><span className="bg-slate-200 border border-slate-400 rounded-full w-3 h-3"></span>진행 중</span>
           <span className="ml-auto text-slate-400">총 {userList.length}명</span>
         </div> */}
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full text-slate-600 text-sm text-left">
-                            <thead className="bg-slate-50 border-slate-200 border-b text-slate-500 text-xs uppercase">
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-black text-sm text-left">
+              <thead className="bg-slate-50 border-slate-200 border-b text-black text-xs uppercase">
                                 <tr>
                                     <th className="px-6 py-4 font-bold">
                                         이름
@@ -291,18 +291,18 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
                                         className={`group cursor-pointer transition-all border-primary text-primary hover:bg-primary-lightest/80`}
                                         onClick={() => {}}
                                     >
-                                        <td className="px-6 py-4 font-semibold text-slate-800 group-hover:text-primary">
-                                            {student.name}
-                                        </td>
-                                        <td className="px-6 py-4 font-medium text-slate-700">
-                                            {student.major}
-                                        </td>
-                                        <td className="px-6 py-4 font-mono font-semibold text-primary">
-                                            {student.id}
-                                        </td>
-                                        <td className="px-6 py-4 font-mono text-slate-700">
-                                            {student.tempPassword || "—"}
-                                        </td>
+                    <td className="px-6 py-4 font-semibold text-black group-hover:text-black">
+                      {student.name}
+                    </td>
+                    <td className="px-6 py-4 font-medium text-black">
+                      {student.major}
+                    </td>
+                    <td className="px-6 py-4 font-mono font-semibold text-black">
+                      {student.id}
+                    </td>
+                    <td className="px-6 py-4 font-mono text-black">
+                      {student.tempPassword || "—"}
+                    </td>
                                     </tr>
                                 ))}
                                 {!isStudentTableLoading &&

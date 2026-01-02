@@ -180,8 +180,8 @@ const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({}) => {
                         </span>
                     </div>
                     <div className="overflow-x-auto">
-                        <table className="min-w-full text-slate-600 text-sm text-left">
-                            <thead className="bg-slate-50 border-slate-200 border-b text-slate-500 text-xs uppercase">
+                        <table className="min-w-full text-black text-sm text-left">
+                            <thead className="bg-slate-50 border-slate-200 border-b text-black text-xs uppercase">
                                 <tr>
                                     <th className="px-6 py-4 font-bold">
                                         이름
@@ -210,7 +210,7 @@ const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({}) => {
                                 {sortedStudents.map((student) => (
                                     <tr
                                         key={student.id}
-                                        className={`group cursor-pointer transition-all border-primary text-primary hover:bg-primary-lightest/80 `}
+                                        className={`group cursor-pointer transition-all border-primary text-black hover:bg-primary-lightest/80 `}
                                         onClick={() => {
                                             const sessionId =
                                                 student.session_id ||
@@ -225,20 +225,20 @@ const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({}) => {
                                             navigate(path);
                                         }}
                                     >
-                                        <td className="px-6 py-4 font-semibold text-slate-800 group-hover:text-primary">
+                                        <td className="px-6 py-4 font-semibold text-black group-hover:text-black">
                                             {student.name}
                                         </td>
                                         <td className="px-6 py-4">
                                             {student.grade}학년
                                         </td>
-                                        <td className="px-6 py-4 font-medium text-slate-700">
+                                        <td className="px-6 py-4 font-medium text-black">
                                             {student.major}
                                         </td>
                                         <td className="px-6 py-4 text-center">
                                             {student.intent
                                                 ? student.intent === "work"
                                                     ? "취업"
-                                                    : "대학"
+                                                    : "입시"
                                                 : "알 수 없음"}
                                         </td>
                                         <td className="px-6 py-4 text-center">
@@ -246,8 +246,8 @@ const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({}) => {
                                                 className={`inline-flex items-center justify-center px-2.5 py-1 rounded-full text-xs font-semibold ${
                                                     student.status ===
                                                     "completed"
-                                                        ? "bg-green-100 text-green-700 border border-green-200"
-                                                        : "bg-amber-100 text-amber-700 border border-amber-200"
+                                                        ? "bg-green-100 text-black border border-green-200"
+                                                        : "bg-amber-100 text-black border border-amber-200"
                                                 }`}
                                             >
                                                 {student.status === "completed"
@@ -255,15 +255,11 @@ const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({}) => {
                                                     : "진행중"}
                                             </span>
                                         </td>
-                                        <td className="px-6 py-4 font-mono font-bold text-slate-800 text-center">
+                                        <td className="px-6 py-4 font-mono font-bold text-black text-center">
                                             {`${Number((student.latestScore).toFixed(2))}/10`}
                                         </td>
                                         <td
-                                            className={`px-6 py-4 text-center font-mono font-bold ${
-                                                student.improvement >= 0
-                                                    ? "text-green-600"
-                                                    : "text-red-600"
-                                            }`}
+                                            className="px-6 py-4 text-center font-mono font-bold text-black"
                                         >
                                             {student.improvement >= 0
                                                 ? `+ ${student.improvement}%`
