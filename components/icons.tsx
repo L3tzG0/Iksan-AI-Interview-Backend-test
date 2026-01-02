@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   ArrowUpDown,
+  BookOpen,
   Brain,
   ChartColumn,
   ChevronDown,
@@ -24,6 +25,7 @@ import {
   Mail,
   Menu,
   Mic,
+  School,
   Search,
   Shield,
   Sparkles,
@@ -62,6 +64,8 @@ export const LockIcon = Lock;
 export const LogOutIcon = LogOut;
 export const ChevronDownIcon = ChevronDown;
 export const MenuIcon = Menu;
+export const BookOpenIcon = BookOpen;
+export const SchoolIcon = School;
 
 export const EliceLogoIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg {...props} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1603 500" fill="currentColor">

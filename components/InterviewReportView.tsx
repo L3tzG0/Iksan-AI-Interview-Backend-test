@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import type { InterviewReport } from '../types';
 import Card from './Card';
 import Button from './ui/Button';
-import { CheckCircleIcon, AlertTriangleIcon, BrainIcon, FileTextIcon, MicIcon, ShieldIcon, ChevronDownIcon, ArrowLeftIcon } from './icons';
+import { CheckCircleIcon, AlertTriangleIcon, BrainIcon, FileTextIcon, MicIcon, ShieldIcon, ChevronDownIcon, ArrowLeftIcon, UserIcon, GraduationCapIcon, BookOpenIcon, SchoolIcon } from './icons';
 import { useNavigate } from 'react-router-dom';
 import { deriveReportScores } from '../utils/report';
 
@@ -294,22 +294,22 @@ const InterviewReportView: React.FC<InterviewReportViewProps> = ({ report, onDow
           {studentInfoCard?.error ? (
             <p className="text-rose-500 text-sm">{studentInfoCard.error}</p>
           ) : (
-            <dl className="gap-3 grid grid-cols-2 text-sm">
-              <div>
-                <dt className="text-slate-500">이름</dt>
-                <dd className="font-semibold text-slate-800">{studentInfoContent.student_name}</dd>
+            <dl className="flex flex-col gap-2 text-sm">
+              <div className="flex items-center gap-8">
+                <dt className="flex items-center gap-2 font-semibold text-slate-800"><UserIcon className="w-4 h-4" />이름</dt>
+                <dd className="gap-2 text-slate-500">{studentInfoContent.student_name}</dd>
               </div>
-              <div>
-                <dt className="text-slate-500">학년</dt>
-                <dd className="font-semibold text-slate-800">{studentInfoContent.grade_level}</dd>
+              <div className="flex items-center gap-8">
+                <dt className="flex items-center gap-2 font-semibold text-slate-800"><GraduationCapIcon className="w-4 h-4" />학년</dt>
+                <dd className="gap-2 text-slate-500">{studentInfoContent.grade_level}</dd>
               </div>
-              <div>
-                <dt className="text-slate-500">전공</dt>
-                <dd className="font-semibold text-slate-800">{studentInfoContent.major_name}</dd>
+              <div className="flex items-center gap-8">
+                <dt className="flex items-center gap-2 font-semibold text-slate-800"><BookOpenIcon className="w-4 h-4" />전공</dt>
+                <dd className="gap-2 text-slate-500">{studentInfoContent.major_name}</dd>
               </div>
-              <div>
-                <dt className="text-slate-500">학교</dt>
-                <dd className="font-semibold text-slate-800">{studentInfoContent.school_name}</dd>
+              <div className="flex items-center gap-8">
+                <dt className="flex items-center gap-2 font-semibold text-slate-800"><SchoolIcon className="w-4 h-4" />학교</dt>
+                <dd className="gap-2 text-slate-500">{studentInfoContent.school_name}</dd>
               </div>
             </dl>
           )}
