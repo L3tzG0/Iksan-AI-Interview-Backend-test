@@ -42,8 +42,10 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>('');
   const debounceTimer = useRef<number | null>(null);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const dragCounter = useRef(0);
+  const lastGeneratedAccountId = useRef<string | null>(generatedAccount?.studentId ?? null);
 
   const handleDragEnter = useCallback((e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -144,89 +146,46 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
     };
   }, [searchTerm]);
 
+  const openCreateModal = useCallback(() => setIsCreateModalOpen(true), []);
+  const closeCreateModal = useCallback(() => setIsCreateModalOpen(false), []);
+
+  useEffect(() => {
+    const currentId = generatedAccount?.studentId ?? null;
+    if (currentId && currentId !== lastGeneratedAccountId.current && isCreateModalOpen) {
+      setIsCreateModalOpen(false);
+    }
+    if (currentId !== lastGeneratedAccountId.current) {
+      lastGeneratedAccountId.current = currentId;
+    }
+  }, [generatedAccount, isCreateModalOpen]);
+
   const isStudentTableLoading = isLoadingUsers || isLoadingStudents;
 
   return (
-    <div className="space-y-6">
+    <>
       <div className="flex lg:flex-row flex-col lg:justify-between lg:items-center gap-3">
         <div>
-          <p className="font-semibold text-primary-text text-xs uppercase tracking-[0.25em]">Student Accounts</p>
+          <p className="font-semibold text-primary-text text-xs uppercase tracking-[0.25em]">구성원 관리​</p>
           <h2 className="font-bold text-slate-900 text-xl">학생 계정 생성</h2>
           <p className="text-slate-500 text-sm">학교 코드 + 전공 코드 + 4자리 번호로 학생 ID를 만듭니다. (예: 001000100001)</p>
         </div>
-        {generatedAccount && (
-          <div className="bg-primary-lightest/70 px-4 py-3 border border-primary/30 rounded-2xl text-slate-800 text-sm">
-            <p className="font-semibold text-primary">새로 생성됨</p>
-            <p className="font-mono text-slate-900">ID: {generatedAccount.studentId}</p>
-            <p className="font-mono text-slate-900">PW: {generatedAccount.tempPassword}</p>
-            <p className="mt-1 text-slate-500 text-xs">첫 로그인 후 비밀번호를 변경하도록 안내하세요.</p>
-          </div>
-        )}
+        <div className="flex items-center gap-3">
+          <Button type="button" onClick={openCreateModal} className="whitespace-nowrap">
+            학생 계정 생성
+          </Button>
+        </div>
       </div>
 
-      <div className="space-y-4">
-        <form className="gap-3 grid sm:grid-cols-2" onSubmit={onCreateStudent}>
-          <label className="space-y-1 font-semibold text-slate-700 text-sm">
-            이름
-            <input
-              value={newStudent.name}
-              onChange={(e) => onUpdateNewStudent('name', e.target.value)}
-              className="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 w-full"
-              placeholder="예: 홍길동"
-              required
-            />
-          </label>
-          {showSchoolField && (
-            <label className="space-y-1 font-semibold text-slate-700 text-sm">
-              학교
-              <SchoolSelect
-                value={newStudent.school || ''}
-                onChange={(v) => onUpdateNewStudent('school', v)}
-                placeholder="예: 부산자동차고등학교"
-                className="w-full"
-                spinnerPositionClassName="absolute right-3 top-2"
-              />
-            </label>
-          )}
-          <label className="space-y-1 font-semibold text-slate-700 text-sm">
-            학년
-            <select
-              value={newStudent.gradeYear}
-              onChange={(e) => onUpdateNewStudent('gradeYear', Number(e.target.value) as 1 | 2 | 3)}
-              className="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 w-full"
-            >
-              {[1, 2, 3].map((year) => (
-                <option key={year} value={year}>{year}학년</option>
-              ))}
-            </select>
-          </label>
-          <label className="space-y-1 font-semibold text-slate-700 text-sm">
-            전공 / 반
-            <MajorSelect
-              value={newStudent.major || ''}
-              onChange={(v) => onUpdateNewStudent('major', v)}
-              placeholder="예: 전자과, 자동차과"
-              required
-              className="w-full"
-              spinnerPositionClassName="absolute right-3 top-2"
-            />
-          </label>
-          <label className="space-y-1 font-semibold text-slate-700 text-sm">
-            Class Label (선택)
-            <input
-              value={newStudent.classLabel}
-              onChange={(e) => onUpdateNewStudent('classLabel', e.target.value)}
-              className="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 w-full"
-              placeholder="예: A1, B3"
-            />
-          </label>
-          <div className={`flex items-end ${!showSchoolField ? 'sm:col-span-2' : ''}`}>
-            <Button type="submit" className="w-full" disabled={isCreatingStudent}>
-              {isCreatingStudent ? '추가 중...' : '학생 추가'}
-            </Button>
-          </div>
-        </form>
+      {generatedAccount && (
+        <div className="bg-primary-lightest/70 px-4 py-3 border border-primary/30 rounded-2xl text-slate-800 text-sm">
+          <p className="font-semibold text-primary">새로 생성됨</p>
+          <p className="font-mono text-slate-900">ID: {generatedAccount.studentId}</p>
+          <p className="font-mono text-slate-900">PW: {generatedAccount.tempPassword}</p>
+          <p className="mt-1 text-slate-500 text-xs">첫 로그인 후 비밀번호를 변경하도록 안내하세요.</p>
+        </div>
+      )}
 
+      <div className="space-y-4">
         <div className="space-y-3">
           <div
             className={`bg-slate-50/70 p-4 rounded-2xl border transition-all duration-200 ${isDraggingFile
@@ -379,7 +338,7 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
             </table>
           </div>
           {/* Pagination Controls */}
-          <div className="px-4 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+          <div className="flex justify-between items-center bg-slate-50 px-4 py-3 border-slate-100 border-t">
             <div className="text-slate-500 text-xs">
               {typeof totalUsers === 'number' ? (
                 (() => {
@@ -412,7 +371,97 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
           </div>
         </div>
       </div>
-    </div>
+
+      {isCreateModalOpen && (
+        <div
+          className="z-50 fixed inset-0 flex justify-center items-center bg-slate-900/60 mt-0 px-4"
+          onClick={closeCreateModal}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="relative flex flex-col gap-4 bg-white shadow-2xl p-6 rounded-3xl w-full max-w-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={closeCreateModal}
+              aria-label="학생 계정 생성 닫기"
+              className="top-4 right-4 absolute font-semibold text-slate-400 hover:text-slate-600 text-2xl"
+            >
+              ×
+            </button>
+            <div className="flex flex-col gap-1">
+              <h3 className="font-bold text-slate-900 text-2xl">학생 계정 만들기</h3>
+              <p className="text-slate-500 text-sm">
+                학교 코드 + 전공 코드 + 4자리 번호로 학생 ID를 만듭니다. (예: 001000100001)
+              </p>
+            </div>
+            <form className="gap-3 grid sm:grid-cols-2" onSubmit={onCreateStudent}>
+              <label className="space-y-1 font-semibold text-slate-700 text-sm">
+                이름
+                <input
+                  value={newStudent.name}
+                  onChange={(e) => onUpdateNewStudent('name', e.target.value)}
+                  className="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 w-full"
+                  placeholder="예: 홍길동"
+                  required
+                />
+              </label>
+              {showSchoolField && (
+                <label className="space-y-1 font-semibold text-slate-700 text-sm">
+                  학교
+                  <SchoolSelect
+                    value={newStudent.school || ''}
+                    onChange={(v) => onUpdateNewStudent('school', v)}
+                    placeholder="예: 부산자동차고등학교"
+                    className="w-full"
+                    spinnerPositionClassName="absolute right-3 top-2"
+                  />
+                </label>
+              )}
+              <label className="space-y-1 font-semibold text-slate-700 text-sm">
+                학년
+                <select
+                  value={newStudent.gradeYear}
+                  onChange={(e) => onUpdateNewStudent('gradeYear', Number(e.target.value) as 1 | 2 | 3)}
+                  className="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 w-full"
+                >
+                  {[1, 2, 3].map((year) => (
+                    <option key={year} value={year}>{year}학년</option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-1 font-semibold text-slate-700 text-sm">
+                전공 / 반
+                <MajorSelect
+                  value={newStudent.major || ''}
+                  onChange={(v) => onUpdateNewStudent('major', v)}
+                  placeholder="예: 전자과, 자동차과"
+                  required
+                  className="w-full"
+                  spinnerPositionClassName="absolute right-3 top-2"
+                />
+              </label>
+              <label className="space-y-1 font-semibold text-slate-700 text-sm">
+                Class Label (선택)
+                <input
+                  value={newStudent.classLabel}
+                  onChange={(e) => onUpdateNewStudent('classLabel', e.target.value)}
+                  className="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 w-full"
+                  placeholder="예: A1, B3"
+                />
+              </label>
+              <div className={`flex items-end ${!showSchoolField ? 'sm:col-span-2' : ''}`}>
+                <Button type="submit" className="w-full" disabled={isCreatingStudent}>
+                  {isCreatingStudent ? '추가 중...' : '학생 추가'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </>
   );
 };
 

@@ -621,15 +621,7 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
           onToggleRole={handleRoleToggle}
           currentPath={location.pathname}
           onNavigate={(path) => navigate(path)}
-          onOpenAddStudent={isStaff ? () => setIsAddStudentOpen(true) : undefined}
         />
-        {isStaff && (
-          <AddStudentModal
-            isOpen={isAddStudentOpen}
-            onClose={() => setIsAddStudentOpen(false)}
-            defaultSchool={currentUser?.schoolName}
-          />
-        )}
         <main className="mx-auto p-4 sm:p-6 lg:px-8 pt-8 pb-16 max-w-7xl">
           {/* AdminHeader removed */}
           {isLoading && (
