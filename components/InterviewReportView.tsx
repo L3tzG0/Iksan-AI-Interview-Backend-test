@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import type { InterviewReport } from '../types';
 import Card from './Card';
 import Button from './ui/Button';
-import { CheckCircleIcon, AlertTriangleIcon, BrainIcon, FileTextIcon, MicIcon, ShieldIcon, ChevronDownIcon, ArrowLeftIcon, UserIcon, GraduationCapIcon, BookOpenIcon, SchoolIcon } from './icons';
+import { CheckCircleIcon, AlertTriangleIcon, BrainIcon, FileTextIcon, MicIcon, ShieldIcon, ChevronDownIcon, ArrowLeftIcon, UserIcon, GraduationCapIcon, BookOpenIcon, SchoolIcon, } from './icons';
 import { useNavigate } from 'react-router-dom';
 import { deriveReportScores } from '../utils/report';
 
@@ -40,6 +40,12 @@ const createChips = (paragraph?: string | null) => {
     .map((item) => item.trim())
     .filter(Boolean)
     .slice(0, 4);
+};
+
+const formatInterviewType = (type: unknown) => {
+  if (type === 'job') return '취업';
+  if (type === 'university') return '입시';
+  return toDisplayString(type);
 };
 
 const RadarChart: React.FC<{ scores: { contentRelevance: number; structure: number; fluency: number; confidence: number } }> = ({ scores }) => {
@@ -146,6 +152,9 @@ const RadarChart: React.FC<{ scores: { contentRelevance: number; structure: numb
 };
 
 const InterviewReportView: React.FC<InterviewReportViewProps> = ({ report, onDownload, canDownload, isExporting }) => {
+  
+  console.log(report)
+  
   const detailedFeedback = report?.detailedFeedback || [];
   const navigate = useNavigate();
     
@@ -295,32 +304,32 @@ const InterviewReportView: React.FC<InterviewReportViewProps> = ({ report, onDow
             <p className="text-rose-500 text-sm">{studentInfoCard.error}</p>
           ) : (
             <dl className="flex flex-col gap-2 text-sm">
-              <div className="flex items-center gap-8">
+              <div className="flex items-center gap-16">
                 <dt className="flex items-center gap-2 font-semibold text-slate-800"><UserIcon className="w-4 h-4" />이름</dt>
                 <dd className="gap-2 text-slate-500">{studentInfoContent.student_name}</dd>
               </div>
-              <div className="flex items-center gap-8">
+              <div className="flex items-center gap-16">
                 <dt className="flex items-center gap-2 font-semibold text-slate-800"><GraduationCapIcon className="w-4 h-4" />학년</dt>
                 <dd className="gap-2 text-slate-500">{studentInfoContent.grade_level}</dd>
               </div>
-              <div className="flex items-center gap-8">
+              <div className="flex items-center gap-16">
                 <dt className="flex items-center gap-2 font-semibold text-slate-800"><BookOpenIcon className="w-4 h-4" />전공</dt>
                 <dd className="gap-2 text-slate-500">{studentInfoContent.major_name}</dd>
               </div>
-              <div className="flex items-center gap-8">
+              <div className="flex items-center gap-16">
                 <dt className="flex items-center gap-2 font-semibold text-slate-800"><SchoolIcon className="w-4 h-4" />학교</dt>
                 <dd className="gap-2 text-slate-500">{studentInfoContent.school_name}</dd>
               </div>
-              {/* <div className="flex items-center gap-8">
-                <dt className="flex items-center gap-2 font-semibold text-slate-800"><SchoolIcon className="w-4 h-4" />면접 유형</dt>
-                <dd className="gap-2 text-slate-500">{studentInfoContent.interview_type}</dd>
-              </div> */}
+              <div className="flex items-center gap-9">
+                <dt className="flex items-center gap-2 font-semibold text-slate-800"><FileTextIcon className="w-4 h-4" />면접 유형</dt>
+                <dd className="gap-2 text-slate-500">{formatInterviewType(report?.interview_type)}</dd>
+              </div>
             </dl>
           )}
         </Card>
 
-        <Card className="flex flex-col gap-4 lg:col-span-1 text-center">
-          <div>
+        <Card className="flex flex-col justify-center gap-4 lg:col-span-1 text-center">
+          <div className="flex flex-col items-center">
             <p className="font-semibold text-slate-400 text-xs uppercase tracking-[0.25em]">학생 정보</p>
             <div className="mt-2 font-bold text-primary text-6xl">
               {totalScoreDisplay}
