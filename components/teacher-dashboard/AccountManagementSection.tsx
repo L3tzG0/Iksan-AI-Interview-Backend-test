@@ -116,6 +116,7 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
                 });
                 if (!isActive) return;
                 setUserList(result.data ?? []);
+                console.log("Total users fetched:", result);
                 setTotalUsers(
                     typeof result.total === "number" ? result.total : undefined
                 );
@@ -186,9 +187,26 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
         <>
             <div className="flex lg:flex-row flex-col lg:justify-between lg:items-center gap-3">
                 <div>
-                    <h1 className="font-bold text-slate-900 text-xl">
+                    <h1 className="font-bold text-slate-900 text-3xl">
                         구성원 관리​
                     </h1>
+                </div>
+            </div>
+
+
+            {/* Number of students card*/}
+            <div className="mt-4">
+                <div className="flex items-center gap-4 bg-white shadow-soft p-4 border border-slate-100 rounded-2xl">
+                    <div>
+                        <p className="text-slate-500 text-xs">학생 수 </p>
+                        <p className="font-semibold text-slate-900 text-xl">
+                            {isLoadingUsers
+                                ? "불러오는 중..."
+                                : typeof totalUsers === "number"
+                                ? `${totalUsers}명`
+                                : "알 수 없음"}
+                        </p>
+                    </div>
                 </div>
             </div>
 

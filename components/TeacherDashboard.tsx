@@ -256,7 +256,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
         averageScore={stats.avgScore}
       /> */}
 
-      <div className="flex flex-col gap-8">
+      <div className="flex flex-col">
         {activeTab === 'completed' && (
           <CompletedSessionsSection />
         )}
