@@ -75,19 +75,6 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, currentPath, onNavigate
   };
 
   return (
-<<<<<<< Updated upstream
-    <nav className="top-0 z-50 sticky bg-white/80 shadow-sm backdrop-blur-xl border-white/70 border-b">
-      <div className="px-4 sm:px-6 lg:px-8 w-full">
-        <div className="flex justify-between items-center gap-4 h-16">
-          <div className="flex items-center gap-8">
-            <button
-              type="button"
-              onClick={() => onNavigate && onNavigate('/')}
-              className="flex flex-shrink-0 items-center gap-3 hover:opacity-90 transition-opacity"
-            >
-              <img src="/logo.png" alt="익산 AI 인터뷰" className="w-auto h-14 object-contain" />
-              <span className="font-bold text-slate-800 text-xl tracking-tight">AI 모의 면접</span>
-=======
     <nav className="bg-white/80 backdrop-blur-xl border-b border-white/70 shadow-sm sticky top-0 z-50">
       <div className="w-full px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16 items-center gap-4">
@@ -98,7 +85,6 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, currentPath, onNavigate
               className="flex-shrink-0 flex items-center p-0 hover:opacity-90 transition-opacity"
             >
               <img src="/logo.png" alt="익산 AI 인터뷰" className="h-14 w-auto object-contain" />
->>>>>>> Stashed changes
             </button>
             <div className="hidden md:flex items-center gap-2">
               {navItems.map((item) => {
