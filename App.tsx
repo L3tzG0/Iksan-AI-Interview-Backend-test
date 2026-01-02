@@ -373,7 +373,7 @@ const App: React.FC = () => {
         const detail = await fetchSessionDetail(sessionId);
         const mappedReport = mapReportFromDetail(detail);
         setReport(mappedReport as InterviewReport);
-        const resultsPath = currentUser?.role === 'student' ? '/student/results' : '/teacher/dashboard';
+        const resultsPath = currentUser?.role === 'student' ? '/student/history/results' : '/teacher/dashboard';
         navigate(resultsPath);
       } catch (err) {
         console.error('Failed to load report from history', err);
@@ -455,7 +455,7 @@ const App: React.FC = () => {
           setReport(mappedReport as InterviewReport);
           setIsWaitingForResults(false);
           setIsLoading(false);
-          const resultsPath = currentUser?.role === 'student' ? '/student/results' : '/teacher/dashboard';
+          const resultsPath = currentUser?.role === 'student' ? '/student/history/results' : '/teacher/dashboard';
           navigate(resultsPath);
         }
       } catch (err) {
@@ -536,7 +536,7 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
   const latestReport = report ?? (studentHistory.length > 0 ? studentHistory[0] : null);
 
   const handleOpenLatestReport = () => {
-    const resultsPath = currentUser?.role === 'student' ? '/student/results' : '/teacher/dashboard';
+    const resultsPath = currentUser?.role === 'student' ? '/student/history/results' : '/teacher/dashboard';
     if (report) {
       navigate(resultsPath);
       return;
@@ -671,7 +671,7 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
                         hasResults={!!latestReport}
                         latestReport={latestReport}
                         onStartInterview={() => navigate('/student/interview/start')}
-                        onGoDashboard={() => navigate('/student/results')}
+                        onGoDashboard={() => navigate('/student/history/results')}
                         onViewResults={handleOpenLatestReport}
                       />
                     }
@@ -713,7 +713,7 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
                 }
               />
               <Route
-                path="/student/results"
+                path="/student/history/results"
                 element={
                   <ProtectedRoute
                     allowed={['student', 'teacher', 'admin']}
