@@ -40,13 +40,13 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, currentPath, onNavigate
       base.push({
         path: '/teacher/dashboard/1',
         label: '완료 학생',
-        icon: GraduationCapIcon,
+        icon: ChartIcon,
         matchCurrentPath: (currentPath) => currentPath === '/teacher/dashboard' || currentPath.startsWith('/teacher/dashboard/1'),
       });
       base.push({
         path: '/teacher/dashboard/2',
         label: '학생 관리',
-        icon: ChartIcon,
+        icon: GraduationCapIcon,
         matchCurrentPath: (currentPath) => currentPath.startsWith('/teacher/dashboard/2') || currentPath.startsWith('/teacher/students'),
       });
       base.push({ path: '/teacher/interview/preview', label: '학생 미리보기', icon: FileTextIcon });

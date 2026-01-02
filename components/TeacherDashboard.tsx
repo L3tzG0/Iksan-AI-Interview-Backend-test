@@ -256,7 +256,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
         averageScore={stats.avgScore}
       /> */}
 
-      <Card className="space-y-6">
+      <div className="space-y-6">
         {activeTab === 'completed' && (
           <CompletedSessionsSection />
         )}
@@ -285,7 +285,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
             refreshKey={studentRefreshKey}
           />
         )}
-      </Card>
+      </div>
     </div>
   );
 };
