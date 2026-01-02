@@ -89,7 +89,7 @@ async def send_final_summary(websocket: WebSocket, final_transcript_text: str, f
     except Exception as e:
         print(f"Failed to send final summary to client: {e}")
         return False
-@router.websocket("/live")
+@router.websocket("/live-deepgram")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     print("WebSocket connection established.")
@@ -409,7 +409,7 @@ def _sync_calculate_metrics(api_res: Dict) -> Dict:
         # "all_detected_pauses": pauses
     }
 
-@router.websocket("/live-whisper")
+@router.websocket("/live")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     # audio_buffer = io.BytesIO()
