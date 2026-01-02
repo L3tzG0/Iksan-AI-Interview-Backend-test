@@ -64,7 +64,7 @@ const FilterControls: FC<FilterControlsProps> = ({
         onChange={(e) => onSortChange(e.target.value as typeof sortOption)}
         className="bg-transparent focus:outline-none"
       >
-        <option value="recent">이름순</option>
+        <option value="recent">최신순</option>
         <option value="score">점수순</option>
         <option value="growth">개선율</option>
       </select>

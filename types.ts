@@ -125,6 +125,8 @@ export interface StudentSummary {
   tempPassword?: string; // optional: temporary password for account
   sessionId?: string;
   session_id?: string;
+  completedAt?: string;
+  createdAt?: string;
 }
 
 // StudentDetail now holds the history

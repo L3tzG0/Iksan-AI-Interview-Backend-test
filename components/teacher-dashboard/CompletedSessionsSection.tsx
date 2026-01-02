@@ -1,7 +1,7 @@
 import type { FC } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { CompletedSessionsSectionProps } from "../../types/teacherDashboard";
+import type { CompletedSessionsSectionProps, SortOption } from "../../types/teacherDashboard";
 import type { StudentGoal, StudentSummary } from "../../types";
 import FilterControls from "./FilterControls";
 import SearchBar from "./SearchBar";
@@ -44,6 +44,8 @@ const normalizeSessionToSummary = (
         intent: mapInterviewTypeToGoal(session.interviewType),
         sessionId: sessionIdValue !== undefined ? String(sessionIdValue) : undefined,
         session_id: sessionIdValue !== undefined ? String(sessionIdValue) : undefined,
+        completedAt: session.completedAt,
+        createdAt: session.createdAt,
     };
 };
 
@@ -57,6 +59,7 @@ const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({}) => {
     const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>(searchTerm);
     const SEARCH_DEBOUNCE_MS = 300;
     const [goalFilter, setGoalFilter] = useState<'all' | 'work' | 'university'>('all');
+    const [sortOption, setSortOption] = useState<SortOption>('recent');
 
     useEffect(() => {
         const id = setTimeout(() => setDebouncedSearchTerm(searchTerm), SEARCH_DEBOUNCE_MS);
@@ -104,6 +107,28 @@ const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({}) => {
     }, [goalFilter, debouncedSearchTerm]);
 
     const navigate = useNavigate();
+    const sortedStudents = useMemo(() => {
+        const list = [...studentWithSessionList];
+        const toTimestamp = (value?: string) => {
+            if (!value) return 0;
+            const parsed = Date.parse(value);
+            return Number.isNaN(parsed) ? 0 : parsed;
+        };
+
+        switch (sortOption) {
+            case "score":
+                return list.sort((a, b) => b.latestScore - a.latestScore);
+            case "growth":
+                return list.sort((a, b) => b.improvement - a.improvement);
+            case "recent":
+            default:
+                return list.sort((a, b) => {
+                    const aTime = toTimestamp(a.completedAt) || toTimestamp(a.createdAt);
+                    const bTime = toTimestamp(b.completedAt) || toTimestamp(b.createdAt);
+                    return bTime - aTime;
+                });
+        }
+    }, [studentWithSessionList, sortOption]);
 
     return (
         <div className="space-y-4">
@@ -112,6 +137,10 @@ const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({}) => {
                 <FilterControls
                     goalFilter={goalFilter}
                     onGoalChange={(v) => setGoalFilter(v as typeof goalFilter)}
+                    gradeFilter="all"
+                    onGradeChange={() => {}}
+                    sortOption={sortOption}
+                    onSortChange={setSortOption}
                     compact
                     showGrade={false}
                 />
@@ -123,7 +152,7 @@ const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({}) => {
                         <Spinner label="학생 목록을 불러오는 중..." />
                     </div>
                 </div>
-            ) : studentWithSessionList.length === 0 ? (
+            ) : sortedStudents.length === 0 ? (
                 <div className="py-16 text-slate-500 text-center">
                     <p className="font-semibold text-lg">
                         표시할 세션이 없습니다.
@@ -147,7 +176,7 @@ const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({}) => {
                             학생을 클릭하면 상세로 이동합니다.
                         </span>
                         <span className="ml-auto text-slate-400">
-                            총 {studentWithSessionList.length}명
+                            총 {sortedStudents.length}명
                         </span>
                     </div>
                     <div className="overflow-x-auto">
@@ -178,7 +207,7 @@ const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({}) => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                                {studentWithSessionList.map((student) => (
+                                {sortedStudents.map((student) => (
                                     <tr
                                         key={student.id}
                                         className={`group cursor-pointer transition-all border-primary text-primary hover:bg-primary-lightest/80 `}
