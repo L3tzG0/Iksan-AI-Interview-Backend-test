@@ -193,10 +193,9 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
                 </div>
             </div>
 
-
             {/* Number of students card*/}
             <div className="mt-4">
-                <div className="flex items-center gap-4 bg-white shadow-soft p-4 border border-slate-100 rounded-2xl">
+                <div className="flex items-center gap-4 bg-white p-4 border border-slate-300 w-1/3">
                     <div>
                         <p className="text-slate-500 text-xs">학생 수 </p>
                         <p className="font-semibold text-slate-900 text-xl">
@@ -255,9 +254,9 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
           <span className="inline-flex items-center gap-2"><span className="bg-slate-200 border border-slate-400 rounded-full w-3 h-3"></span>진행 중</span>
           <span className="ml-auto text-slate-400">총 {userList.length}명</span>
         </div> */}
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-black text-sm text-left">
-              <thead className="bg-slate-50 border-slate-200 border-b text-black text-xs uppercase">
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full text-black text-sm text-left">
+                            <thead className="bg-slate-50 border-slate-200 border-b text-black text-xs uppercase">
                                 <tr>
                                     <th className="px-6 py-4 font-bold">
                                         이름
@@ -291,18 +290,18 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
                                         className={`group cursor-pointer transition-all border-primary text-primary hover:bg-primary-lightest/80`}
                                         onClick={() => {}}
                                     >
-                    <td className="px-6 py-4 font-semibold text-black group-hover:text-black">
-                      {student.name}
-                    </td>
-                    <td className="px-6 py-4 font-medium text-black">
-                      {student.major}
-                    </td>
-                    <td className="px-6 py-4 font-mono font-semibold text-black">
-                      {student.id}
-                    </td>
-                    <td className="px-6 py-4 font-mono text-black">
-                      {student.tempPassword || "—"}
-                    </td>
+                                        <td className="px-6 py-4 font-semibold text-black group-hover:text-black">
+                                            {student.name}
+                                        </td>
+                                        <td className="px-6 py-4 font-medium text-black">
+                                            {student.major}
+                                        </td>
+                                        <td className="px-6 py-4 font-mono font-semibold text-black">
+                                            {student.id}
+                                        </td>
+                                        <td className="px-6 py-4 font-mono text-black">
+                                            {student.tempPassword || "—"}
+                                        </td>
                                     </tr>
                                 ))}
                                 {!isStudentTableLoading &&
@@ -498,11 +497,11 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
                             onDrop={handleDrop}
                         >
                             <p className="mb-1 font-semibold text-slate-800 text-sm">
-                                CSV 업로드
+                                일괄 등록​
                             </p>
                             <p className="mb-3 text-slate-500 text-xs">
-                                여러 학생을 한 번에 등록합니다. 파일을 드래그해
-                                바로 놓거나 버튼으로 선택하세요.
+                                구성원 일괄 등록 양식을 다운로드한 후, 형식에
+                                맞춰 구성원 정보를 입력한 뒤 업로드해주세요.​
                             </p>
                             <div className="flex flex-wrap items-center gap-2">
                                 <Button
@@ -510,7 +509,7 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
                                     onClick={onTemplateDownload}
                                     className="text-sm"
                                 >
-                                    CSV 템플릿 다운로드
+                                    양식 다운로드​
                                 </Button>
                                 <input
                                     ref={fileInputRef}
@@ -526,7 +525,7 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
                                     onClick={onCsvPicker}
                                     className="text-sm"
                                 >
-                                    CSV 선택하기
+                                    파일 업로드​
                                 </Button>
                                 <span className="text-slate-500 text-xs">
                                     {bulkFileName || "선택된 파일 없음"}
@@ -617,7 +616,7 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
                                     >
                                         {isUploadingCsv
                                             ? "업로드 중..."
-                                            : "CSV 업로드"}
+                                            : "일괄 등록​"}
                                     </Button>
                                     {backendErrors.length > 0 && (
                                         <div className="text-red-600 text-xs">

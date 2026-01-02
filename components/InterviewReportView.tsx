@@ -68,7 +68,7 @@ const RadarChart: React.FC<{ scores: { contentRelevance: number; structure: numb
 
   const axes = [
     { label: '내용 연관성', key: 'contentRelevance', angle: 0, anchor: 'middle', baseline: 'auto' },
-    { label: '구조 (STAR)', key: 'structure', angle: Math.PI / 2, anchor: 'start', baseline: 'middle' },
+    { label: '답변 구조​', key: 'structure', angle: Math.PI / 2, anchor: 'start', baseline: 'middle' },
     { label: '유창성', key: 'fluency', angle: Math.PI, anchor: 'middle', baseline: 'hanging' },
     { label: '자신감', key: 'confidence', angle: (3 * Math.PI) / 2, anchor: 'end', baseline: 'middle' },
   ];
@@ -311,6 +311,10 @@ const InterviewReportView: React.FC<InterviewReportViewProps> = ({ report, onDow
                 <dt className="flex items-center gap-2 font-semibold text-slate-800"><SchoolIcon className="w-4 h-4" />학교</dt>
                 <dd className="gap-2 text-slate-500">{studentInfoContent.school_name}</dd>
               </div>
+              {/* <div className="flex items-center gap-8">
+                <dt className="flex items-center gap-2 font-semibold text-slate-800"><SchoolIcon className="w-4 h-4" />면접 유형</dt>
+                <dd className="gap-2 text-slate-500">{studentInfoContent.interview_type}</dd>
+              </div> */}
             </dl>
           )}
         </Card>
@@ -325,6 +329,8 @@ const InterviewReportView: React.FC<InterviewReportViewProps> = ({ report, onDow
             {totalScoreCard?.error && <p className="mt-2 text-rose-500 text-xs">{totalScoreCard.error}</p>}
           </div>
         </Card>
+
+        <h1 className="lg:col-span-2 font-semibold text-slate-900 text-2xl">상세 분석​</h1>
 
         <Card className="lg:col-span-1">
           <h3 className="mb-4 font-semibold text-slate-500 text-sm text-center uppercase tracking-widest">점수 레이더</h3>
