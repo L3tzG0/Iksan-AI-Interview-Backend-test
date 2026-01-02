@@ -38,8 +38,8 @@ const FilterControls: FC<FilterControlsProps> = ({
         <div className="flex gap-1">
           {[
             { value: 'all', label: '전체' },
-            { value: 'work', label: '취업 준비' },
-            { value: 'university', label: '대학 준비' },
+            { value: 'work', label: '취업 면접' },
+            { value: 'university', label: '입시 면접' },
           ].map((opt) => (
             <button
               key={opt.value}
