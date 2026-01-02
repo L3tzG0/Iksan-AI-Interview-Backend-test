@@ -9,6 +9,7 @@ import type { StudentDetail, StudentSession, InterviewReport } from "../types";
 import Spinner from "./Spinner";
 import InterviewReportView from "./InterviewReportView";
 import { downloadInterviewReportPdf } from "../utils/reportPdf";
+import { mapReportFromDetail } from "../utils/report";
 
 interface StudentDetailViewProps {
     studentId: string;
@@ -34,81 +35,6 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
     );
     const [searchParams] = useSearchParams();
     const [isExporting, setIsExporting] = useState(false);
-
-    const mapReportFromDetail = useCallback((detail: any): InterviewReport => {
-        const feedback = Array.isArray(detail?.detailed_feedback)
-            ? detail.detailed_feedback
-            : [];
-        const overallScore = detail?.overall_score ?? detail?.overallScore ?? detail?.total_score;
-        const scoresFromFeedback = feedback.length
-            ? {
-                  contentRelevance:
-                      feedback.reduce(
-                          (sum: number, item: any) =>
-                              sum + (item.content_relevance_score || 0),
-                          0
-                      ) / feedback.length || 0,
-                  structure:
-                      feedback.reduce(
-                          (sum: number, item: any) =>
-                              sum + (item.structure_score || 0),
-                          0
-                      ) / feedback.length || 0,
-                  fluency:
-                      feedback.reduce(
-                          (sum: number, item: any) =>
-                              sum + (item.fluency_score || 0),
-                          0
-                      ) / feedback.length || 0,
-                  confidence:
-                      feedback.reduce(
-                          (sum: number, item: any) =>
-                              sum + (item.confidence_score || 0),
-                          0
-                      ) / feedback.length || 0,
-              }
-            : undefined;
-
-        const mapped: InterviewReport = {
-            ...detail,
-            sessionId: detail?.session_id || detail?.sessionId,
-            status: detail?.status,
-            overallScore,
-            totalScore: detail?.total_score ?? overallScore,
-            strengthSummary: detail?.strength_summary ?? detail?.strengthSummary,
-            areasForGrowth: detail?.areas_for_growth ?? detail?.areasForGrowth,
-            detailedFeedback: feedback,
-            nextSteps: detail?.next_steps ?? detail?.nextSteps,
-            scores: scoresFromFeedback,
-            summary:
-                detail?.strength_summary || detail?.areas_for_growth
-                    ? {
-                          strengths: detail.strength_summary || "",
-                          areasForGrowth: detail.areas_for_growth || "",
-                      }
-                    : undefined,
-            nextStepsDetailed: Array.isArray(detail?.next_steps)
-                ? detail.next_steps.map((step: any) =>
-                      typeof step === "string"
-                          ? { title: step, description: step }
-                          : {
-                                title:
-                                    step?.title ||
-                                    step?.title_text ||
-                                    step?.label ||
-                                    "",
-                                description:
-                                    step?.description ||
-                                    step?.description_text ||
-                                    step?.body ||
-                                    "",
-                            }
-                  )
-                : undefined,
-        };
-
-        return mapped;
-    }, []);
 
     useEffect(() => {
         setStudent({

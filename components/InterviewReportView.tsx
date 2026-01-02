@@ -4,6 +4,7 @@ import Card from './Card';
 import Button from './ui/Button';
 import { CheckCircleIcon, AlertTriangleIcon, BrainIcon, FileTextIcon, MicIcon, ShieldIcon, ChevronDownIcon, ArrowLeftIcon } from './icons';
 import { useNavigate } from 'react-router-dom';
+import { deriveReportScores } from '../utils/report';
 
 interface InterviewReportViewProps {
   report: InterviewReport;
@@ -155,22 +156,12 @@ const InterviewReportView: React.FC<InterviewReportViewProps> = ({ report, onDow
     { key: 'confidence', label: '자신감', icon: ShieldIcon, accent: 'text-emerald-600', bg: 'bg-emerald-50' },
   ] as const;
 
-  const scores = useMemo(() => {
-    if (report?.scores) return report.scores;
-    if (!detailedFeedback.length) {
-      return { contentRelevance: 0, structure: 0, fluency: 0, confidence: 0 };
-    }
-    const avg = (key: string) =>
-      detailedFeedback.reduce((sum, item: any) => sum + (item?.[key] || 0), 0) / detailedFeedback.length || 0;
-    return {
-      contentRelevance: avg('content_relevance_score'),
-      structure: avg('structure_score'),
-      fluency: avg('fluency_score'),
-      confidence: avg('confidence_score'),
-    };
-  }, [report?.scores, detailedFeedback]);
+  const { scores, totalScore } = useMemo(() => deriveReportScores(report), [report]);
 
-  const totalScoreDisplay = useMemo(() => toDisplayScore((report as any)?.total_score), [report]);
+  const totalScoreDisplay = useMemo(
+    () => toDisplayScore((report as any)?.total_score ?? totalScore),
+    [report, totalScore]
+  );
 
   const studentInfoContent = useMemo(() => {
     const studentName = toDisplayString((report as any)?.student_name);
@@ -272,7 +263,7 @@ const InterviewReportView: React.FC<InterviewReportViewProps> = ({ report, onDow
     <div className="space-y-8">
         <div className="flex items-center gap-4">
           <button
-            onClick={() => navigate('/teacher/dashboard')}
+            onClick={() => navigate(-1)}
             className="flex items-center gap-2 font-medium text-slate-500 hover:text-primary text-sm transition-colors"
           >
             <ArrowLeftIcon className="w-4 h-4" />
