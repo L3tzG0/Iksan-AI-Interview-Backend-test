@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import type { Question, Answer } from "../types";
 import Card from "./Card";
 import Button from "./ui/Button";
-import { LightbulbIcon, ClockIcon } from "./icons";
+import { LightbulbIcon } from "./icons";
 import VoiceAnswerArea from "./interview/VoiceAnswerArea";
 import Spinner from "./Spinner";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -30,15 +30,10 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
     const [answers, setAnswers] = useState<Answer[]>([]);
     const [isRecording, setIsRecording] = useState(false);
     const [isSpeechSupported, setIsSpeechSupported] = useState(true);
-    const [timeLeft, setTimeLeft] = useState(perQuestionSeconds);
     const [inlineError, setInlineError] = useState<string | null>(null);
     const [recordedAudioUrl, setRecordedAudioUrl] = useState<string | null>(
         null
     );
-    const [isTimerPaused, setIsTimerPaused] = useState(false);
-    const [isTimerVisible, setIsTimerVisible] = useState(true);
-    const [isTimerInView, setIsTimerInView] = useState(true);
-    const [timeExceeded, setTimeExceeded] = useState(false);
     const [micPermission, setMicPermission] = useState<
         "unknown" | "granted" | "denied"
     >("unknown");
@@ -107,7 +102,6 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
     const soundDetectedRef = useRef(false);
     const lastSoundTimestampRef = useRef(0);
     const finalSummaryTimeoutRef = useRef<number | null>(null);
-    const inlineTimerRef = useRef<HTMLDivElement | null>(null);
     const devicesLoadedRef = useRef(false);
 
     const loadMicDevices = useCallback(async () => {
@@ -189,19 +183,6 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
     useEffect(() => {
         isRecordingRef.current = isRecording;
     }, [isRecording]);
-
-    useEffect(() => {
-        if (!inlineTimerRef.current) return;
-        const observer = new IntersectionObserver(
-            (entries) => {
-                const entry = entries[0];
-                setIsTimerInView(entry.isIntersecting);
-            },
-            { threshold: 0.4 }
-        );
-        observer.observe(inlineTimerRef.current);
-        return () => observer.disconnect();
-    }, []);
 
     useEffect(() => {
         if (!navigator.permissions?.query) return;
@@ -480,12 +461,6 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
         });
     }, [currentQuestionIndex, questions, stopAudioRecording, updateDraft]);
 
-    const formatTime = (seconds: number) => {
-        const mins = Math.floor(seconds / 60);
-        const secs = seconds % 60;
-        return `${mins}:${secs.toString().padStart(2, "0")}`;
-    };
-
     const stopCurrentRecording = useCallback(() => {
         if (isRecordingRef.current) {
             setIsRecording(false);
@@ -517,25 +492,6 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
             stopCurrentRecording();
         };
     }, [stopCurrentRecording]);
-
-    const isLowTime = timeLeft <= 15;
-    useEffect(() => {
-        if (!isLowTime || isTimerPaused) return;
-        try {
-            const context = new (window.AudioContext ||
-                (window as any).webkitAudioContext)();
-            const oscillator = context.createOscillator();
-            const gainNode = context.createGain();
-            oscillator.type = "sine";
-            oscillator.frequency.setValueAtTime(880, context.currentTime);
-            gainNode.gain.setValueAtTime(0.05, context.currentTime);
-            oscillator.connect(gainNode).connect(context.destination);
-            oscillator.start();
-            oscillator.stop(context.currentTime + 0.1);
-        } catch {
-            // Audio may be blocked; fail silently.
-        }
-    }, [isLowTime, isTimerPaused]);
 
     const startAudioRecording = useCallback(async () => {
         if (!navigator.mediaDevices?.getUserMedia) return;
@@ -669,7 +625,6 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
                 ? pauseEvents.reduce((acc, p) => acc + (p.gapSeconds || 0), 0)
                 : undefined;
             setInlineError(null);
-            setTimeExceeded(false);
 
             const newAnswer: Answer = {
                 questionId: question.id,
@@ -691,8 +646,6 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
                 onFinish(updatedAnswers);
             } else {
                 setCurrentQuestionIndex((prev) => prev + 1);
-                setTimeLeft(perQuestionSeconds);
-                setIsTimerPaused(false);
             }
         },
         [
@@ -702,7 +655,6 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
             drafts,
             onFinish,
             pauseEvents,
-            perQuestionSeconds,
             questions,
             recordedAudioUrl,
             sttMetricsByQuestion,
@@ -710,31 +662,6 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
             stopCurrentRecording,
         ]
     );
-
-    useEffect(() => {
-        setTimeLeft(perQuestionSeconds);
-        setInlineError(null);
-        setTimeExceeded(false);
-    }, [currentQuestionIndex, perQuestionSeconds]);
-
-    useEffect(() => {
-        if (isTimerPaused) return;
-        const timerId = setInterval(() => {
-            setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
-        }, 1000);
-        return () => clearInterval(timerId);
-    }, [currentQuestionIndex, isTimerPaused]);
-
-    useEffect(() => {
-        if (timeLeft === 0 && !isTimerPaused) {
-            if (!currentAnswer.trim()) {
-                setInlineError("시간이 다 되었습니다. 답변을 주세요.");
-                setIsTimerPaused(true);
-                return;
-            }
-            handleNext();
-        }
-    }, [timeLeft, isTimerPaused, currentAnswer, handleNext]);
 
     useEffect(() => {
         return () => {
@@ -804,7 +731,6 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
         });
         setPauseEvents([]);
         setInlineError(null);
-        setIsTimerPaused(false);
         stopCurrentRecording();
         closeSttSocket();
         setIsSavingAnswer(false);
@@ -893,39 +819,6 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
 
     return (
         <div className="flex flex-col justify-start items-center pt-6 min-h-[calc(100vh-10rem)] animate-fadeIn">
-            {isTimerVisible && !isTimerInView && (
-                <div className="sm:top-20 right-2 sm:right-4 bottom-4 sm:bottom-auto z-50 fixed pb-[env(safe-area-inset-bottom)]">
-                    <div
-                        className={`backdrop-blur bg-white/90 border shadow-[0_12px_30px_rgba(103,0,230,0.15)] rounded-2xl px-3 py-2 sm:px-4 sm:py-3 flex items-center gap-3 sm:gap-4 transition-opacity duration-200 ${
-                            isLowTime
-                                ? "border-red-300 animate-pulse"
-                                : "border-primary/30"
-                        }`}
-                    >
-                        <ClockIcon
-                            className={`w-5 h-5 sm:w-6 sm:h-6 ${
-                                isLowTime ? "text-red-600" : "text-primary"
-                            }`}
-                        />
-                        <div>
-                            <p className="font-semibold text-[11px] text-slate-500 sm:text-xs uppercase tracking-widest">
-                                남은 시간
-                            </p>
-                            <p
-                                className={`text-lg sm:text-xl font-bold ${
-                                    timeLeft <= 10
-                                        ? "text-red-600"
-                                        : isLowTime
-                                        ? "text-amber-600"
-                                        : "text-slate-800"
-                                }`}
-                            >
-                                {formatTime(timeLeft)}
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            )}
             <div className="space-y-8 w-full max-w-9xl">
                 <div className="gap-6 grid md:grid-cols-4">
                     <main className="flex flex-col gap-4 md:col-span-3 mx-4 my-auto">
