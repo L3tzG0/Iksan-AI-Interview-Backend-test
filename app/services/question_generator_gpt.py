@@ -4,7 +4,8 @@ import logging
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
 from openai import AsyncOpenAI
-
+import asyncio
+import random
 from app.schemas.interview_session import GeneratedQuestion
 from app.core.config import settings
 
@@ -132,6 +133,17 @@ async def generate_interview_questions_gpt(
     Calls the GPT-4o Proxy API using the OpenAI SDK to generate 
     structured interview questions.
     """
+
+    if settings.MOCK_GPT == "true":
+        # Simulate network + generation latency
+        await asyncio.sleep(random.uniform(4, 8)) 
+        return [
+            GeneratedQuestion(
+                question_order=i,
+                question_text=f"Mock Question {i} for {role} in {field}"
+            ) for i in range(1, 11)
+        ]
+    
     global global_client 
     
     # Initialize the AsyncOpenAI client lazily

@@ -430,10 +430,21 @@ async def websocket_endpoint(websocket: WebSocket):
                     all_audio = b"".join(audio_chunks)
 
                     if not all_audio:
-                        await websocket.send_json({"type": "ERROR", "message": "No audio"})
+                        # await websocket.send_json({"type": "ERROR", "message": "No audio"})
+                        # break
+                        try:
+                            await websocket.send_json({"type": "ERROR", "message": "No audio"})
+                        except Exception as e:
+                            logger.debug("Failed to send No audio ERROR to client", exc_info=e)
                         break
 
-                    api_res = await call_whisper_api(all_audio, "korean")
+                    # api_res = await call_whisper_api(all_audio, "korean")
+                    api_res = None
+                    try:
+                        api_res = await call_whisper_api(all_audio, "korean")
+                    except Exception:
+                        logger.exception("call_whisper_api failed")
+
                     if api_res:
                         loop = asyncio.get_event_loop()
                         payload = await loop.run_in_executor(executor, _sync_calculate_metrics, api_res)
@@ -443,9 +454,26 @@ async def websocket_endpoint(websocket: WebSocket):
                         await websocket.send_json({"type": "ERROR", "message": "API Failure"})
                     break
     except WebSocketDisconnect:
-        pass
+        # pass
+        logger.info("WebSocket disconnected by client or network before CLOSE_SIGNAL")
+
     finally:
         # audio_buffer.close()
-        audio_chunks.clear()
-        if websocket.client_state != WebSocketState.DISCONNECTED:
-            await websocket.close()
+        # audio_chunks.clear()
+        # if websocket.client_state != WebSocketState.DISCONNECTED:
+        #     await websocket.close()
+        try:
+            client_state = getattr(websocket, "client_state", None)
+            if client_state != WebSocketState.DISCONNECTED:
+                # Attempt a graceful close; wrap in try/except to avoid "Cannot call send once close was sent."
+                try:
+                    await websocket.close()
+                except RuntimeError:
+                    # this typically means the close handshake was already sent/started by the other side
+                    logger.debug("websocket.close() raised RuntimeError - close already in progress")
+                except Exception:
+                    logger.exception("Exception while closing websocket (ignored)")
+        except Exception:
+            # defensive: any unexpected error in cleanup should not propagate
+            logger.exception("Unexpected error during websocket cleanup (ignored)")
+        logger.info("STT websocket cleanup complete")
