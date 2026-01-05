@@ -138,7 +138,7 @@ const Landing: React.FC<LandingProps> = ({
             <div className="flex flex-wrap gap-3">
               {!isTeacher && (
               <Button onClick={isTeacher ? onGoTeacherTab1 || onGoDashboard : onStartInterview} className="px-6 py-3">
-                {isTeacher ? '대시보드' : '면접 결과표 확인하기​'}
+                {isTeacher ? '면접 결과표 확인하기' : '결과표 확인하기'}
               </Button>
               )}
             </div>

@@ -39,13 +39,13 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, currentPath, onNavigate
     if (user.role === 'teacher' || user.role === 'admin') {
       base.push({
         path: '/teacher/dashboard/1',
-        label: '완료 학생',
+        label: '면접 결과 대시보드​',
         icon: ChartIcon,
         matchCurrentPath: (currentPath) => currentPath === '/teacher/dashboard' || currentPath.startsWith('/teacher/dashboard/1'),
       });
       base.push({
         path: '/teacher/dashboard/2',
-        label: '학생 관리',
+        label: '구성원 관리',
         icon: GraduationCapIcon,
         matchCurrentPath: (currentPath) => currentPath.startsWith('/teacher/dashboard/2') || currentPath.startsWith('/teacher/students'),
       });
@@ -54,8 +54,8 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, currentPath, onNavigate
         base.push({ path: '/admin/domains', label: '도메인 관리', icon: UsersIcon });
       }
     } else {
-      base.push({ path: '/student/interview/start', label: '면접 결과 대시보드​', icon: SparklesIcon });
-      base.push({ path: '/student/history', label: '구성원 관리', icon: HistoryIcon, matchCurrentPath: (currentPath) => currentPath.startsWith('/student/history') });
+      base.push({ path: '/student/interview/start', label: '면접 준비​', icon: SparklesIcon });
+      base.push({ path: '/student/history', label: '면접 결과 대시보드', icon: HistoryIcon, matchCurrentPath: (currentPath) => currentPath.startsWith('/student/history') });
     }
 
     return base;
