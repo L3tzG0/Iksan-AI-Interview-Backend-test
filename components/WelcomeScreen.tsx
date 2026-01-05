@@ -249,78 +249,82 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, remaini
               PDF/DOCX
             </span>
           </div>
-          <textarea
-            className="bg-slate-50/80 disabled:bg-slate-100 p-4 border border-slate-200 focus:border-primary-focus rounded-[18px] focus:outline-none focus:ring-2 focus:ring-primary-focus w-full h-40 text-slate-800 disabled:text-slate-500 transition-colors resize-none placeholder-slate-400"
-            placeholder="내용을 입력해주세요."
-            value={resumeText}
-            onChange={handleTextChange}
-            disabled={!!fileData}
-          />
-          <p className="mt-2 text-slate-500 text-xs">
-            PDF / DOCX ({MAX_SIZE_MB}MB 이하) 파일을 업로드할 수 있습니다. 표/특수문자, 이미지가 많은 경우 텍스트로 변환해 붙여넣으면 정확도가 높습니다.
-          </p>
-          {fileError && <p className="mt-2 text-xs text-rose-600 font-semibold">{fileError}</p>}
+          <div className="grid gap-8 lg:grid-cols-2">
+            <div className="space-y-6">
+              <textarea
+                className="bg-slate-50/80 disabled:bg-slate-100 p-4 border border-slate-200 focus:border-primary-focus rounded-[18px] focus:outline-none focus:ring-2 focus:ring-primary-focus w-full h-40 text-slate-800 disabled:text-slate-500 transition-colors resize-none placeholder-slate-400"
+                placeholder="내용을 입력해주세요."
+                value={resumeText}
+                onChange={handleTextChange}
+                disabled={!!fileData}
+              />
+              <p className="text-slate-500 text-xs">
+                PDF / DOCX ({MAX_SIZE_MB}MB 이하) 파일을 업로드할 수 있습니다. 표/특수문자, 이미지가 많은 경우 텍스트로 변환해 붙여넣으면 정확도가 높습니다.
+              </p>
+              {fileError && <p className="text-xs text-rose-600 font-semibold">{fileError}</p>}
 
-          <div className="flex justify-center items-center my-6 w-full">
-            <div className="flex-grow border-slate-200 border-t"></div>
-            <span className="flex-shrink-0 mx-4 font-medium text-slate-400 text-sm uppercase tracking-widest">or</span>
-            <div className="flex-grow border-slate-200 border-t"></div>
-          </div>
+              <div className="flex justify-center items-center w-full">
+                <div className="flex-grow border-slate-200 border-t"></div>
+                <span className="flex-shrink-0 mx-4 font-medium text-slate-400 text-sm uppercase tracking-widest">or</span>
+                <div className="flex-grow border-slate-200 border-t"></div>
+              </div>
 
-          <label
-            htmlFor="file-upload"
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            className={`w-full cursor-pointer border-2 border-dashed rounded-[20px] p-8 flex flex-col items-center justify-center transition-all duration-300 group text-center ${
-              isDragging ? 'border-primary bg-primary-lightest/80' : 'border-slate-200 bg-slate-50/90 hover:border-primary hover:bg-primary-lightest'
-            }`}
-          >
-            {fileName ? (
-              <>
-                <FileTextIcon className="mb-3 w-12 h-12 text-primary" />
-                <span className="font-semibold text-slate-700 text-lg">{fileName}</span>
-                <span className="mt-2 text-slate-500 text-sm">새 파일이 업로드되었습니다</span>
-              </>
-            ) : (
-              <>
-                <UploadCloudIcon className="mb-3 w-12 h-12 text-slate-400 group-hover:text-primary transition-colors" />
-                <span className="font-medium text-slate-700">파일 업로드하기</span>
-                <span className="mt-2 text-slate-400 text-sm">PDF, DOCX 파일을 업로드 할 수 있습니다.</span>
-                <span className="mt-2 text-slate-400 text-sm">{intent === "work" ? `표, 이미지, 특수문자가 많은 자료는 일부 정보가 누락될 수 있습니다.` : '학생부를 기반으로, 면접에서 공유하려는 주요 경험(활동, 역량, 수상 등)이 담긴 자료를 업로드해주세요.'}</span>
-              </>
-            )}
-          </label>
-          <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleFileChange} accept=".pdf,.docx" />
-          <div className="space-y-4 mt-8">
-            <div className="gap-3 grid sm:grid-cols-2">
-              <button
-                type="button"
-                onClick={() => handleIntentSelect('work')}
-                className={`rounded-[16px] border px-4 py-3 text-left transition-all ${
-                  intent === 'work'
-                    ? 'border-primary bg-primary-lightest text-primary shadow-soft'
-                    : 'border-slate-200 bg-white/70 hover:border-primary/60'
+              <label
+                htmlFor="file-upload"
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`w-full cursor-pointer border-2 border-dashed rounded-[20px] p-8 flex flex-col items-center justify-center transition-all duration-300 group text-center ${
+                  isDragging ? 'border-primary bg-primary-lightest/80' : 'border-slate-200 bg-slate-50/90 hover:border-primary hover:bg-primary-lightest'
                 }`}
               >
-                <p className="font-semibold text-sm">취업 면접을 준비해요​</p>
-                <p className="mt-1 text-slate-500 text-xs">희망 분야에 맞는 질문을 준비합니다.</p>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleIntentSelect('university')}
-                className={`rounded-[16px] border px-4 py-3 text-left transition-all ${
-                  intent === 'university'
-                    ? 'border-primary bg-primary-lightest text-primary shadow-soft'
-                    : 'border-slate-200 bg-white/70 hover:border-primary/60'
-                }`}
-              >
-                <p className="font-semibold text-sm">입시 면접을 준비해요​</p>
-                <p className="mt-1 text-slate-500 text-xs">선호 대학과 전공을 알려주세요.</p>
-              </button>
+                {fileName ? (
+                  <>
+                    <FileTextIcon className="mb-3 w-12 h-12 text-primary" />
+                    <span className="font-semibold text-slate-700 text-lg">{fileName}</span>
+                    <span className="mt-2 text-slate-500 text-sm">새 파일이 업로드되었습니다</span>
+                  </>
+                ) : (
+                  <>
+                    <UploadCloudIcon className="mb-3 w-12 h-12 text-slate-400 group-hover:text-primary transition-colors" />
+                    <span className="font-medium text-slate-700">파일 업로드하기</span>
+                    <span className="mt-2 text-slate-400 text-sm">PDF, DOCX 파일을 업로드 할 수 있습니다.</span>
+                    <span className="mt-2 text-slate-400 text-sm">{intent === "work" ? `표, 이미지, 특수문자가 많은 자료는 일부 정보가 누락될 수 있습니다.` : '학생부를 기반으로, 면접에서 공유하려는 주요 경험(활동, 역량, 수상 등)이 담긴 자료를 업로드해주세요.'}</span>
+                  </>
+                )}
+              </label>
+              <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleFileChange} accept=".pdf,.docx" />
             </div>
 
-            {/* University preference form commented out.
+            <div className="space-y-4">
+              <div className="gap-3 grid sm:grid-cols-2">
+                <button
+                type="button"
+                onClick={() => handleIntentSelect('work')}
+                className={`rounded-[16px] border px-4 py-3 text-left transition-all duration-200 ease-out transform ${
+                  intent === 'work'
+                    ? 'border-primary bg-primary-lightest text-primary shadow-soft -translate-y-0.5 scale-[1.01] ring-1 ring-primary/20'
+                    : 'border-slate-200 bg-white/70 hover:border-primary/60 hover:-translate-y-0.5 hover:shadow-soft'
+                }`}
+              >
+                  <p className="font-semibold text-sm">취업 면접을 준비해요​</p>
+                  <p className="mt-1 text-slate-500 text-xs">희망 분야에 맞는 질문을 준비합니다.</p>
+                </button>
+                <button
+                type="button"
+                onClick={() => handleIntentSelect('university')}
+                className={`rounded-[16px] border px-4 py-3 text-left transition-all duration-200 ease-out transform ${
+                  intent === 'university'
+                    ? 'border-primary bg-primary-lightest text-primary shadow-soft -translate-y-0.5 scale-[1.01] ring-1 ring-primary/20'
+                    : 'border-slate-200 bg-white/70 hover:border-primary/60 hover:-translate-y-0.5 hover:shadow-soft'
+                }`}
+              >
+                  <p className="font-semibold text-sm">입시 면접을 준비해요​</p>
+                  <p className="mt-1 text-slate-500 text-xs">선호 대학과 전공을 알려주세요.</p>
+                </button>
+              </div>
+
+              {/* University preference form commented out.
               We no longer ask for preferred universities or major here.
               For university intent we only request the student record upload and per-question time selection.
 
@@ -347,7 +351,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, remaini
                         type="text"
                         value={uni}
                         onChange={(e) => handleUniversityChange(index, e.target.value)}
-                        placeholder={`대학교 ${index + 1}`}
+                        placeholder={`대학 ${index + 1}`}
                         className={`flex-1 rounded-lg border bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-primary/30 outline-none ${
                           intent === 'university' && !uni.trim() ? 'border-red-300 focus:border-red-400' : 'border-slate-200 focus:border-primary'
                         }`}
@@ -358,7 +362,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, remaini
                           onClick={() => handleRemoveUniversity(index)}
                           className="text-slate-400 hover:text-slate-600 text-xs"
                         >
-                          제거
+                          삭제
                         </button>
                       )}
                     </div>
@@ -368,88 +372,89 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, remaini
                   )}
                 </div>
                 <div className="space-y-1">
-                  <p className="font-semibold text-slate-800 text-sm">예정 전공</p>
+                  <p className="font-semibold text-slate-800 text-sm">전공 분야</p>
                   <input
                     type="text"
                     value={major}
                     onChange={(e) => setMajor(e.target.value)}
-                    placeholder="예: 컴퓨터 과학, 경영학, 심리학"
+                    placeholder="예: 컴퓨터 공학, 경영, 디자인"
                     className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-primary/30 outline-none ${
                       intent === 'university' && !major.trim() ? 'border-red-300 focus:border-red-400' : 'border-slate-200 focus:border-primary'
                     }`}
                   />
-                  {intent === 'university' && !major.trim() && <p className="text-red-600 text-xs">전공을 입력하면 더 정교한 질문을 만들어요.</p>}
+                  {intent === 'university' && !major.trim() && <p className="text-red-600 text-xs">전공 분야를 입력해주세요.</p>}
                 </div>
               </div>
             )}
             */}
 
-            {intent === 'university' && (
+              {intent === 'university' && (
+                <div className="space-y-3 bg-primary-lightest/60 p-4 border border-primary/30 rounded-[16px]">
+                  <p className="text-slate-600 text-sm">입시 전형 종류, 지원 계획은 인터뷰에서 다시 물어볼게요.</p>
+                </div>
+              )}
+
+              {intent === 'work' && (
               <div className="space-y-3 bg-primary-lightest/60 p-4 border border-primary/30 rounded-[16px]">
-                <p className="text-slate-600 text-sm">대학 지원의 경우, 학생부 업로드와 응답 시간 선택만 필요합니다.</p>
+                <div className="space-y-1">
+                  <p className="font-semibold text-slate-800 text-sm">지원 분야</p>
+                  <p className="text-slate-500 text-xs">어떤 분야에 지원할 계획인가요.</p>
+                  <select
+                    value={workIndustry}
+                    onChange={(e) => setWorkIndustry(e.target.value)}
+                    className="bg-white px-3 py-2 border border-slate-200 focus:border-primary rounded-lg outline-none focus:ring-2 focus:ring-primary/30 w-full text-sm"
+                  >
+                    <option value="">분야를 선택하세요</option>
+                    {industries.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                  {intent === 'work' && !workIndustry && <p className="text-red-600 text-xs">지원 분야를 선택해주세요.</p>}
+                </div>
+                <div className="space-y-1">
+                  <p className="font-semibold text-slate-800 text-sm">직무/포지션</p>
+                  <p className="text-slate-500 text-xs">어떤 직무를 준비하고 계신가요.</p>
+                  <input
+                    type="text"
+                    value={workField}
+                    onChange={(e) => setWorkField(e.target.value)}
+                    placeholder="예: 프론트엔드 개발자, 마케팅, 데이터 분석"
+                    className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-primary/30 outline-none ${
+                      intent === 'work' && !workField.trim() ? 'border-red-300 focus:border-red-400' : 'border-slate-200 focus:border-primary'
+                    }`}
+                  />
+                  {intent === 'work' && !workField.trim() && <p className="text-red-600 text-xs">직무를 입력해주세요.</p>}
+                </div>
               </div>
             )}
 
-            {intent === 'work' && (
-            <div className="space-y-3 bg-primary-lightest/60 p-4 border border-primary/30 rounded-[16px]">
-              <div className="space-y-1">
-                <p className="font-semibold text-slate-800 text-sm">관심 산업</p>
-                <p className="text-slate-500 text-xs">희망하는 산업군을 선택하세요.</p>
-                <select
-                  value={workIndustry}
-                  onChange={(e) => setWorkIndustry(e.target.value)}
-                  className="bg-white px-3 py-2 border border-slate-200 focus:border-primary rounded-lg outline-none focus:ring-2 focus:ring-primary/30 w-full text-sm"
-                >
-                  <option value="">산업을 선택하세요</option>
-                  {industries.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
+              <div className="space-y-2 bg-white/80 p-4 border border-slate-200 rounded-[16px]">
+                <p className="font-semibold text-slate-800 text-sm">질문 준비 시간</p>
+                <p className="text-slate-500 text-xs">각 질문별 답변 준비 시간을 선택하세요.</p>
+                <div className="gap-2 grid grid-cols-2 sm:grid-cols-4">
+                  {[30, 60, 90, 120].map((seconds) => (
+                    <button
+                      type="button"
+                      key={seconds}
+                      onClick={() => setPerQuestionSeconds(seconds)}
+                      className={`py-2 px-3 rounded-[12px] border text-sm font-semibold transition-colors ${
+                        perQuestionSeconds === seconds
+                          ? 'bg-primary text-white border-primary'
+                          : 'bg-white text-slate-700 border-slate-200 hover:border-primary/70'
+                      }`}
+                    >
+                      {seconds}초
+                    </button>
                   ))}
-                </select>
-                {intent === 'work' && !workIndustry && <p className="text-red-600 text-xs">관심 산업을 선택해주세요.</p>}
+                </div>
               </div>
-              <div className="space-y-1">
-                <p className="font-semibold text-slate-800 text-sm">희망 직무/역할</p>
-                <p className="text-slate-500 text-xs">구체적인 역할을 입력하면 맞춤형 질문을 생성해요.</p>
-                <input
-                  type="text"
-                  value={workField}
-                  onChange={(e) => setWorkField(e.target.value)}
-                  placeholder="예: 프론트엔드 개발자, 생산관리, 데이터 분석"
-                  className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-primary/30 outline-none ${
-                    intent === 'work' && !workField.trim() ? 'border-red-300 focus:border-red-400' : 'border-slate-200 focus:border-primary'
-                  }`}
-                />
-                {intent === 'work' && !workField.trim() && <p className="text-red-600 text-xs">희망 직무를 입력해주세요.</p>}
-              </div>
-            </div>
-          )}
 
-            <div className="space-y-2 bg-white/80 p-4 border border-slate-200 rounded-[16px]">
-              <p className="font-semibold text-slate-800 text-sm">답변 시간 선택​</p>
-              <p className="text-slate-500 text-xs">각 질문에 할당할 시간을 선택하세요.</p>
-              <div className="gap-2 grid grid-cols-2 sm:grid-cols-4">
-                {[30, 60, 90, 120].map((seconds) => (
-                  <button
-                    type="button"
-                    key={seconds}
-                    onClick={() => setPerQuestionSeconds(seconds)}
-                    className={`py-2 px-3 rounded-[12px] border text-sm font-semibold transition-colors ${
-                      perQuestionSeconds === seconds
-                        ? 'bg-primary text-white border-primary'
-                        : 'bg-white text-slate-700 border-slate-200 hover:border-primary/70'
-                    }`}
-                  >
-                    {seconds}초
-                  </button>
-                ))}
-              </div>
+              <Button onClick={handleStartClick} disabled={isStartDisabled} fullWidth className="py-4 text-base">
+                모의면접 시작하기​
+              </Button>
             </div>
-
-            <Button onClick={handleStartClick} disabled={isStartDisabled} fullWidth className="py-4 text-base">
-              모의면접 시작하기​
-            </Button>
           </div>
         </div>
 
