@@ -687,6 +687,7 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
                       <WelcomeScreen
                         onStart={handleStartInterview}
                         history={studentHistory}
+                        remainingAttempts={currentUser?.interviewSessionQuota ?? null}
                       />
                     }
                   />
@@ -814,4 +815,3 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
 };
 
 export default App;
-

@@ -1,6 +1,13 @@
 import React from 'react';
 import Button from './ui/Button';
-import { SparklesIcon, ChartIcon, HomeIcon, UsersIcon } from './icons';
+import {
+  SparklesIcon,
+  ChartIcon,
+  UsersIcon,
+  FileTextIcon,
+  BrainIcon,
+  LightbulbIcon,
+} from './icons';
 import type { InterviewReport, User } from '../types';
 
 interface LandingProps {
@@ -30,10 +37,11 @@ const Landing: React.FC<LandingProps> = ({
   const remainingAttempts = user.interviewSessionQuota;
   const heroTitle = isTeacher
     ? `${user.name}님, 반가워요! 학생들을 위한 연습 세션을 준비해볼까요?`
-    : `${user.name}님, AI 인터뷰 연습을 시작해보세요.`;
+    : `${user.name}님, 나만의 AI 면접 코치​.`;
   const heroBody = isTeacher
     ? '대시보드에서 진행 상황을 확인하고, 학생 인터뷰를 관리할 수 있어요.'
-    : 'AI 면접관과 함께 실전처럼 연습하고, 즉시 피드백을 받아보세요.';
+    : '내 서류를 기반으로 맞춤형 면접 질문을 생성하고 '
+    + '즉각적인 모의면접과 피드백까지 제공하는 AI 기반 면접 플랫폼​';
 
   const cards = isTeacher
     ? [
@@ -88,22 +96,22 @@ const Landing: React.FC<LandingProps> = ({
     ]
     : [
       {
-        icon: <SparklesIcon className="w-5 h-5" />,
-        title: '취업 면접 대비',
-        body: '희망 직무(Job Title)를 입력하고, 맞춤 질문을 받아보세요.',
-        extra: <span className="text-slate-500 text-xs">추천 기능: 직무 맞춤 질문</span>,
+        icon: <FileTextIcon className="w-5 h-5" />,
+        title: '서류 기반 맞춤 질문',
+        body: '자기소개서·이력서·생활기록부 기반 맞춤 질문 세트 제공.',
+        extra: <span className="text-slate-500 text-xs">제공 항목: 자기소개서·이력서·생활기록부</span>,
       },
       {
-        icon: <HomeIcon className="w-5 h-5" />,
-        title: '대학 면접 대비',
-        body: '희망 전공과 관심 분야를 입력하면 AI가 질문을 추천합니다.',
-        extra: <span className="text-slate-500 text-xs">추천 기능: 전공 맞춤 질문</span>,
+        icon: <BrainIcon className="w-5 h-5" />,
+        title: '다양한 질문 유형',
+        body: '인적성·직무·산업 등 다양한 질문 유형으로 실제 면접 흐름 그대로 연습.',
+        extra: <span className="text-slate-500 text-xs">질문 범위: 인적성·직무·산업</span>,
       },
       {
-        icon: <ChartIcon className="w-5 h-5" />,
-        title: 'AI 면접 분석 & 리포트',
-        body: '내용 구성, 구조, 표현력, 자신감 등 4개 항목을 분석합니다.',
-        extra: <span className="text-slate-500 text-xs">추천 기능: 피드백 요약</span>,
+        icon: <LightbulbIcon className="w-5 h-5" />,
+        title: '정밀 답변 피드백',
+        body: '정확도와 유창성 점검, 문장별 코멘트와 답변 팁까지.',
+        extra: <span className="text-slate-500 text-xs">피드백: 정확도·유창성·답변 팁</span>,
       },
     ];
 
@@ -130,7 +138,7 @@ const Landing: React.FC<LandingProps> = ({
             <div className="flex flex-wrap gap-3">
               {!isTeacher && (
               <Button onClick={isTeacher ? onGoTeacherTab1 || onGoDashboard : onStartInterview} className="px-6 py-3">
-                {isTeacher ? '대시보드' : 'AI 인터뷰 시작'}
+                {isTeacher ? '대시보드' : '면접 결과표 확인하기​'}
               </Button>
               )}
             </div>

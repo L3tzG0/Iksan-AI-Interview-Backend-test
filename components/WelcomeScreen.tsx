@@ -6,6 +6,7 @@ import type { InterviewReport, InterviewStartPayload, StudentGoal } from '../typ
 interface WelcomeScreenProps {
   onStart: (input: InterviewStartPayload) => void;
   history?: InterviewReport[];
+  remainingAttempts?: number | null;
 }
 
 const MAX_SIZE_MB = 5;
@@ -23,7 +24,7 @@ const industries = [
 '자동차',
 ];
 
-const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history }) => {
+const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, remainingAttempts }) => {
   const [resumeText, setResumeText] = useState('');
   const [fileName, setFileName] = useState('');
   const [fileData, setFileData] = useState<{ data: string; mimeType: string } | null>(null);
@@ -76,11 +77,17 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history }) => {
         ? `${Math.floor(prepSeconds / 60)}분 ${prepSeconds % 60}초`
         : `${perQuestionSeconds}초`;
 
-    return [
+    const tiles = [
       { label: '주간 모의면접', value: improvement, sub: `최근 7일 인터뷰 ${weeklyCount}회` },
       { label: '평균 준비 시간', value: prepLabel, sub: '세션당 평균 준비' },
+      {
+        label: '남은 시도',
+        value: typeof remainingAttempts === 'number' ? remainingAttempts : '--',
+        sub: '학생 계정 기준',
+      },
     ];
-  }, [history, perQuestionSeconds]);
+    return tiles;
+  }, [history, perQuestionSeconds, remainingAttempts]);
 
   const handleIncomingFile = useCallback((file?: File) => {
     if (!file) return;
@@ -218,7 +225,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history }) => {
               PDF 파일도 바로 업로드하여 빠르게 분석하고 연습을 시작할 수 있습니다.
             </p>
           </div>
-          <div className="flex flex-wrap flex-1 gap-4">
+          <div className="grid flex-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {stats.map((item) => (
               <div key={item.label} className="flex-1 bg-white/90 shadow-soft p-4 border border-white/70 rounded-2xl min-w-[140px] text-center">
                 <p className="font-semibold text-slate-400 text-xs uppercase tracking-wide">{item.label}</p>

@@ -54,8 +54,8 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, currentPath, onNavigate
         base.push({ path: '/admin/domains', label: '도메인 관리', icon: UsersIcon });
       }
     } else {
-      base.push({ path: '/student/interview/start', label: '인터뷰 생성', icon: SparklesIcon });
-      base.push({ path: '/student/history', label: '면접 기록', icon: HistoryIcon, matchCurrentPath: (currentPath) => currentPath.startsWith('/student/history') });
+      base.push({ path: '/student/interview/start', label: '면접 결과 대시보드​', icon: SparklesIcon });
+      base.push({ path: '/student/history', label: '구성원 관리', icon: HistoryIcon, matchCurrentPath: (currentPath) => currentPath.startsWith('/student/history') });
     }
 
     return base;
