@@ -4,6 +4,7 @@ import Card from "./Card";
 import Button from "./ui/Button";
 import { LightbulbIcon, ClockIcon } from "./icons";
 import VoiceAnswerArea from "./interview/VoiceAnswerArea";
+import Spinner from "./Spinner";
 import { useNavigate, useLocation } from "react-router-dom";
 import { createLiveSttSocket } from "../services/sttService";
 
@@ -76,6 +77,8 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
             beforeWord?: string;
         }[]
     >([]);
+    const [isSavingAnswer, setIsSavingAnswer] = useState(false);
+    const [hasSavedAnswer, setHasSavedAnswer] = useState(false);
     const navigate = useNavigate();
     const location = useLocation();
     const [drafts, setDrafts] = useState<
@@ -332,15 +335,18 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
             clearTimeout(finalSummaryTimeoutRef.current);
         }
         finalSummaryTimeoutRef.current = window.setTimeout(() => {
+            setIsSavingAnswer(false);
             closeSttSocket();
         }, FINAL_SUMMARY_TIMEOUT_MS);
-    }, [closeSttSocket]);
+    }, [closeSttSocket, setIsSavingAnswer]);
 
     const sendCloseSignal = useCallback(() => {
         if (
             sttSocketRef.current &&
             sttSocketRef.current.readyState === WebSocket.OPEN
         ) {
+            setIsSavingAnswer(true);
+            setHasSavedAnswer(false);
             sttSocketRef.current.send(JSON.stringify({ type: "CLOSE_SIGNAL" }));
             scheduleFinalSummaryClose();
         } else {
@@ -429,6 +435,8 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
                                 clearTimeout(finalSummaryTimeoutRef.current);
                                 finalSummaryTimeoutRef.current = null;
                             }
+                            setIsSavingAnswer(false);
+                            setHasSavedAnswer(true);
                             closeSttSocket();
                             return;
                         }
@@ -758,6 +766,8 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
         setInlineError(null);
 
         if (newIsRecording) {
+            setHasSavedAnswer(false);
+            setIsSavingAnswer(false);
             sttFinalTranscriptRef.current = "";
             sttInterimRef.current = "";
             setSttSummary(null);
@@ -797,6 +807,8 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
         setIsTimerPaused(false);
         stopCurrentRecording();
         closeSttSocket();
+        setIsSavingAnswer(false);
+        setHasSavedAnswer(false);
     }, [closeSttSocket, currentQuestionIndex, questions, stopCurrentRecording]);
 
     useEffect(() => {
@@ -843,6 +855,8 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
         });
         setPauseEvents([]);
         setInlineError(null);
+        setIsSavingAnswer(false);
+        setHasSavedAnswer(false);
         stopCurrentRecording();
     };
 
@@ -952,29 +966,47 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
                                 perQuestionSeconds={perQuestionSeconds}
                                 questionKey={currentQuestion.id}
                             />
-
-                            {(pauseEvents.length > 0 || sttSummary) && (
-                                <div className="bg-slate-50 mt-3 p-3 border border-slate-200 rounded-[12px] text-slate-600 text-xs">
-                                    {pauseEvents.length > 0 && (
-                                        <p className="m-0">
-                                            감지된 일시정지:{" "}
-                                            {pauseEvents.length}회
+                            <div className="flex flex-col items-center w-full">
+                            {(isSavingAnswer ||
+                                hasSavedAnswer ||
+                                pauseEvents.length > 0 ||
+                                sttSummary) && (
+                                <div className="space-y-2 mt-3 w-full">
+                                    {isSavingAnswer && (
+                                        <div className="flex justify-center items-center gap-2 w-full">
+                                            <Spinner size="small" label="답변 저장 중" />
+                                        </div>
+                                    )}
+                                    {hasSavedAnswer && !isSavingAnswer && (
+                                        <p className="flex items-center gap-1 m-0 mx-auto max-w-fit font-semibold text-emerald-600 text-xs">
+                                            답변이 저장되었습니다
                                         </p>
                                     )}
-                                    {sttSummary && (
-                                        <p className="m-0 mt-1">
-                                            최종 요약 · 단어{" "}
-                                            {sttSummary.wordCount ?? "-"}개 ·
-                                            음성{" "}
-                                            {sttSummary.audioDurationSeconds ??
-                                                "-"}
-                                            초 · 일시정지{" "}
-                                            {sttSummary.totalPauseCount ?? "-"}
-                                            회
-                                        </p>
+                                    {(pauseEvents.length > 0 || sttSummary) && (
+                                        <div className="bg-slate-50 mx-auto p-3 border border-slate-200 rounded-[12px] w-full text-slate-600 text-xs">
+                                            {pauseEvents.length > 0 && (
+                                                <p className="m-0">
+                                                    감지된 일시정지:{" "}
+                                                    {pauseEvents.length}회
+                                                </p>
+                                            )}
+                                            {sttSummary && (
+                                                <p className="m-0 mt-1">
+                                                    최종 요약 · 단어{" "}
+                                                    {sttSummary.wordCount ?? "-"}개 ·
+                                                    음성{" "}
+                                                    {sttSummary.audioDurationSeconds ??
+                                                        "-"}
+                                                    초 · 일시정지{" "}
+                                                    {sttSummary.totalPauseCount ?? "-"}
+                                                    회
+                                                </p>
+                                            )}
+                                        </div>
                                     )}
                                 </div>
                             )}
+                            </div>
                         </div>
                     </main>
 
@@ -1017,6 +1049,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
                                         }}
                                         variant="secondary"
                                         className="bg-white px-6 border border-slate-200 hover:border-primary text-slate-700"
+                                        disabled={isSavingAnswer}
                                     >
                                         건너뛰기
                                     </Button>
@@ -1026,6 +1059,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
                                             console.log("Next clicked");
                                         }}
                                         className="flex-1 px-8"
+                                        disabled={isSavingAnswer}
                                     >
                                         {isLastQuestion
                                             ? "연습 마치고 결과 보기"
