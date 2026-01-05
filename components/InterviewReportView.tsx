@@ -152,9 +152,6 @@ const RadarChart: React.FC<{ scores: { contentRelevance: number; structure: numb
 };
 
 const InterviewReportView: React.FC<InterviewReportViewProps> = ({ report, onDownload, canDownload, isExporting }) => {
-  
-  console.log(report)
-  
   const detailedFeedback = report?.detailedFeedback || [];
   const navigate = useNavigate();
     

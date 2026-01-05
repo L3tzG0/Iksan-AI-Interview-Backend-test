@@ -265,6 +265,9 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
                                         전공
                                     </th>
                                     <th className="px-6 py-4 font-bold">
+                                        학년
+                                    </th>
+                                    <th className="px-6 py-4 font-bold">
                                         로그인 ID
                                     </th>
                                     <th className="px-6 py-4 font-bold">
@@ -295,6 +298,9 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
                                         </td>
                                         <td className="px-6 py-4 font-medium text-black">
                                             {student.major}
+                                        </td>
+                                        <td className="px-6 py-4 font-medium text-black">
+                                            {student.grade}학년
                                         </td>
                                         <td className="px-6 py-4 font-mono font-semibold text-black">
                                             {student.id}
