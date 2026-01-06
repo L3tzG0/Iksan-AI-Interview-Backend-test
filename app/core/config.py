@@ -61,6 +61,9 @@ class Settings(BaseSettings):
     RAG_DB_CONN_STRING: str
     GPT_EMBED_BASE_URL: str
 
+    WHISPER_BASE_URL: str
+    MOCK_GPT: str
+
     # Student Registration
     STUDENT_PASSWORD_SALT: str = "iksan_student_pwd_"
     

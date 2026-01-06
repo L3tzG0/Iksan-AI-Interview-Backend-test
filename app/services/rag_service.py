@@ -6,6 +6,7 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_postgres.vectorstores import PGVector, DistanceStrategy
 from langchain_core.documents import Document
 from dotenv import load_dotenv
+import random
 
 # Local imports
 from app.schemas.rag_schema import RagResult
@@ -274,6 +275,18 @@ async def retrieve_questions_from_rag(cv_text: str, q_type: str = "job", k: int 
         collection_name = COLLECTION_NAME_JOB
     
     search_query_text = get_search_query(cv_text, q_type)
+    if settings.MOCK_GPT == "true":
+            # Simulate network + generation latency
+            await asyncio.sleep(random.uniform(2, 5)) 
+            return RagResult(
+                reference_questions=[
+                    "How do you handle high-pressure situations?",
+                    "Describe your experience with Python and FastAPI.",
+                    "Tell me about a time you solved a complex architectural problem."
+                ], 
+                source_query=search_query_text
+            )
+    
     print(f"Generated Search Query ({q_type}): {search_query_text}")
 
     

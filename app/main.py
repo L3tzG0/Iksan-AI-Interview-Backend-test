@@ -9,7 +9,7 @@ from app.core.config import settings
 from app.core.rate_limit import limiter, rate_limit_exceeded_handler
 from app.api.v1.router import api_router
 from app.core.redis_client import initialize_redis_client, close_redis_client 
-
+from app.api.v1.endpoints.stt import http_client, executor
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -43,6 +43,10 @@ async def lifespan(app: FastAPI):
     # Example: app.state.supabase.postgrest.aclose()
     close_redis_client()
     
+    # STT related shutdown
+    await http_client.aclose()
+    executor.shutdown(wait=True)
+
     # Shutdown: Cleanup async client resources
     # Close the async client's underlying httpx session
     await app.state.supabase.postgrest.aclose()
