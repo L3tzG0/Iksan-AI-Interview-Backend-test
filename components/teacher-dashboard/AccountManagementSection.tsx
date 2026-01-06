@@ -210,7 +210,7 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
             </div>
 
             {generatedAccount && (
-                <div className="bg-primary-lightest/70 px-4 py-3 border border-primary/30 rounded-2xl text-slate-800 text-sm">
+                <div className="bg-primary-lightest/70 mt-4 px-4 py-3 border border-primary/30 rounded-2xl text-slate-800 text-sm">
                     <p className="font-semibold text-primary">새로 생성됨</p>
                     <p className="font-mono text-slate-900">
                         ID: {generatedAccount.studentId}
@@ -461,28 +461,12 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
                                     spinnerPositionClassName="absolute right-3 top-2"
                                 />
                             </label>
-                            <label className="space-y-1 font-semibold text-slate-700 text-sm">
-                                Class Label (선택)
-                                <input
-                                    value={newStudent.classLabel}
-                                    onChange={(e) =>
-                                        onUpdateNewStudent(
-                                            "classLabel",
-                                            e.target.value
-                                        )
-                                    }
-                                    className="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 w-full"
-                                    placeholder="예: A1, B3"
-                                />
-                            </label>
                             <div
-                                className={`flex items-end ${
-                                    !showSchoolField ? "sm:col-span-2" : ""
-                                }`}
+                                className={`flex items-end sm:col-span-2`}
                             >
                                 <Button
                                     type="submit"
-                                    className="w-full"
+                                    className="w-full g"
                                     disabled={isCreatingStudent}
                                 >
                                     {isCreatingStudent
@@ -576,9 +560,6 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
                                                     <th className="px-2 py-1 text-left">
                                                         전공
                                                     </th>
-                                                    <th className="px-2 py-1 text-left">
-                                                        반
-                                                    </th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-100">
@@ -601,9 +582,6 @@ const AccountManagementSection: FC<AccountManagementSectionProps> = ({
                                                             </td>
                                                             <td className="px-2 py-1">
                                                                 {row.major}
-                                                            </td>
-                                                            <td className="px-2 py-1">
-                                                                {row.classLabel}
                                                             </td>
                                                         </tr>
                                                     ))}

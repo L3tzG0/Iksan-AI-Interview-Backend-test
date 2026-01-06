@@ -194,7 +194,6 @@ export interface StudentAccountInput {
     school: string;
     gradeYear: 1 | 2 | 3;
     major: string;
-    classLabel?: string;
 }
 
 export interface GeneratedStudentAccount extends StudentAccountInput {
