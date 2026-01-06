@@ -115,7 +115,7 @@ const Landing: React.FC<LandingProps> = ({
                                     onClick={onStartInterview}
                                     className="px-6 py-3"
                                 >
-                                    ??? ????
+                                    결과표 확인하기
                                 </Button>
                             )}
                         </div>
