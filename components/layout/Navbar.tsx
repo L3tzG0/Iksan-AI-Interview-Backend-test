@@ -145,9 +145,9 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, currentPath, onNavigate
                     <div className="bg-primary-lightest/60 px-5 py-4">
                       <p className="font-bold text-slate-900 text-sm">{user.name}</p>
                       <p className="mt-0.5 text-slate-600 text-xs">{schoolLabel}</p>
-                      <p className="mt-1 text-slate-400 text-xs truncate">계정 ID: {accountId}</p>
+                      {/* <p className="mt-1 text-slate-400 text-xs truncate">계정 ID: {accountId}</p> */}
                     </div>
-                    {(user.role === 'teacher' || user.role === 'admin') && (
+                    {/* {(user.role === 'teacher' || user.role === 'admin') && (
                       <div className="py-1">
                         <button
                           onClick={() => {
@@ -162,7 +162,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, currentPath, onNavigate
                           교사 페이지로 이동
                         </button>
                       </div>
-                    )}
+                    )} */}
                     <div className="py-1">
                       <button
                         onClick={onLogout}

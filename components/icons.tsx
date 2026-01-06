@@ -5,6 +5,8 @@ import {
   ArrowUpDown,
   BookOpen,
   Brain,
+  Briefcase,
+  BriefcaseBusiness,
   ChartColumn,
   ChevronDown,
   CircleCheck,
@@ -55,6 +57,7 @@ export const GraduationCapIcon = GraduationCap;
 export const HistoryIcon = History;
 export const LightbulbIcon = Lightbulb;
 export const BrainIcon = Brain;
+export const BriefcaseIcon = BriefcaseBusiness;
 export const AlertTriangleIcon = AlertTriangle;
 export const ClockIcon = Clock;
 export const UserIcon = User;

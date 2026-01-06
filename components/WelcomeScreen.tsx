@@ -77,6 +77,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, remaini
         ? `${Math.floor(prepSeconds / 60)}분 ${prepSeconds % 60}초`
         : `${perQuestionSeconds}초`;
 
+    /*
     const tiles = [
       { label: '주간 모의면접', value: improvement, sub: `최근 7일 인터뷰 ${weeklyCount}회` },
       { label: '평균 준비 시간', value: prepLabel, sub: '세션당 평균 준비' },
@@ -87,6 +88,9 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, remaini
       },
     ];
     return tiles;
+    */
+    // Tiles removed — return empty array so the header area is rendered with a custom layout instead
+    return [];
   }, [history, perQuestionSeconds, remainingAttempts]);
 
   const handleIncomingFile = useCallback((file?: File) => {
@@ -207,12 +211,12 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, remaini
   const isStartDisabled = !hasBaseInput || !intent || (intent === 'university' ? !hasUniversityGoal : !hasWorkGoal);
 
   return (
-    <div className="space-y-10 animate-fadeIn">
-      <section className="relative px-6 md:px-8 py-10 overflow-hidden animate-softFadeUp">
+    <div className="space-y-0 animate-fadeIn">
+      <div className="relative px-6 md:px-3 py-3 overflow-hidden animate-softFadeUp">
         {/* <div className="-top-10 -right-10 hero-blob hero-blob--primary"></div> */}
         {/* <div className="bottom-0 -left-10 hero-blob hero-blob--secondary"></div> */}
         <div className="z-10 relative flex md:flex-row flex-col md:items-center gap-8">
-          <div>
+          {/* <div>
             <p className="flex items-center gap-2 mb-3 font-semibold text-primary-text text-sm uppercase tracking-[0.2em]">
               AI 모의면접 코치
             </p>
@@ -224,24 +228,23 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, remaini
               <br className="hidden md:block" />
               PDF 파일도 바로 업로드하여 빠르게 분석하고 연습을 시작할 수 있습니다.
             </p>
-          </div>
-          <div className="grid flex-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {stats.map((item) => (
-              <div key={item.label} className="flex-1 bg-white/90 shadow-soft p-4 border border-white/70 rounded-2xl min-w-[140px] text-center">
-                <p className="font-semibold text-slate-400 text-xs uppercase tracking-wide">{item.label}</p>
-                <p className="mt-2 font-bold text-primary text-3xl">{item.value}</p>
-                <p className="mt-1 text-slate-500 text-xs">{item.sub}</p>
+          </div> */}
+          <div className="flex-1">
+            <div className="flex items-center justify-between">
+              <div className="font-semibold text-slate-900 text-3xl">면접 준비하기​</div>
+              <div className="text-sm font-semibold text-slate-700 bg-white/90 px-4 py-2 rounded-lg border border-slate-200">
+                (남은 횟수: {typeof remainingAttempts === 'number' ? remainingAttempts : "--"}회)
               </div>
-            ))}
+            </div>
           </div>
         </div>
-      </section>
+      </div>
 
-      <div className="w-full mx-auto grid gap-8 lg:grid-cols-1">
+      <div className="w-full mx-auto grid gap-3 lg:grid-cols-1">
         <div className="bg-white/95 shadow-soft p-6 sm:p-8 border border-white/70 rounded-[24px] animate-softFadeUp">
           <div className="flex justify-between items-center mb-6">
             <div>
-              <h2 className="mb-1 font-bold text-slate-900 text-2xl">자기소개서·이력서·생활기록부 업로드</h2>
+              <h2 className="mb-1 font-bold text-slate-900 text-lg">자기소개서·이력서·생활기록부 업로드</h2>
               <p className="text-slate-500 text-sm">경험·역량을 구체적으로 기재하면 더 정교한 질문이 생성됩니다.​</p>
             </div>
             <span className="inline-flex items-center gap-2 bg-primary-lightest px-3 py-1 rounded-full font-semibold text-primary text-xs">
@@ -249,23 +252,23 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, remaini
               PDF/DOCX
             </span>
           </div>
-          <div className="grid gap-8 lg:grid-cols-2">
-            <div className="space-y-6">
+          <div className="grid gap-y-8 lg:grid-cols-2">
+            <div className="space-y-1 lg:pr-6 lg:border-r lg:border-dashed lg:border-slate-200">
               <textarea
-                className="bg-slate-50/80 disabled:bg-slate-100 p-4 border border-slate-200 focus:border-primary-focus rounded-[18px] focus:outline-none focus:ring-2 focus:ring-primary-focus w-full h-40 text-slate-800 disabled:text-slate-500 transition-colors resize-none placeholder-slate-400"
+                className="bg-slate-50/80 disabled:bg-slate-100 p-4 border border-slate-200 focus:border-primary-focus rounded-[18px] focus:outline-none focus:ring-2 focus:ring-primary-focus w-full h-35 text-slate-800 disabled:text-slate-500 transition-colors resize-none placeholder-slate-400"
                 placeholder="내용을 입력해주세요."
                 value={resumeText}
                 onChange={handleTextChange}
                 disabled={!!fileData}
               />
-              <p className="text-slate-500 text-xs">
+              {/* <p className="text-slate-500 text-xs">
                 PDF / DOCX ({MAX_SIZE_MB}MB 이하) 파일을 업로드할 수 있습니다. 표/특수문자, 이미지가 많은 경우 텍스트로 변환해 붙여넣으면 정확도가 높습니다.
-              </p>
+              </p> */}
               {fileError && <p className="text-xs text-rose-600 font-semibold">{fileError}</p>}
 
               <div className="flex justify-center items-center w-full">
                 <div className="flex-grow border-slate-200 border-t"></div>
-                <span className="flex-shrink-0 mx-4 font-medium text-slate-400 text-sm uppercase tracking-widest">or</span>
+                <span className="flex-shrink-0 mx-4 font-medium text-slate-400 text-base uppercase tracking-widest">or</span>
                 <div className="flex-grow border-slate-200 border-t"></div>
               </div>
 
@@ -288,39 +291,39 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, remaini
                   <>
                     <UploadCloudIcon className="mb-3 w-12 h-12 text-slate-400 group-hover:text-primary transition-colors" />
                     <span className="font-medium text-slate-700">파일 업로드하기</span>
-                    <span className="mt-2 text-slate-400 text-sm">PDF, DOCX 파일을 업로드 할 수 있습니다.</span>
-                    <span className="mt-2 text-slate-400 text-sm">{intent === "work" ? `표, 이미지, 특수문자가 많은 자료는 일부 정보가 누락될 수 있습니다.` : '학생부를 기반으로, 면접에서 공유하려는 주요 경험(활동, 역량, 수상 등)이 담긴 자료를 업로드해주세요.'}</span>
+                    <span className="mt-2 text-slate-400 text-sm">PDF, DOCX 파일(5MB 이하)을 업로드 할 수 있습니다.​</span>
+                    <span className="text-slate-400 text-sm">{intent === "work" ? `표, 이미지, 특수문자가 많은 자료는 일부 정보가 누락될 수 있습니다.` : '표, 이미지, 특수문자가 많은 자료는 일부 정보가 누락될 수 있습니다.'}</span>
                   </>
                 )}
               </label>
               <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleFileChange} accept=".pdf,.docx" />
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-4 lg:pl-6">
               <div className="gap-3 grid sm:grid-cols-2">
                 <button
                 type="button"
                 onClick={() => handleIntentSelect('work')}
                 className={`rounded-[16px] border px-4 py-3 text-left transition-all duration-200 ease-out transform ${
                   intent === 'work'
-                    ? 'border-primary bg-primary-lightest text-primary shadow-soft -translate-y-0.5 scale-[1.01] ring-1 ring-primary/20'
-                    : 'border-slate-200 bg-white/70 hover:border-primary/60 hover:-translate-y-0.5 hover:shadow-soft'
+                    ? 'border-primary bg-primary-lightest text-primary shadow-md -translate-y-0.5 scale-[1.01] ring-1 ring-primary/20'
+                    : 'border-slate-200 bg-white/70 hover:border-primary/60 hover:-translate-y-0.5 hover:shadow-md'
                 }`}
               >
                   <p className="font-semibold text-sm">취업 면접을 준비해요​</p>
-                  <p className="mt-1 text-slate-500 text-xs">희망 분야에 맞는 질문을 준비합니다.</p>
+                  {/* <p className="mt-1 text-slate-500 text-xs">희망 분야에 맞는 질문을 준비합니다.</p> */}
                 </button>
                 <button
                 type="button"
                 onClick={() => handleIntentSelect('university')}
                 className={`rounded-[16px] border px-4 py-3 text-left transition-all duration-200 ease-out transform ${
                   intent === 'university'
-                    ? 'border-primary bg-primary-lightest text-primary shadow-soft -translate-y-0.5 scale-[1.01] ring-1 ring-primary/20'
-                    : 'border-slate-200 bg-white/70 hover:border-primary/60 hover:-translate-y-0.5 hover:shadow-soft'
+                    ? 'border-primary bg-primary-lightest text-primary shadow-md -translate-y-0.5 scale-[1.01] ring-1 ring-primary/20'
+                    : 'border-slate-200 bg-white/70 hover:border-primary/60 hover:-translate-y-0.5 hover:shadow-md'
                 }`}
               >
                   <p className="font-semibold text-sm">입시 면접을 준비해요​</p>
-                  <p className="mt-1 text-slate-500 text-xs">선호 대학과 전공을 알려주세요.</p>
+                  {/* <p className="mt-1 text-slate-500 text-xs">선호 대학과 전공을 알려주세요.</p> */}
                 </button>
               </div>
 
@@ -390,7 +393,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, remaini
 
               {intent === 'university' && (
                 <div className="space-y-3 bg-primary-lightest/60 p-4 border border-primary/30 rounded-[16px]">
-                  <p className="text-slate-600 text-sm">입시 전형 종류, 지원 계획은 인터뷰에서 다시 물어볼게요.</p>
+                  <p className="text-slate-600 text-sm">학생부를 기반으로, 면접에서 공유하려는 주요 경험(활동, 역량, 수상 등)이 담긴 자료를 업로드해주세요.</p>
                 </div>
               )}
 
@@ -431,8 +434,8 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, remaini
             )}
 
               <div className="space-y-2 bg-white/80 p-4 border border-slate-200 rounded-[16px]">
-                <p className="font-semibold text-slate-800 text-sm">질문 준비 시간</p>
-                <p className="text-slate-500 text-xs">각 질문별 답변 준비 시간을 선택하세요.</p>
+                <p className="font-semibold text-slate-800 text-sm">답변 시간 선택​</p>
+                {/* <p className="text-slate-500 text-xs">각 질문별 답변 준비 시간을 선택하세요.</p> */}
                 <div className="gap-2 grid grid-cols-2 sm:grid-cols-4">
                   {[30, 60, 90, 120].map((seconds) => (
                     <button
