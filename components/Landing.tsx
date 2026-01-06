@@ -43,112 +43,41 @@ const Landing: React.FC<LandingProps> = ({
         : "내 서류를 기반으로 맞춤형 면접 질문을 생성하고 " +
           "즉각적인 모의면접과 피드백까지 제공하는 AI 기반 면접 플랫폼​";
 
-    const cards = isTeacher
-        ? [
-              {
-                  icon: <ChartIcon className="w-5 h-5" />,
-                  title: "학생 면접 결과",
-                  body: "학생들의 면접 결과와 AI 평가(점수, 피드백)를 한눈에 확인합니다.",
-                  extra: (
-                      <span className="text-slate-500 text-xs">
-                          추천 기능: 전체 현황
-                      </span>
-                  ),
-                  button: (
-                      <Button
-                          onClick={
-                              isTeacher
-                                  ? onGoTeacherTab1 || onGoDashboard
-                                  : onStartInterview
-                          }
-                          className="px-6 py-3"
-                      >
-                          {isTeacher ? "대시보드" : "AI 면접 시작"}
-                      </Button>
-                  ),
-              },
-              {
-                  icon: <UsersIcon className="w-5 h-5" />,
-                  title: "학생 등록 관리",
-                  body: "학생 목록을 CSV로 업로드하고 계정을 쉽게 관리할 수 있어요.",
-                  extra: (
-                      <span className="text-slate-500 text-xs">
-                          추천 기능: 학생/반 관리
-                      </span>
-                  ),
-                  button: (
-                      <Button
-                          onClick={onGoTeacherTab2 || onGoDashboard}
-                          className="w-full"
-                      >
-                          학생 관리
-                      </Button>
-                  ),
-              },
-              {
-                  icon: <SparklesIcon className="w-5 h-5" />,
-                  title: "면접 미리보기",
-                  body: "학생용 질문 흐름을 미리 보고 안내/운영에 활용하세요.",
-                  extra: (
-                      <span className="text-slate-500 text-xs">
-                          추천 기능: 질문 리스트 확인
-                      </span>
-                  ),
-                  button: isTeacher ? (
-                      <Button
-                          onClick={
-                              onGoTeacherPreview ||
-                              onGoTeacherTab2 ||
-                              onGoDashboard
-                          }
-                          className="px-6 py-3"
-                      >
-                          면접 미리보기
-                      </Button>
-                  ) : (
-                      <Button
-                          onClick={onViewResults}
-                          variant="secondary"
-                          className="px-6 py-3"
-                          disabled={!hasResults}
-                      >
-                          결과 보기
-                      </Button>
-                  ),
-              },
-          ]
-        : [
-              {
-                  icon: <FileTextIcon className="w-5 h-5" />,
-                  title: "서류 기반 맞춤 질문",
-                  body: "자기소개서·이력서·생활기록부 기반 맞춤 질문 세트 제공.",
-                  extra: (
-                      <span className="text-slate-500 text-xs">
-                          제공 항목: 자기소개서·이력서·생활기록부
-                      </span>
-                  ),
-              },
-              {
-                  icon: <BrainIcon className="w-5 h-5" />,
-                  title: "다양한 질문 유형",
-                  body: "인적성·직무·산업 등 다양한 질문 유형으로 실제 면접 흐름 그대로 연습.",
-                  extra: (
-                      <span className="text-slate-500 text-xs">
-                          질문 범위: 인적성·직무·산업
-                      </span>
-                  ),
-              },
-              {
-                  icon: <LightbulbIcon className="w-5 h-5" />,
-                  title: "정밀 답변 피드백",
-                  body: "정확도와 유창성 점검, 문장별 코멘트와 답변 팁까지.",
-                  extra: (
-                      <span className="text-slate-500 text-xs">
-                          피드백: 정확도·유창성·답변 팁
-                      </span>
-                  ),
-              },
-          ];
+    const teacherCards = [
+        {
+            icon: <FileTextIcon className="w-5 h-5" />,
+            title: "맞춤 질문 세트",
+            body: "자기소개서·이력서·생활기록부 기반 맞춤 질문 세트 제공.",
+        },
+        {
+            icon: <BrainIcon className="w-5 h-5" />,
+            title: "실전 면접 연습",
+            body: "인적성·직무·산업 등 다양한 질문 유형으로 실제 면접 흐름 그대로 연습.",
+        },
+        {
+            icon: <LightbulbIcon className="w-5 h-5" />,
+            title: "피드백 & 팁",
+            body: "정확도와 유창성 점검, 문장별 코멘트와 답변 팁까지.",
+        },
+    ];
+    const studentCards = [
+        {
+            icon: <FileTextIcon className="w-5 h-5" />,
+            title: "맞춤 질문 세트",
+            body: "자기소개서·이력서·생활기록부 기반 맞춤 질문 세트 제공.",
+        },
+        {
+            icon: <BrainIcon className="w-5 h-5" />,
+            title: "실전 면접 연습",
+            body: "인적성·직무·산업 등 다양한 질문 유형으로 실제 면접 흐름 그대로 연습.",
+        },
+        {
+            icon: <LightbulbIcon className="w-5 h-5" />,
+            title: "피드백 & 팁",
+            body: "정확도와 유창성 점검, 문장별 코멘트와 답변 팁까지.",
+        },
+    ];
+    const cards = isTeacher ? teacherCards : studentCards;
 
     const cardGridClass =
         cards.length === 1
@@ -174,18 +103,19 @@ const Landing: React.FC<LandingProps> = ({
                             {heroBody}
                         </p>
                         <div className="flex flex-wrap gap-3">
-                            {!isTeacher && (
+                            {isTeacher ? (
                                 <Button
-                                    onClick={
-                                        isTeacher
-                                            ? onGoTeacherTab1 || onGoDashboard
-                                            : onStartInterview
-                                    }
+                                    onClick={onGoTeacherTab1 || onGoDashboard}
                                     className="px-6 py-3"
                                 >
-                                    {isTeacher
-                                        ? "면접 결과표 확인하기"
-                                        : "결과표 확인하기"}
+                                    면접 결과표 확인하기​
+                                </Button>
+                            ) : (
+                                <Button
+                                    onClick={onStartInterview}
+                                    className="px-6 py-3"
+                                >
+                                    ??? ????
                                 </Button>
                             )}
                         </div>
