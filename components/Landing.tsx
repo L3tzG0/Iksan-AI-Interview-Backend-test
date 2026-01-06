@@ -88,10 +88,12 @@ const Landing: React.FC<LandingProps> = ({
 
     return (
         <div className="space-y-8 animate-fadeIn">
-            <section className="relative py-10 pl-3 md:pl-6">
-                {/* <div className="-top-10 -right-10 hero-blob hero-blob--primary"></div> */}
-                {/* <div className="bottom-0 -left-10 hero-blob hero-blob--secondary"></div> */}
-                <div className="z-10 relative flex md:flex-row flex-col md:items-center gap-8">
+            <div className="relative left-1/2 right-1/2 ml-[-50vw] mr-[-50vw] w-screen -mt-8">
+                <section className="relative bg-[#ece4fe] py-10">
+                    {/* <div className="-top-10 -right-10 hero-blob hero-blob--primary"></div> */}
+                    {/* <div className="bottom-0 -left-10 hero-blob hero-blob--secondary"></div> */}
+                    <div className="px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto">
+                        <div className="z-10 relative flex md:flex-row flex-col md:items-center gap-8">
                     <div className="space-y-4">
                         <p className="flex items-center gap-2 font-semibold text-primary-text text-sm uppercase tracking-[0.2em]">
                             환영합니다
@@ -172,8 +174,10 @@ const Landing: React.FC<LandingProps> = ({
                             </div>
                         </div>
                     )}
-                </div>
-            </section>
+                        </div>
+                    </div>
+                </section>
+            </div>
 
             <div className={cardGridClass}>
                 {cards.map((card, index) => (
