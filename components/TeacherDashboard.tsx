@@ -32,7 +32,6 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
     school: currentUser.schoolName || '',
     gradeYear: 1,
     major: '',
-    classLabel: '',
   });
   const [generatedAccount, setGeneratedAccount] = useState<GeneratedStudentAccount | null>(null);
   const [bulkFileName, setBulkFileName] = useState('');
@@ -63,7 +62,6 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
     const trimmedName = newStudent.name.trim();
     const trimmedMajor = newStudent.major.trim();
     const trimmedSchool = (newStudent.school || currentUser.schoolName || '').trim();
-    const trimmedClassLabel = newStudent.classLabel.trim();
 
     if (!trimmedName || !trimmedMajor) {
       addToast('학생 이름과 전공을 입력해주세요.', 'error');
@@ -74,7 +72,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
       full_name: trimmedName,
       ...(showSchoolField ? { school_name: trimmedSchool || undefined } : {}),
       major_name: trimmedMajor,
-      class_name: trimmedClassLabel || undefined,
+      class_name: 'placeholder',
       grade_level: newStudent.gradeYear,
     };
 
@@ -87,7 +85,6 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
         school: accountSchool,
         gradeYear: newStudent.gradeYear,
         major: trimmedMajor,
-        classLabel: trimmedClassLabel,
         studentId: created.studentId,
         tempPassword: created.password || '',
       };
@@ -107,7 +104,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
         intent: 'university',
         tempPassword: account.tempPassword,
       };
-      setNewStudent((prev) => ({ ...prev, name: '', major: '', classLabel: '' }));
+      setNewStudent((prev) => ({ ...prev, name: '', major: '' }));
       addToast('학생이 추가되었습니다.', 'success');
     } catch (err: any) {
       const message = err?.message || '학생을 추가할 수 없어요.';
@@ -156,34 +153,34 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ currentUser }) => {
         }
 
         if (showSchoolField) {
-          const [name, school, gradeStr, major, classLabel = ''] = cols;
+          const [name, school, gradeStr, major] = cols;
           const gradeYear = Number(gradeStr) as 1 | 2 | 3;
           if (!name || !school || !major || ![1, 2, 3].includes(gradeYear)) {
             errors.push(`${rowNumber}행: 데이터가 올바르지 않습니다.`);
             return;
           }
           const previewSchool = school || currentUser.schoolName || '';
-          preview.push({ name, school: previewSchool, gradeYear, major, classLabel });
+          preview.push({ name, school: previewSchool, gradeYear, major });
           payloads.push({
             full_name: name,
             school_name: previewSchool,
             major_name: major,
-            class_name: classLabel || undefined,
+            class_name: 'placeholder',
             grade_level: gradeYear,
           });
         } else {
-          const [name, gradeStr, major, classLabel = ''] = cols;
+          const [name, gradeStr, major] = cols;
           const gradeYear = Number(gradeStr) as 1 | 2 | 3;
           if (!name || !major || ![1, 2, 3].includes(gradeYear)) {
             errors.push(`${rowNumber}행: 데이터가 올바르지 않습니다.`);
             return;
           }
           const previewSchool = currentUser.schoolName || '';
-          preview.push({ name, school: previewSchool, gradeYear, major, classLabel });
+          preview.push({ name, school: previewSchool, gradeYear, major });
           payloads.push({
             full_name: name,
             major_name: major,
-            class_name: classLabel || undefined,
+            class_name: 'placeholder',
             grade_level: gradeYear,
           });
         }
