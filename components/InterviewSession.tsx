@@ -10,7 +10,7 @@ import { createLiveSttSocket } from "../services/sttService";
 
 const TARGET_SAMPLE_RATE = 16000;
 const AUDIO_BUFFER_SIZE = 4096;
-const FINAL_SUMMARY_TIMEOUT_MS = 5000;
+const FINAL_SUMMARY_TIMEOUT_MS = 15000;
 
 interface InterviewSessionProps {
     questions: Question[];
@@ -103,6 +103,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
     const lastSoundTimestampRef = useRef(0);
     const finalSummaryTimeoutRef = useRef<number | null>(null);
     const devicesLoadedRef = useRef(false);
+    const inactivityTriggeredRef = useRef(false);
 
     const loadMicDevices = useCallback(async () => {
         if (!navigator.mediaDevices?.enumerateDevices) return;
@@ -537,7 +538,20 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
                     soundDetectedRef.current = isActive;
                     setIsSoundDetected(isActive);
                 }
+                
+                if (
+                    isRecordingRef.current &&
+                    !inactivityTriggeredRef.current &&
+                    lastSoundTimestampRef.current &&
+                    now - lastSoundTimestampRef.current > FINAL_SUMMARY_TIMEOUT_MS
+                ) {
+                    inactivityTriggeredRef.current = true;
 
+                    // simulate user pressing "stop mic"
+                    stopCurrentRecording();
+                    return;
+                }
+                
                 if (
                     sttSocketRef.current &&
                     sttSocketRef.current.readyState === WebSocket.OPEN
@@ -699,6 +713,8 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
             sttInterimRef.current = "";
             setSttSummary(null);
             setPauseEvents([]);
+            inactivityTriggeredRef.current = false;
+            lastSoundTimestampRef.current = performance.now();
             try {
                 await connectSttSocket();
                 await startAudioRecording();
