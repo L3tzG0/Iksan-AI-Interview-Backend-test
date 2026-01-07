@@ -1,7 +1,7 @@
 """API endpoints for managing allowed email domains."""
 
 from typing import Annotated, List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from supabase import AsyncClient
 
 from app.api.dependencies import require_role, RoleContext
@@ -11,8 +11,6 @@ from app.schemas.domain import (
     AllowedDomainCreate,
     AllowedDomainUpdate,
     AllowedDomainResponse,
-    DomainCheckRequest,
-    DomainCheckResponse,
 )
 
 router = APIRouter()

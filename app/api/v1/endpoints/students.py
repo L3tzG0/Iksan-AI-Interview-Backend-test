@@ -9,7 +9,6 @@ from app.schemas.student import (
     StudentBulkCreateRequest,
     StudentBulkCreateResponse,
 )
-from app.schemas.interview_session import  SessionDetailResponse as InterviewSessionDetailResponse
 from app.services.student_registration_service import StudentRegistrationService
 
 router = APIRouter()
