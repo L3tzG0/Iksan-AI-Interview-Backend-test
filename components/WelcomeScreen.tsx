@@ -241,7 +241,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, remaini
       </div>
 
       <div className="w-full mx-auto grid gap-3 lg:grid-cols-1">
-        <div className="bg-white/95 shadow-soft p-6 sm:p-8 border border-white/70 rounded-[24px] animate-softFadeUp">
+        <div className="bg-[#F9F8FF] shadow-md p-6 sm:p-8 border border-white/70 rounded-[24px] animate-softFadeUp">
           <div className="flex justify-between items-center mb-6">
             <div>
               <h2 className="mb-1 font-bold text-slate-900 text-lg">자기소개서·이력서·생활기록부 업로드</h2>
@@ -255,7 +255,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, remaini
           <div className="grid gap-y-8 lg:grid-cols-2">
             <div className="space-y-1 lg:pr-6 lg:border-r lg:border-dashed lg:border-slate-200">
               <textarea
-                className="bg-slate-50/80 disabled:bg-slate-100 p-4 border border-slate-200 focus:border-primary-focus rounded-[18px] focus:outline-none focus:ring-2 focus:ring-primary-focus w-full h-35 text-slate-800 disabled:text-slate-500 transition-colors resize-none placeholder-slate-400"
+                className="bg-white/80 disabled:bg-slate-100 p-4 border border-slate-200 focus:border-primary-focus rounded-[18px] focus:outline-none focus:ring-2 focus:ring-primary-focus w-full h-35 text-slate-800 disabled:text-slate-500 transition-colors resize-none placeholder-slate-400"
                 placeholder="내용을 입력해주세요."
                 value={resumeText}
                 onChange={handleTextChange}
@@ -278,7 +278,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, remaini
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
                 className={`w-full cursor-pointer border-2 border-dashed rounded-[20px] p-8 flex flex-col items-center justify-center transition-all duration-300 group text-center ${
-                  isDragging ? 'border-primary bg-primary-lightest/80' : 'border-slate-200 bg-slate-50/90 hover:border-primary hover:bg-primary-lightest'
+                  isDragging ? 'border-primary bg-white/80' : 'border-slate-200 bg-white/90 hover:border-primary hover:bg-primary-lightest'
                 }`}
               >
                 {fileName ? (
@@ -398,7 +398,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, history, remaini
               )}
 
               {intent === 'work' && (
-              <div className="space-y-3 bg-primary-lightest/60 p-4 border border-primary/30 rounded-[16px]">
+              <div className="space-y-3 bg-white/60 p-4 border border-primary/30 rounded-[16px]">
                 <div className="space-y-1">
                   <p className="font-semibold text-slate-800 text-sm">지원 분야</p>
                   <p className="text-slate-500 text-xs">어떤 분야에 지원할 계획인가요.</p>

@@ -71,7 +71,7 @@ const Landing: React.FC<LandingProps> = ({
     return (
         <div className="space-y-8 animate-fadeIn">
             <div className="relative left-1/2 right-1/2 ml-[-50vw] mr-[-50vw] w-screen -mt-6">
-                <section className="relative bg-[#ece4fe] py-8 md:py-16">
+                <section className="relative bg-[#F2F0FF] py-8 md:py-16">
                     {/* <div className="-top-10 -right-10 hero-blob hero-blob--primary"></div> */}
                     {/* <div className="bottom-0 -left-10 hero-blob hero-blob--secondary"></div> */}
                     <div className="px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto">
