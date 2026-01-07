@@ -208,7 +208,7 @@ const AdminDomainManagement: React.FC = () => {
                               onClick={() => openEditModal(domain)}
                               className="text-sm font-semibold text-primary hover:text-primary-dark"
                             >
-                              ??
+                              수정
                             </button>
                           )}
                           {!isProtected && (
@@ -217,7 +217,7 @@ const AdminDomainManagement: React.FC = () => {
                               onClick={() => openDeleteModal(domain.id)}
                               className="text-sm font-semibold text-rose-500 hover:text-rose-600"
                             >
-                              ??
+                              삭제
                             </button>
                           )}
                         </div>

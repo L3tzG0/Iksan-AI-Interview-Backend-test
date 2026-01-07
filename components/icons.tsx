@@ -34,6 +34,7 @@ import {
   UploadCloud,
   User,
   Users,
+  X
 } from 'lucide-react';
 
 export const UploadCloudIcon = UploadCloud;
@@ -50,6 +51,7 @@ export const SortIcon = ArrowUpDown;
 export const SearchIcon = Search;
 export const CheckCircleIcon = CircleCheck;
 export const XCircleIcon = CircleX;
+export const CloseIcon = X;
 export const EyeIcon = Eye;
 export const EyeOffIcon = EyeOff;
 export const ArrowLeftIcon = ArrowLeft;

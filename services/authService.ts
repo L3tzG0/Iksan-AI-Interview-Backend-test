@@ -156,9 +156,9 @@ const buildUserFromResponse = (data: any, fallbackEmail: string): User => {
     const grade = data?.grade_level ?? profile.grade ?? metadata.grade;
     const major = data?.major_name ?? profile.major ?? metadata.major ?? "";
     const interviewSessionQuota =
-        data?.interview_session_quota ??
-        profile?.interview_session_quota ??
-        metadata?.interview_session_quota;
+        data?.student_details?.interview_session_quota ?? 
+        data?.teacher_details?.interview_session_quota ?? 
+        data?.interview_session_quota;
 
     return {
         id:
