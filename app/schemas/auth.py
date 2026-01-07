@@ -2,7 +2,7 @@ from typing import Optional, Any, Dict, TYPE_CHECKING
 from datetime import datetime
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 from app.schemas.types import FlexibleDateTime
-
+from uuid import UUID
 
 class UserResponse(BaseModel):
     id: str
@@ -57,7 +57,7 @@ class StudentLoginResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     refresh_token: Optional[str] = None
-    user_id: str
+    user_id: UUID
     student_id: str
     full_name: Optional[str] = None
     role_id: Optional[int] = None

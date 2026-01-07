@@ -5,6 +5,7 @@ from fastapi.encoders import jsonable_encoder
 from supabase import AsyncClient
 from app.core.database import get_supabase
 from app.core.security import get_current_user
+from app.core.auth_user import AuthenticatedUser
 from app.core.config import settings
 from app.core.rate_limit import limiter, get_ip_address
 from app.services.auth_service import AuthService
@@ -22,8 +23,8 @@ async def register_user(
     supabase: Annotated[AsyncClient, Depends(get_supabase)]
 ):
     """
-    Register a new user with Supabase Auth.
-    A user profile will be automatically created via database trigger.
+    Register a new user with custom authentication.
+    Creates user profile with hashed password in the database.
     
     Note: Student registration is not allowed through this endpoint.
     Only teachers (role_id: 2) and admins (role_id: 1) can register.
@@ -33,12 +34,13 @@ async def register_user(
     auth_service = AuthService(supabase)
     result = await auth_service.register_user(user_in)
     
+    user = result["user"]
     user_response = UserResponse(
-        id=result["user"].id,
-        email=result["user"].email,
-        full_name=result["user"].user_metadata.get("full_name"),
-        role_id=result["user"].user_metadata.get("role_id"),
-        created_at=result["user"].created_at
+        id=str(user.id),
+        email=user.email,
+        full_name=user.full_name,
+        role_id=user.role_id,
+        created_at=user.created_at
     )
 
     return JSONResponse(content=jsonable_encoder(user_response.dict(exclude_none=True)))
@@ -88,7 +90,7 @@ async def login_for_access_token(
 ):
     """
     Login with email and password to get access token.
-    Uses Supabase Auth for authentication.
+    Uses custom JWT authentication.
     Returns token along with user profile data (same as /auth/me).
     
     Rate limited: 5 requests per minute per IP address.
@@ -112,7 +114,7 @@ async def login_for_access_token(
             teacher_details=teacher_details,
         )
     except HTTPException:
-        # Fallback to user_metadata if profile not found
+        # Fallback to user data if profile not found
         user_response = profile_service.build_user_response(user=user)
     
     token_response = Token(
@@ -129,10 +131,11 @@ async def login_for_access_token(
 async def logout(
     request: Request,
     supabase: Annotated[AsyncClient, Depends(get_supabase)],
-    current_user = Depends(get_current_user)
+    current_user: AuthenticatedUser = Depends(get_current_user)
 ):
     """
     Sign out the current user.
+    With JWT auth, this is mainly a client-side operation.
     """
     auth_service = AuthService(supabase)
     sign_out_payload = await auth_service.sign_out()
@@ -142,12 +145,12 @@ async def logout(
 @limiter.limit(settings.RATE_LIMIT_DEFAULT)
 async def read_users_me(
     request: Request,
-    current_user = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(get_current_user),
     supabase: AsyncClient = Depends(get_supabase)
 ):
     """
     Get current authenticated user information.
-    Returns combined data from auth.users, public.user_profiles, and role information.
+    Returns combined data from user_profiles and role information.
     If user is a student, includes student details (school, major, class).
     If user is a teacher, includes teacher details.
     
@@ -171,7 +174,7 @@ async def read_users_me(
 
         return JSONResponse(content=jsonable_encoder(user_response.dict(exclude_none=True)))
     except HTTPException:
-        # Fallback to user_metadata if profile not found
+        # Fallback to user data if profile not found
         user_response = profile_service.build_user_response(user=current_user)
 
         return JSONResponse(content=jsonable_encoder(user_response.dict(exclude_none=True)))

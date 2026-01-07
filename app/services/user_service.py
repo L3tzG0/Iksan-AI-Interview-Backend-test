@@ -148,7 +148,11 @@ class UserProfileService:
         student_details: Optional[dict] = None,
         teacher_details: Optional[dict] = None,
     ) -> UserResponse:
-        """Normalize user + profile context into a UserResponse model."""
+        """
+        Normalize user + profile context into a UserResponse model.
+        
+        Works with both AuthenticatedUser (custom auth) and legacy user objects.
+        """
         role_name = None
         role_id: Optional[int] = None
 
@@ -163,6 +167,16 @@ class UserProfileService:
                 except (ValueError, TypeError):
                     role_id = None
 
+        # Check for role_id on user object (AuthenticatedUser has role_id directly)
+        if role_id is None:
+            user_role_id = getattr(user, "role_id", None)
+            if user_role_id is not None:
+                try:
+                    role_id = int(user_role_id)
+                except (ValueError, TypeError):
+                    role_id = None
+        
+        # Fallback to user_metadata (legacy Supabase user)
         if role_id is None:
             meta_role_id = getattr(user, "user_metadata", {}).get("role_id") if hasattr(user, "user_metadata") else None
             if meta_role_id is not None:
@@ -171,11 +185,23 @@ class UserProfileService:
                 except (ValueError, TypeError):
                     role_id = None
 
+        # Get role_name from user object if not found in profile
+        if role_name is None:
+            role_name = getattr(user, "role_name", None)
+
         full_name = None
         if profile and isinstance(profile, dict):
             full_name = profile.get("full_name")
+        if full_name is None:
+            # Try AuthenticatedUser's full_name attribute
+            full_name = getattr(user, "full_name", None)
         if full_name is None and hasattr(user, "user_metadata"):
             full_name = user.user_metadata.get("full_name") if user.user_metadata else None
+
+        # Get created_at - handle both datetime and string
+        created_at = getattr(user, "created_at", None)
+        if profile and isinstance(profile, dict) and created_at is None:
+            created_at = profile.get("created_at")
 
         return UserResponse(
             id=str(getattr(user, "id")),
@@ -185,7 +211,7 @@ class UserProfileService:
             role_name=str(role_name) if role_name is not None else None,
             student_details=dict(student_details) if student_details and isinstance(student_details, dict) else None,
             teacher_details=dict(teacher_details) if teacher_details and isinstance(teacher_details, dict) else None,
-            created_at=getattr(user, "created_at"),
+            created_at=created_at,
         )
 
     async def get_profile_by_email(self, email: str):

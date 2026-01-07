@@ -4,22 +4,25 @@ Student Registration Service
 Handles student account creation with:
 - Auto-generated student IDs (school_number + major_number + student_number)
 - Secure password generation
-- Supabase auth integration with username-based login workaround
+- Custom JWT-based authentication (no Supabase Auth dependency)
 - Class resolution/creation
 """
 
 import hashlib
 import logging
-from typing import Optional, List, Tuple
+import uuid as uuid_module
+from typing import Optional, List, Tuple, Dict, Any
 from uuid import UUID
 from supabase import AsyncClient
 from fastapi import HTTPException, status
 
-from app.core.admin_client import get_admin_client
 from app.schemas.student import StudentAccountCreate, StudentAccountResponse
 from app.core.config import settings
 from app.utils.string_utils import sanitize_name
 from app.utils.password_generator import PasswordGenerator
+from app.core.password import hash_password as bcrypt_hash_password, verify_password
+from app.core.jwt import get_jwt_manager
+from app.core.auth_user import AuthenticatedUser
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -40,13 +43,14 @@ class StudentRegistrationService:
     - School/major number assignment
     - Student ID generation
     - Password generation
-    - Supabase auth user creation
+    - User profile creation with hashed password
     - Class resolution
     """
     
     def __init__(self, supabase: AsyncClient):
         self.supabase = supabase
         self.password_generator = PasswordGenerator()
+        self.jwt_manager = get_jwt_manager()
         # Optional caches to reduce repeated lookups during bulk creation.
         # Keys are normalized (lowercased) sanitized names.
         self._school_cache: Optional[dict] = None  # key -> (school_id, school_number)
@@ -443,7 +447,7 @@ class StudentRegistrationService:
         return f"{school_number}{major_number}{student_number}"
 
     # =========================================================================
-    # SUPABASE AUTH INTEGRATION
+    # USER PROFILE CREATION (Custom Auth)
     # =========================================================================
 
     async def _create_auth_user(
@@ -453,38 +457,43 @@ class StudentRegistrationService:
         full_name: str
     ) -> UUID:
         """
-        Create a Supabase auth user for the student.
-        Uses fake email pattern for username-based login workaround.
+        Create a user profile for the student.
+        
+        With custom auth, we directly create the user_profile record
+        with the hashed password. No Supabase Auth dependency.
+        
         Returns the user UUID.
         """
         fake_email = self._generate_student_email(student_id)
-        logger.debug(f"[_create_auth_user] Creating auth user with fake_email={fake_email}, student_id={student_id}")
+        logger.debug(f"[_create_auth_user] Creating user profile with email={fake_email}, student_id={student_id}")
         
         try:
-            logger.debug(f"[_create_auth_user] Calling Supabase admin API with email: {fake_email}")
-            async with get_admin_client() as admin_client:
-                response = await admin_client.auth.admin.create_user({
-                    "email": fake_email,
-                    "password": password,
-                    "email_confirm": True,
-                    "user_metadata": {
-                        "full_name": full_name,
-                        "role_id": STUDENT_ROLE_ID,
-                        "student_id": student_id,
-                        "is_student": True
-                    }
-                })
-            logger.debug(f"[_create_auth_user] Supabase response received")
+            # Generate a new UUID for the user
+            user_id = uuid_module.uuid4()
             
-            if not response.user:
-                logger.error(f"[_create_auth_user] Response user is None or empty")
+            # Hash the password for storage
+            hashed_pwd = bcrypt_hash_password(password)
+            
+            # Create user profile directly in the database
+            profile_data = {
+                "id": str(user_id),
+                "email": fake_email,
+                "full_name": full_name,
+                "role_id": STUDENT_ROLE_ID,
+                "hashed_password": hashed_pwd
+            }
+            
+            response = await self.supabase.table("user_profiles").insert(profile_data).execute()
+            
+            if not response.data:
+                logger.error(f"[_create_auth_user] Failed to insert user profile")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Failed to create auth user."
+                    detail="Failed to create user profile."
                 )
             
-            logger.info(f"[_create_auth_user] Auth user created successfully: user_id={response.user.id}")
-            return response.user.id
+            logger.info(f"[_create_auth_user] User profile created successfully: user_id={user_id}")
+            return user_id
             
         except HTTPException:
             logger.error(f"[_create_auth_user] HTTPException raised")
@@ -492,7 +501,7 @@ class StudentRegistrationService:
         except Exception as e:
             error_message = str(e)
             logger.error(f"[_create_auth_user] Exception occurred: {error_message}", exc_info=True)
-            if "already registered" in error_message.lower():
+            if "duplicate" in error_message.lower() or "already exists" in error_message.lower():
                 logger.warning(f"[_create_auth_user] Student already exists: {student_id}")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -500,7 +509,7 @@ class StudentRegistrationService:
                 )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Failed to create auth user: {error_message}"
+                detail=f"Failed to create user: {error_message}"
             )
     # Deprecated: user_profiles are now created via DB trigger on auth.user creation
     async def _create_user_profile(
@@ -646,11 +655,11 @@ class StudentRegistrationService:
         logger.debug("[create_student_account] Password generated and hashed")
         
         # Create auth user (trigger automatically creates user_profile)
-        logger.debug(f"[create_student_account] Creating auth user for student_id={student_id}")
+        logger.debug(f"[create_student_account] Creating user profile for student_id={student_id}")
         user_id = await self._create_auth_user(
             student_id, password, data.full_name
         )
-        logger.info(f"[create_student_account] Auth user and profile created successfully (via trigger): user_id={user_id}")
+        logger.info(f"[create_student_account] User profile created successfully: user_id={user_id}")
         
         try:
             # Create student record
@@ -671,15 +680,14 @@ class StudentRegistrationService:
             )
             
         except Exception as e:
-            logger.error(f"[create_student_account] Error during user profile/student record creation: {str(e)}", exc_info=False)
-            # Cleanup: delete auth user if subsequent steps fail
+            logger.error(f"[create_student_account] Error during student record creation: {str(e)}", exc_info=False)
+            # Cleanup: delete user profile if subsequent steps fail
             try:
-                logger.debug(f"[create_student_account] Cleaning up auth user: {user_id}")
-                async with get_admin_client() as admin_client:
-                    await admin_client.auth.admin.delete_user(str(user_id))
-                logger.info(f"[create_student_account] Auth user deleted during cleanup")
+                logger.debug(f"[create_student_account] Cleaning up user profile: {user_id}")
+                await self.supabase.table("user_profiles").delete().eq("id", str(user_id)).execute()
+                logger.info(f"[create_student_account] User profile deleted during cleanup")
             except Exception as cleanup_error:
-                logger.warning(f"[create_student_account] Failed to cleanup auth user: {str(cleanup_error)}")
+                logger.warning(f"[create_student_account] Failed to cleanup user profile: {str(cleanup_error)}")
             raise
 
     async def bulk_create_student_accounts(
@@ -719,13 +727,12 @@ class StudentRegistrationService:
             return results
             
         except Exception as e:
-            # Rollback: delete all created auth users
-            async with get_admin_client() as admin_client:
-                for user_id in created_user_ids:
-                    try:
-                        await admin_client.auth.admin.delete_user(str(user_id))
-                    except:
-                        pass  # Best effort cleanup
+            # Rollback: delete all created user profiles
+            for user_id in created_user_ids:
+                try:
+                    await self.supabase.table("user_profiles").delete().eq("id", str(user_id)).execute()
+                except:
+                    pass  # Best effort cleanup
             
             # Re-raise the original exception
             raise HTTPException(
@@ -745,10 +752,10 @@ class StudentRegistrationService:
         self,
         student_id: str,
         password: str
-    ) -> dict:
+    ) -> Dict[str, Any]:
         """
         Authenticate a student using their student ID and password.
-        Converts student_id to fake email for Supabase auth.
+        Uses custom JWT authentication instead of Supabase Auth.
         
         Returns:
             Dict with user, session, access_token, refresh_token
@@ -756,22 +763,65 @@ class StudentRegistrationService:
         fake_email = self._generate_student_email(student_id)
         
         try:
-            response = await self.supabase.auth.sign_in_with_password({
-                "email": fake_email,
-                "password": password
-            })
+            # Get user profile with role info
+            response = await self.supabase.table("user_profiles").select(
+                "id, email, full_name, role_id, hashed_password, created_at, updated_at, roles(id, role_name)"
+            ).eq("email", fake_email).execute()
             
-            if not response.session:
+            if not response.data:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Incorrect student ID or password"
                 )
             
+            user_profile = response.data[0]
+            hashed_password = user_profile.get("hashed_password")
+            
+            if not hashed_password:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Incorrect student ID or password"
+                )
+            
+            # Verify password
+            if not verify_password(password, hashed_password):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Incorrect student ID or password"
+                )
+            
+            role_data = user_profile.get("roles", {}) or {}
+            role_name = role_data.get("role_name") if isinstance(role_data, dict) else None
+            
+            # Generate tokens
+            token_pair = self.jwt_manager.create_token_pair(
+                user_id=user_profile["id"],
+                email=user_profile["email"],
+                role_id=user_profile.get("role_id"),
+                role_name=role_name
+            )
+            
+            # Build authenticated user object
+            user = AuthenticatedUser(
+                id=UUID(user_profile["id"]),
+                email=user_profile["email"],
+                full_name=user_profile.get("full_name"),
+                role_id=user_profile.get("role_id"),
+                role_name=role_name,
+                created_at=user_profile.get("created_at"),
+                updated_at=user_profile.get("updated_at")
+            )
+            
             return {
-                "user": response.user,
-                "session": response.session,
-                "access_token": response.session.access_token,
-                "refresh_token": response.session.refresh_token
+                "user": user,
+                "session": {
+                    "access_token": token_pair.access_token,
+                    "refresh_token": token_pair.refresh_token,
+                    "token_type": token_pair.token_type,
+                    "expires_in": token_pair.expires_in
+                },
+                "access_token": token_pair.access_token,
+                "refresh_token": token_pair.refresh_token
             }
             
         except HTTPException:

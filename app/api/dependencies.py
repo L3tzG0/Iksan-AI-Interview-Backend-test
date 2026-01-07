@@ -1,5 +1,5 @@
 """
-FastAPI dependencies for the API using Supabase client and auth.
+FastAPI dependencies for the API using Supabase client and custom auth.
 
 All dependency functions that call Supabase are async because
 the Supabase AsyncClient uses async HTTP calls. This ensures proper
@@ -11,12 +11,13 @@ from fastapi import Depends, HTTPException, status
 from supabase import AsyncClient
 from app.core.database import get_supabase
 from app.core.security import get_current_user
+from app.core.auth_user import AuthenticatedUser
 
 
 @dataclass
 class RoleContext:
     """Auth context enriched with role information."""
-    user: Any
+    user: AuthenticatedUser
     profile: Optional[dict]
     role_id: Optional[int]
     role_name: Optional[str]
@@ -44,7 +45,7 @@ def require_role(role_names: Union[str, List[str]]):
     
     async def role_checker(
         supabase: Annotated[AsyncClient, Depends(get_supabase)],
-        current_user = Depends(get_current_user)
+        current_user: AuthenticatedUser = Depends(get_current_user)
     ) -> RoleContext:
         try:
             # Get user profile with role information from database
