@@ -1,0 +1,448 @@
+<!-- this is a frontend test, as an example implementation of the websocket, since it cannot be tested through /docs -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Korean Speech-to-Text</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fb;
+        }
+        .container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="bg-white shadow-xl p-8 rounded-xl w-full max-w-4xl">
+        <h1 class="mb-6 font-bold text-gray-800 text-3xl text-center">🎙️ Live Korean STT</h1>
+        <p class="mb-8 text-gray-600 text-center">Stream audio for real-time transcription and pause analysis.</p>
+
+        <!-- Control Panel -->
+        <div class="flex flex-col items-center space-y-4">
+            <button id="recordButton" 
+                    class="bg-indigo-600 hover:bg-indigo-700 focus:ring-opacity-50 shadow-lg px-8 py-3 rounded-full focus:outline-none focus:ring-4 focus:ring-indigo-500 font-semibold text-white text-lg hover:scale-105 transition duration-150 ease-in-out transform"
+                    onclick="toggleRecording()">
+                Start Listening
+            </button>
+            <div id="statusIndicator" class="font-medium text-gray-500 text-sm">
+                Status: Idle
+            </div>
+            <div id="micStatus" class="hidden flex items-center space-x-2 text-red-500 text-sm">
+                <svg class="w-4 h-4 text-red-500 animate-pulse" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                </svg>
+                <span>Microphone Error/Not Found</span>
+            </div>
+        </div>
+
+        <div class="gap-6 grid grid-cols-1 lg:grid-cols-2 mt-10 pt-6 border-t">
+            <!-- Transcription Output Column -->
+            <div>
+                <h2 class="mb-4 font-semibold text-gray-800 text-xl">Transcription:</h2>
+                <div id="transcriptOutput" 
+                     class="bg-gray-50 p-4 border border-gray-200 rounded-lg h-48 overflow-y-auto text-gray-700 whitespace-pre-wrap">
+                    <p class="text-gray-400">Press "Start Listening" to begin real-time transcription.</p>
+                </div>
+            </div>
+
+            <!-- Pause Data Output Column -->
+            <div>
+                <h2 class="flex justify-between items-center mb-4 font-semibold text-gray-800 text-xl">
+                    Pause Data 
+                    <span id="pauseCount" class="font-medium text-red-500 text-sm">Total Pauses: 0</span>
+                </h2>
+                <div id="pauseOutput" 
+                     class="bg-gray-50 p-4 border border-gray-200 rounded-lg h-48 overflow-y-auto text-gray-600 text-sm">
+                    <p class="text-gray-400">Detected pauses will appear here.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Raw Data Debug Output -->
+        <div class="mt-8 pt-4 border-t">
+            <h2 class="mb-2 font-semibold text-gray-800 text-xl">Raw JSON Payload (Debugging / Final Summary):</h2>
+            <pre id="rawOutput" class="bg-gray-800 p-3 rounded-lg h-32 overflow-x-auto text-green-300 text-xs"></pre>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    // --- Configuration ---
+    // Update this to your actual backend URL if not running on localhost:8000
+    // const WEBSOCKET_URL = "ws://localhost:8000/api/v1/stt/live"; 
+    const WEBSOCKET_URL = "wss://iksan-ai-interview-backend-production-8558.up.railway.app/api/v1/stt/live"; 
+
+    const SAMPLE_RATE = 16000; // Must match the value in stt_service.py
+    const BUFFER_SIZE = 4096; // Standard buffer size for ScriptProcessorNode
+
+    // --- State Variables ---
+    let ws = null;
+    let audioContext = null;
+    let microphone = null;
+    let processor = null;
+    let isRecording = false;
+    let allPauses = []; // Storage for all detected pauses in the session
+
+    // --- DOM Elements ---
+    const recordButton = document.getElementById('recordButton');
+    const statusIndicator = document.getElementById('statusIndicator');
+    const transcriptOutput = document.getElementById('transcriptOutput');
+    const pauseOutput = document.getElementById('pauseOutput');
+    const rawOutput = document.getElementById('rawOutput');
+    const micStatus = document.getElementById('micStatus');
+    const pauseCount = document.getElementById('pauseCount');
+
+    // --- UI Update Functions ---
+    function updateUI(recordingState) {
+        isRecording = recordingState;
+        if (isRecording) {
+            recordButton.textContent = 'Stop Listening';
+            recordButton.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
+            recordButton.classList.add('bg-red-600', 'hover:bg-red-700');
+            statusIndicator.innerHTML = '<span class="text-green-500">Status: Listening...</span>';
+            micStatus.classList.add('hidden');
+            transcriptOutput.innerHTML = '<p class="text-gray-400">Listening...</p>'; // Clear previous results
+            pauseOutput.innerHTML = '<p class="text-gray-400">Waiting for pauses...</p>';
+            // Reset raw output style on new recording
+            rawOutput.classList.remove('bg-blue-900', 'text-yellow-300');
+            rawOutput.classList.add('bg-gray-800', 'text-green-300');
+            rawOutput.textContent = '';
+            allPauses = [];
+            pauseCount.textContent = 'Total Pauses: 0';
+
+        } else {
+            recordButton.textContent = 'Start Listening';
+            recordButton.classList.remove('bg-red-600', 'hover:bg-red-700');
+            recordButton.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
+            statusIndicator.textContent = 'Status: Idle';
+        }
+    }
+
+    /**
+     * Updates the main transcription output area.
+     */
+    function logTranscript(text, isFinal) {
+        let lastElement = transcriptOutput.lastElementChild;
+        let spanId = 'interim-line';
+        
+        // Remove initial placeholder if present
+        if (lastElement && lastElement.classList.contains('text-gray-400')) {
+            transcriptOutput.innerHTML = '';
+            lastElement = null;
+        }
+
+        if (isFinal) {
+            // If final, check if we need to promote the interim span or create a new one
+            if (lastElement && lastElement.id === spanId) {
+                lastElement.innerHTML = text; 
+                lastElement.removeAttribute('id');
+                lastElement.classList.remove('text-gray-500', 'italic', 'animate-pulse');
+                lastElement.classList.add('text-gray-700', 'font-medium');
+            } else {
+                const p = document.createElement('p');
+                p.textContent = text;
+                p.classList.add('text-gray-700', 'font-medium', 'mb-2');
+                transcriptOutput.appendChild(p);
+            }
+            
+        } else {
+            // If interim, update the existing interim span or create a new one
+            if (lastElement && lastElement.id === spanId) {
+                lastElement.innerHTML = text;
+            } else {
+                const span = document.createElement('span');
+                span.id = spanId;
+                span.innerHTML = text;
+                span.classList.add('block', 'text-gray-500', 'italic', 'animate-pulse');
+                transcriptOutput.appendChild(span);
+            }
+        }
+        transcriptOutput.scrollTop = transcriptOutput.scrollHeight;
+    }
+
+    /**
+     * Formats and logs the detected pause data.
+     */
+    function logPauseData(pauses) {
+        if (!pauses || pauses.length === 0) return;
+
+        // Remove initial placeholder if present
+        let firstPauseElement = pauseOutput.firstElementChild;
+        if (firstPauseElement && firstPauseElement.classList.contains('text-gray-400')) {
+            pauseOutput.innerHTML = '';
+        }
+
+        pauses.forEach(pause => {
+            // 1. Accumulate all pauses
+            allPauses.push(pause);
+
+            // 2. Create the display element
+            const p = document.createElement('p');
+            p.classList.add('mb-1', 'p-2', 'rounded-md', 'break-words', 'border-l-4');
+            
+            let icon = '';
+            let styleClass = '';
+            
+            if (pause.type === 'inter-packet') {
+                icon = '⏸️ Inter-Packet';
+                styleClass = 'bg-red-100 border-red-500';
+            } else {
+                icon = '➖ Intra-Packet';
+                styleClass = 'bg-yellow-100 border-yellow-500';
+            }
+
+            // Construct the message
+            p.innerHTML = `
+                <span class="font-semibold">${icon}</span> 
+                <span class="font-mono text-sm">${pause.gap_seconds}s</span>
+                <br>
+                After: <span class="font-medium">${pause.after_word}</span> 
+                | Before: <span class="font-medium">${pause.before_word}</span>
+            `;
+            
+            p.classList.add(...styleClass.split(' '));
+
+            // 3. Append to the pause output
+            pauseOutput.appendChild(p);
+        });
+
+        // 4. Update the total count
+        pauseCount.textContent = `Total Pauses: ${allPauses.length}`;
+        pauseOutput.scrollTop = pauseOutput.scrollHeight;
+    }
+
+
+    // --- WebSocket Functions ---
+    function connectWebSocket() {
+        ws = new WebSocket(WEBSOCKET_URL);
+
+        ws.onopen = () => {
+            console.log("WebSocket connected.");
+            updateUI(true);
+            // Once connected, start the microphone stream
+            startMicrophone(); 
+        };
+
+        ws.onmessage = (event) => {
+            let data;
+            try {
+                data = JSON.parse(event.data);
+            } catch (e) {
+                console.error("Failed to parse JSON message:", event.data, e);
+                return;
+            }
+            
+            // *** FINAL SUMMARY LOGIC: Check for the FINAL SUMMARY payload ***
+            if (data.type === 'FINAL_SUMMARY') {
+                console.log("FINAL SUMMARY RECEIVED:", data);
+                // Highlight and display the final comprehensive result
+                rawOutput.classList.remove('bg-gray-800', 'text-green-300');
+                rawOutput.classList.add('bg-blue-900', 'text-yellow-300'); 
+                rawOutput.textContent = JSON.stringify(data, null, 2);
+                
+                // Also update transcript area with final text
+                logTranscript("--- Session Ended ---", true);
+                logTranscript(`Final Transcript: ${data.final_transcript}`, true);
+                
+                // Now that we have received the final data, the client can close cleanly
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.close(1000, 'Received final summary.');
+                }
+
+                // Do not process as a regular transcript update
+                return; 
+            }
+
+            // Real-time updates
+            // Debugging: Show the raw payload for real-time updates
+            rawOutput.textContent = JSON.stringify(data, null, 2);
+
+            if (data.transcript) {
+                logTranscript(data.transcript, data.is_final);
+            }
+            if (data.pauses && data.pauses.length > 0) {
+                logPauseData(data.pauses);
+            }
+        };
+
+        ws.onclose = (event) => {
+            console.log("WebSocket closed:", event.code, event.reason);
+            updateUI(false);
+            stopMicrophone(); // Ensure microphone is stopped on close, just in case
+        };
+
+        ws.onerror = (error) => {
+            console.error("WebSocket error:", error);
+            statusIndicator.innerHTML = '<span class="text-red-500">Status: WS Error</span>';
+            // If an error occurs, try to close cleanly.
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                 ws.close(1001, 'Client-side error occurred.');
+            }
+        };
+    }
+
+    /**
+     * Sends the CLOSE_SIGNAL to the server and then closes the WebSocket.
+     * The server will send the FINAL_SUMMARY, which will be handled in ws.onmessage.
+     */
+    function disconnectWebSocket() {
+        stopMicrophone();
+        
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            console.log("Sending CLOSE_SIGNAL to server...");
+            
+            // 1. Send the explicit CLOSE_SIGNAL before closing the socket
+            // This forces the server to handle the final summary send while its WS state is OPEN.
+            ws.send(JSON.stringify({ type: "CLOSE_SIGNAL" }));
+            
+            // 2. The server will now send FINAL_SUMMARY. 
+            // We wait for onmessage to receive it, and then close the connection cleanly there.
+            // If the server doesn't respond quickly, the user can still hit close.
+            
+            // Optional: You could rely on the `onmessage` handler to close the WS 
+            // only after receiving FINAL_SUMMARY, but to guarantee cleanup, we set a timeout 
+            // for a hard close, or just rely on the server side cleanup. 
+            // For now, we will rely on the server to close after sending the summary.
+            // Removing the ws.close() here allows onmessage to handle the closure after FINAL_SUMMARY.
+            
+        } else {
+            // If WS wasn't open, ensure UI is stopped/updated
+            updateUI(false);
+        }
+    }
+
+    // --- Audio Processing Functions ---
+
+    function startMicrophone() {
+        if (!navigator.mediaDevices) {
+            micStatus.classList.remove('hidden');
+            micStatus.querySelector('span').textContent = 'Error: MediaDevices not supported.';
+            return;
+        }
+
+        // 1. Get Microphone Access
+        navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(stream => {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                
+                microphone = audioContext.createMediaStreamSource(stream);
+                
+                // 2. Create the ScriptProcessorNode
+                processor = audioContext.createScriptProcessor(BUFFER_SIZE, 1, 1);
+                
+                // 3. Define the audio processing logic
+                processor.onaudioprocess = (e) => {
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        const inputData = e.inputBuffer.getChannelData(0);
+                        
+                        // We must RESAMPLE the audio to the Deepgram-required 16000 Hz.
+                        const resampled = resample(inputData, audioContext.sampleRate, SAMPLE_RATE);
+
+                        // Convert the 32-bit float audio data to 16-bit PCM integer data
+                        const pcm16 = convertFloat32ToInt16(resampled);
+
+                        // Send the raw 16-bit PCM audio data as a binary message
+                        ws.send(pcm16);
+                    }
+                };
+
+                // Connect the graph: microphone -> processor -> destination (muted to prevent echo)
+                microphone.connect(processor);
+                processor.connect(audioContext.destination);
+
+                micStatus.classList.add('hidden');
+                console.log("Microphone stream started and connected to WebSocket.");
+            })
+            .catch(err => {
+                console.error('Microphone access denied or error:', err);
+                micStatus.classList.remove('hidden');
+                micStatus.querySelector('span').textContent = `Microphone Error: ${err.name}`;
+                disconnectWebSocket(); // Use disconnectWebSocket for cleanup
+            });
+    }
+
+    function stopMicrophone() {
+        // Disconnect the graph nodes
+        if (processor) {
+            processor.disconnect();
+            processor.onaudioprocess = null;
+            processor = null;
+        }
+        if (microphone) {
+            microphone.disconnect();
+            // Stop the media stream tracks
+            microphone.mediaStream.getTracks().forEach(track => track.stop());
+            microphone = null;
+        }
+        if (audioContext) {
+            // Close the audio context
+            if (audioContext.state !== 'closed') {
+                audioContext.close().then(() => audioContext = null);
+            }
+        }
+    }
+
+    // --- Audio Utility Functions ---
+
+    /**
+     * Resamples the audio data using simple nearest-neighbor interpolation.
+     */
+    function resample(inputBuffer, originalSampleRate, targetSampleRate) {
+        if (originalSampleRate === targetSampleRate) {
+            return inputBuffer;
+        }
+        
+        const ratio = originalSampleRate / targetSampleRate;
+        const newLength = Math.round(inputBuffer.length / ratio);
+        const outputBuffer = new Float32Array(newLength);
+        
+        for (let i = 0; i < newLength; i++) {
+            const index = Math.floor(i * ratio);
+            outputBuffer[i] = inputBuffer[index];
+        }
+        return outputBuffer;
+    }
+
+    /**
+     * Converts 32-bit floating-point audio data to 16-bit PCM integer data.
+     */
+    function convertFloat32ToInt16(buffer) {
+        let l = buffer.length;
+        // Create an ArrayBuffer to hold the 16-bit PCM data (2 bytes per sample)
+        let buf = new Int16Array(l);
+
+        while (l--) {
+            // Clamp the float value between -1 and 1
+            const s = Math.max(-1, Math.min(1, buffer[l]));
+            // Scale and convert to 16-bit integer
+            buf[l] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+        }
+        return buf.buffer; // Return the underlying ArrayBuffer for WebSocket transmission
+    }
+
+
+    // --- Main Control Flow ---
+
+    function toggleRecording() {
+        if (isRecording) {
+            disconnectWebSocket();
+        } else {
+            // Start the process: connect WS -> WS open -> start mic -> stream audio
+            connectWebSocket();
+        }
+    }
+</script>
+</body>
+</html>
