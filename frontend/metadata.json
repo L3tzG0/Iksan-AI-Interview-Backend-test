@@ -1,0 +1,7 @@
+{
+  "name": "AI Self-Introduction and Interview Version 2",
+  "description": "An AI-powered tool to help students practice for job interviews by generating personalized questions from their resume, providing real-time feedback, and tracking their progress. A teacher dashboard allows for monitoring and personalized coaching.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

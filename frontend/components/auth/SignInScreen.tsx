@@ -1,0 +1,157 @@
+import React, { useState } from 'react';
+import AuthLayout from './AuthLayout';
+import Input from '../ui/Input';
+import Button from '../ui/Button';
+import StatusModal from '../ui/StatusModal';
+import { MailIcon, LockIcon, IdBadgeIcon } from '../icons';
+import { signIn } from '../../services/authService';
+import { User } from '../../types';
+
+interface SignInScreenProps {
+  onSignIn: (user: User) => void;
+  onSwitchToSignUp: () => void;
+  mode?: 'staff' | 'student';
+  onSwitchMode?: () => void;
+}
+
+const SignInScreen: React.FC<SignInScreenProps> = ({ onSignIn, onSwitchToSignUp, onSwitchMode, mode: initialMode = 'student' }) => {
+  const [mode, setMode] = useState<'staff' | 'student'>(initialMode);
+  const [loginId, setLoginId] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [inlineError, setInlineError] = useState<string | null>(null);
+  const [errorModal, setErrorModal] = useState<{ isOpen: boolean; title: string; description?: string }>({
+    isOpen: false,
+    title: '',
+    description: '',
+  });
+  const toFriendlyLoginError = (rawMessage?: string) => {
+    if (!rawMessage) return '아이디 또는 비밀번호를 다시 확인해주세요.';
+    const normalized = rawMessage.replace(/["{}[\]]/g, '').trim();
+    if (!normalized || normalized.includes(':') || normalized.length > 120) {
+      return '아이디 또는 비밀번호를 다시 확인해주세요.';
+    }
+    return normalized;
+  };
+
+  const handleLoginIdChange = (value: string) => {
+    if (mode === 'student') {
+      const sanitized = value.replace(/[@\s]/g, '');
+      if (value !== sanitized) {
+        setInlineError('학생 ID에 이메일은 사용할 수 없어요.');
+      } else {
+        setInlineError(null);
+      }
+      setLoginId(sanitized);
+      return;
+    }
+    setInlineError(null);
+    setLoginId(value);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (mode === 'student' && loginId.includes('@')) {
+      setInlineError('학생 ID에 이메일은 사용할 수 없어요.');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const user = await signIn(loginId, password, mode === 'student' ? 'student' : 'staff');
+      onSignIn(user);
+    } catch (e) {
+      console.error(e);
+      const message = e instanceof Error ? e.message : '';
+      setErrorModal({
+        isOpen: true,
+        title: '로그인에 실패했습니다.',
+        description: toFriendlyLoginError(message),
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <AuthLayout
+      title="로그인"
+      subtitle="학생은 발급받은 ID, 교사/관리자는 업무용 이메일을 사용하세요."
+    >
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <Input
+          label={mode === 'student' ? '학생 ID' : '업무용 이메일'}
+          type={mode === 'student' ? 'text' : 'email'}
+          placeholder={mode === 'student' ? '예: 001000100001' : 'name@school.ac.kr'}
+          value={loginId}
+          onChange={(e) => handleLoginIdChange(e.target.value)}
+          icon={mode === 'student' ? <IdBadgeIcon className="w-6 h-6" /> : <MailIcon className="w-5 h-5" />}
+          required
+        />
+        {inlineError && <p className="text-rose-500 text-xs">{inlineError}</p>}
+        <Input
+          label="비밀번호"
+          type="password"
+          allowReveal
+          placeholder="••••••••"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          icon={<LockIcon className="w-5 h-5" />}
+          required
+        />
+{/* 
+        <div className="flex justify-between items-center text-sm">
+            <label className="flex items-center text-slate-600 cursor-pointer">
+                <input type="checkbox" className="bg-white mr-2 border-slate-300 rounded focus:ring-primary text-primary" />
+                로그인 상태 유지
+            </label>
+            <button type="button" className="font-medium text-primary hover:text-primary-dark">
+                비밀번호 찾기
+            </button>
+        </div> */}
+
+        <Button type="submit" fullWidth isLoading={isLoading}>
+            로그인
+        </Button>
+
+        <div className="pt-4 text-center">
+          <button
+            type="button"
+              onClick={() => {
+              const next = mode === 'student' ? 'staff' : 'student';
+                setMode(next);
+                setInlineError(null);
+                setLoginId('');
+                onSwitchMode && onSwitchMode();
+              }}
+            className="font-semibold text-primary hover:text-primary-dark text-sm"
+          >
+            {mode === 'student' ? '교사/관리자 로그인으로 전환' : '학생 로그인으로 전환'}
+          </button>
+        </div>
+      </form>
+
+      {mode === 'staff' && (
+        <div className="mt-6 text-slate-600 text-sm text-center">
+          교사/관리자 신규 계정이 필요하신가요?{' '}
+          <button onClick={onSwitchToSignUp} className="font-bold text-primary hover:text-primary-dark">
+            등록
+          </button>
+        </div>
+      )}
+      <StatusModal
+        isOpen={errorModal.isOpen}
+        type="error"
+        title={errorModal.title}
+        description={errorModal.description}
+        onClose={() => setErrorModal({ ...errorModal, isOpen: false })}
+        primaryAction={{
+          label: '확인',
+          onClick: () => setErrorModal({ ...errorModal, isOpen: false }),
+          variant: 'danger',
+        }}
+      />
+    </AuthLayout>
+  );
+};
+
+export default SignInScreen;

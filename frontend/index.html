@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI 역량 평가</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      // Shims for library compatibility
+      window.global = window;
+      window.process = window.process || { env: {} };
+      
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              primary: {
+                DEFAULT: '#6700e6',
+                dark: '#4a00a3',
+                focus: '#8137ff',
+                text: '#5b00cc',
+                medium: '#9c68ff',
+                light: '#d6c0ff',
+                lighter: '#e9dfff',
+                lightest: '#f4efff',
+              },
+            },
+            fontFamily: {
+              sans: ['"Elice DX Neolli"', 'Pretendard', '"Noto Sans KR"', 'sans-serif'],
+              elice: ['"Elice DX Neolli"', 'Pretendard', '"Noto Sans KR"', 'sans-serif'],
+            },
+            boxShadow: {
+              elice: '0px 25px 60px rgba(103, 0, 230, 0.15)',
+              soft: '0px 15px 35px rgba(15, 23, 42, 0.08)',
+            },
+            animation: {
+              fadeIn: 'fadeIn 0.4s ease-out',
+              slideInFromRight: 'slideInFromRight 0.4s ease-out',
+              slideInFromLeft: 'slideInFromLeft 0.4s ease-out',
+              progressGlow: 'progressGlow 1.6s ease-in-out infinite',
+              floatSoft: 'floatSoft 10s ease-in-out infinite',
+              pulseSlow: 'pulseSlow 4s ease-in-out infinite',
+              radarGrow: 'radarGrow 0.9s ease forwards',
+            },
+            keyframes: {
+              fadeIn: {
+                '0%': { opacity: 0 },
+                '100%': { opacity: 1 },
+              },
+              slideInFromRight: {
+                '0%': { transform: 'translateX(100%)', opacity: 0 },
+                '100%': { transform: 'translateX(0)', opacity: 1 },
+              },
+              slideInFromLeft: {
+                '0%': { transform: 'translateX(-100%)', opacity: 0 },
+                '100%': { transform: 'translateX(0)', opacity: 1 },
+              },
+              progressGlow: {
+                '0%': { filter: 'drop-shadow(0 0 0 rgba(103,0,230,0.2))' },
+                '50%': { filter: 'drop-shadow(0 0 8px rgba(103,0,230,0.45))' },
+                '100%': { filter: 'drop-shadow(0 0 0 rgba(103,0,230,0.2))' },
+              },
+              floatSoft: {
+                '0%, 100%': { transform: 'translateY(0)' },
+                '50%': { transform: 'translateY(-6px)' },
+              },
+              pulseSlow: {
+                '0%, 100%': { opacity: 0.65 },
+                '50%': { opacity: 1 },
+              },
+              radarGrow: {
+                '0%': { opacity: 0, transform: 'scale(0.85)' },
+                '100%': { opacity: 1, transform: 'scale(1)' },
+              },
+            }
+          },
+        },
+      }
+    </script>
+    <style>
+      /* Custom scrollbar for a more integrated look */
+      ::-webkit-scrollbar {
+        width: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #f1f5f9; /* slate-100 */
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #cbd5e1; /* slate-300 */
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8; /* slate-400 */
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.27.0",
+    "path": "https://aistudiocdn.com/path@^0.12.7",
+    "vite": "https://aistudiocdn.com/vite@^7.2.2",
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1"
+  }
+}
+</script>
+<link rel="stylesheet" href="./index.css">
+</head>
+  <body class="bg-slate-50">
+    <div id="root"></div>
+  <script type="module" src="./index.tsx"></script>
+</body>
+</html>

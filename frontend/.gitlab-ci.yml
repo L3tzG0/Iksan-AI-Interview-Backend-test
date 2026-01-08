@@ -1,0 +1,17 @@
+image: node:latest
+cache:
+  paths:
+    - node_modules/
+pages:
+  stage: deploy
+  script:
+    - npm install
+    - npm run build
+    - rm -rf public # Remove existing public directory
+    - mv dist public # Move the built React app to the public directory
+    - cp public/index.html public/404.html # Create a 404 page for routing
+  artifacts:
+    paths:
+      - public
+  only:
+    - main

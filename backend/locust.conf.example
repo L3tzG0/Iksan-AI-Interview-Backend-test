@@ -1,0 +1,60 @@
+# Locust Load Testing Configuration
+# Copy this file to locust.conf and modify as needed
+
+# ==============================================================================
+# Master/Distributed Configuration
+# ==============================================================================
+# master = true            # Run as master (for distributed testing)
+# expect-workers = 4       # Expected number of workers
+# master-bind-host = *     # Bind address for master
+# master-bind-port = 5557  # Port for workers to connect
+
+# ==============================================================================
+# Worker Configuration (uncomment for worker nodes)
+# ==============================================================================
+# worker = true
+# master-host = localhost
+# master-port = 5557
+
+# ==============================================================================
+# Host Configuration
+# ==============================================================================
+host = http://localhost:8000
+
+# ==============================================================================
+# User Configuration
+# ==============================================================================
+users = 50                  # Number of concurrent users
+spawn-rate = 5              # Users spawned per second
+# run-time = 5m             # Test duration (e.g., 30s, 5m, 1h)
+
+# ==============================================================================
+# Web UI Configuration
+# ==============================================================================
+web-host = localhost
+web-port = 8089
+# headless = true           # Run without web UI
+
+# ==============================================================================
+# Logging Configuration
+# ==============================================================================
+# loglevel = INFO
+# logfile = locust.log
+
+# ==============================================================================
+# Output Configuration
+# ==============================================================================
+# csv = results/locust       # CSV output prefix
+# html = results/report.html # HTML report output
+
+# ==============================================================================
+# Tags Configuration
+# ==============================================================================
+# tags = auth,public         # Only run tasks with these tags
+# exclude-tags = heavy       # Exclude tasks with these tags
+
+# ==============================================================================
+# Other Options
+# ==============================================================================
+# stop-timeout = 30          # Timeout for stopping users
+# only-summary = true        # Only print summary stats
