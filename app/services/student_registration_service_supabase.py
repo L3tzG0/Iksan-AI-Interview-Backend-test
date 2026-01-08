@@ -1,13 +1,11 @@
 """
-Student Registration Service - SQLAlchemy Version
+Student Registration Service
 
 Handles student account creation with:
 - Auto-generated student IDs (school_number + major_number + student_number)
 - Secure password generation
 - Custom JWT-based authentication (no Supabase Auth dependency)
 - Class resolution/creation
-
-Updated to use SQLAlchemy AsyncSession instead of Supabase client.
 """
 
 import hashlib
@@ -15,10 +13,8 @@ import logging
 import uuid as uuid_module
 from typing import Optional, List, Tuple, Dict, Any
 from uuid import UUID
-
+from supabase import AsyncClient
 from fastapi import HTTPException, status
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas.student import StudentAccountCreate, StudentAccountResponse
 from app.core.config import settings
@@ -28,20 +24,9 @@ from app.core.password import hash_password as bcrypt_hash_password, verify_pass
 from app.core.jwt import get_jwt_manager
 from app.core.auth_user import AuthenticatedUser
 
-# Repository imports
-from app.repositories.user_repository import UserRepository
-from app.repositories.student_repository import StudentRepository
-from app.repositories.teacher_repository import TeacherRepository
-from app.repositories.school_repository import SchoolRepository
-from app.repositories.major_repository import MajorRepository
-from app.repositories.class_repository import ClassRepository
-
-# Model imports
-from app.models.user_profile import UserProfile
-from app.models.student import Student
-
 # Setup logging
 logger = logging.getLogger(__name__)
+
 
 # Student role ID (from seed data)
 STUDENT_ROLE_ID = 3
@@ -60,29 +45,12 @@ class StudentRegistrationService:
     - Password generation
     - User profile creation with hashed password
     - Class resolution
-    
-    Updated to use SQLAlchemy AsyncSession and repositories.
     """
     
-    def __init__(self, db: AsyncSession):
-        """
-        Initialize with SQLAlchemy AsyncSession.
-        
-        Args:
-            db: SQLAlchemy async session
-        """
-        self.db = db
+    def __init__(self, supabase: AsyncClient):
+        self.supabase = supabase
         self.password_generator = PasswordGenerator()
         self.jwt_manager = get_jwt_manager()
-        
-        # Initialize repositories
-        self.user_repo = UserRepository(db)
-        self.student_repo = StudentRepository(db)
-        self.teacher_repo = TeacherRepository(db)
-        self.school_repo = SchoolRepository(db)
-        self.major_repo = MajorRepository(db)
-        self.class_repo = ClassRepository(db)
-        
         # Optional caches to reduce repeated lookups during bulk creation.
         # Keys are normalized (lowercased) sanitized names.
         self._school_cache: Optional[dict] = None  # key -> (school_id, school_number)
@@ -97,17 +65,20 @@ class StudentRegistrationService:
         """Generate a secure random password using a position-based pattern."""
         return self.password_generator.generate(pattern)
 
+
     def _hash_password(self, password: str) -> str:
         """
         Hash password for storage (for display purposes, not auth).
         Uses SHA-256 with salt for basic obfuscation.
-        Note: Actual auth uses bcrypt.
+        Note: Actual auth is handled by Supabase.
         """
+        # Simple hash for storage - this is for display recovery, not security
+        # The actual auth password is managed by Supabase
         return hashlib.sha256(f"{settings.STUDENT_PASSWORD_SALT}{password}".encode()).hexdigest()
 
     def _generate_student_email(self, student_id: str) -> str:
         """
-        Generate a fake email for auth.
+        Generate a fake email for Supabase auth.
         Format: {student_id}@students.internal
         """
         return f"{student_id}@{STUDENT_EMAIL_DOMAIN}"
@@ -136,18 +107,68 @@ class StudentRegistrationService:
         if self._school_cache is not None and cache_key in self._school_cache:
             return self._school_cache[cache_key]
 
-        # Use repository method which calls the RPC function
-        school_id, school_number = await self.school_repo.resolve_or_create(sanitized_name)
+        # Fast path: single RPC call (preferred in production)
+        try:
+            rpc_resp = await self.supabase.rpc(
+                "resolve_or_create_school",
+                {"p_school_name": sanitized_name}
+            ).execute()
+
+            if rpc_resp.data and isinstance(rpc_resp.data, list):
+                row = rpc_resp.data[0]
+                school_id = row["school_id"]
+                school_number = row["school_number"]
+                result = (school_id, school_number)
+                if self._school_cache is not None:
+                    self._school_cache[cache_key] = result
+                return result
+        except Exception as e:
+            # Backward-compatible fallback for environments where RPC isn't deployed yet.
+            logger.debug(f"[_resolve_or_create_school] RPC resolve_or_create_school failed, falling back: {str(e)}")
+
+        # Try to find existing school (case-insensitive)
+        response = await self.supabase.table("schools").select(
+            "id, school_name, school_number"
+        ).ilike("school_name", sanitized_name).execute()
         
-        if school_number is None:
+        if response.data:
+            school = response.data[0]
+            school_id = school["id"]
+            school_number = school.get("school_number")
+            logger.info(f"[_resolve_or_create_school] Existing school found: id={school_id}, name={school['school_name']}, number={school_number}")
+            
             # Assign number if not yet assigned
-            school_number = await self._assign_school_number(school_id)
+            if not school_number:
+                logger.debug(f"[_resolve_or_create_school] Assigning number to existing school: {school_id}")
+                school_number = await self._assign_school_number(school_id)
+                logger.info(f"[_resolve_or_create_school] School number assigned: {school_number}")
+
+            result = (school_id, school_number)
+            if self._school_cache is not None:
+                self._school_cache[cache_key] = result
+            return result
         
+        # Create new school
+        logger.debug(f"[_resolve_or_create_school] Creating new school: {sanitized_name}")
+        response = await self.supabase.table("schools").insert({
+            "school_name": sanitized_name
+        }).execute()
+        
+        if not response.data:
+            logger.error(f"[_resolve_or_create_school] Failed to insert school: {sanitized_name}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to create school."
+            )
+        
+        school_id = response.data[0]["id"]
+        logger.debug(f"[_resolve_or_create_school] New school created: id={school_id}")
+        school_number = await self._assign_school_number(school_id)
+        logger.info(f"[_resolve_or_create_school] New school with number created: id={school_id}, number={school_number}")
+
         result = (school_id, school_number)
         if self._school_cache is not None:
             self._school_cache[cache_key] = result
-        
-        logger.info(f"[_resolve_or_create_school] School resolved: id={school_id}, number={school_number}")
         return result
 
     async def _assign_school_number(self, school_id: int) -> str:
@@ -155,13 +176,18 @@ class StudentRegistrationService:
         Assign the next available school number to a school.
         Uses database function for atomicity.
         """
-        result = await self.school_repo.assign_number(school_id)
-        if result is None:
+        response = await self.supabase.rpc(
+            "assign_school_number",
+            {"p_school_id": school_id}
+        ).execute()
+        
+        if response.data is None:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to assign school number."
             )
-        return result
+        
+        return response.data
 
     # =========================================================================
     # MAJOR METHODS
@@ -187,18 +213,67 @@ class StudentRegistrationService:
         if self._major_cache is not None and cache_key in self._major_cache:
             return self._major_cache[cache_key]
 
-        # Use repository method which calls the RPC function
-        major_id, major_number = await self.major_repo.resolve_or_create(sanitized_name)
+        # Fast path: single RPC call (preferred in production)
+        try:
+            rpc_resp = await self.supabase.rpc(
+                "resolve_or_create_major",
+                {"p_major_name": sanitized_name}
+            ).execute()
+
+            if rpc_resp.data and isinstance(rpc_resp.data, list):
+                row = rpc_resp.data[0]
+                major_id = row["major_id"]
+                major_number = row["major_number"]
+                result = (major_id, major_number)
+                if self._major_cache is not None:
+                    self._major_cache[cache_key] = result
+                return result
+        except Exception as e:
+            logger.debug(f"[_resolve_or_create_major] RPC resolve_or_create_major failed, falling back: {str(e)}")
+
+        # Try to find existing major (case-insensitive)
+        response = await self.supabase.table("majors").select(
+            "id, major_name, major_number"
+        ).ilike("major_name", sanitized_name).execute()
         
-        if major_number is None:
+        if response.data:
+            major = response.data[0]
+            major_id = major["id"]
+            major_number = major.get("major_number")
+            logger.info(f"[_resolve_or_create_major] Existing major found: id={major_id}, name={major['major_name']}, number={major_number}")
+            
             # Assign number if not yet assigned
-            major_number = await self._assign_major_number(major_id)
+            if not major_number:
+                logger.debug(f"[_resolve_or_create_major] Assigning number to existing major: {major_id}")
+                major_number = await self._assign_major_number(major_id)
+                logger.info(f"[_resolve_or_create_major] Major number assigned: {major_number}")
+
+            result = (major_id, major_number)
+            if self._major_cache is not None:
+                self._major_cache[cache_key] = result
+            return result
         
+        # Create new major
+        logger.debug(f"[_resolve_or_create_major] Creating new major: {sanitized_name}")
+        response = await self.supabase.table("majors").insert({
+            "major_name": sanitized_name
+        }).execute()
+        
+        if not response.data:
+            logger.error(f"[_resolve_or_create_major] Failed to insert major: {sanitized_name}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to create major."
+            )
+        
+        major_id = response.data[0]["id"]
+        logger.debug(f"[_resolve_or_create_major] New major created: id={major_id}")
+        major_number = await self._assign_major_number(major_id)
+        logger.info(f"[_resolve_or_create_major] New major with number created: id={major_id}, number={major_number}")
+
         result = (major_id, major_number)
         if self._major_cache is not None:
             self._major_cache[cache_key] = result
-        
-        logger.info(f"[_resolve_or_create_major] Major resolved: id={major_id}, number={major_number}")
         return result
 
     async def _assign_major_number(self, major_id: int) -> str:
@@ -206,13 +281,18 @@ class StudentRegistrationService:
         Assign the next available major number to a major.
         Uses database function for atomicity.
         """
-        result = await self.major_repo.assign_number(major_id)
-        if result is None:
+        response = await self.supabase.rpc(
+            "assign_major_number",
+            {"p_major_id": major_id}
+        ).execute()
+        
+        if response.data is None:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to assign major number."
             )
-        return result
+        
+        return response.data
 
     # =========================================================================
     # CLASS METHODS
@@ -233,9 +313,11 @@ class StudentRegistrationService:
         if class_id is not None:
             logger.debug(f"[_resolve_or_create_class] Validating class by id: {class_id}")
             # Validate class exists
-            existing_class = await self.class_repo.get_by_id(class_id)
+            response = await self.supabase.table("classes").select("id").eq(
+                "id", class_id
+            ).execute()
             
-            if not existing_class:
+            if not response.data:
                 logger.error(f"[_resolve_or_create_class] Class not found: {class_id}")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -266,14 +348,64 @@ class StudentRegistrationService:
         if self._class_cache is not None and cache_key in self._class_cache:
             return self._class_cache[cache_key]
 
-        # Use repository method which calls the RPC function
-        resolved_id, _, _ = await self.class_repo.resolve_or_create(sanitized_name, grade_level)
+        # Fast path: single RPC call (preferred in production)
+        try:
+            rpc_resp = await self.supabase.rpc(
+                "resolve_or_create_class",
+                {"p_class_name": sanitized_name, "p_grade_level": grade_level}
+            ).execute()
+
+            if rpc_resp.data is not None:
+                # Supabase RPC may return a scalar or a 1-row list depending on PostgREST.
+                resolved_id = None
+                if isinstance(rpc_resp.data, int):
+                    resolved_id = rpc_resp.data
+                elif isinstance(rpc_resp.data, list) and len(rpc_resp.data) > 0:
+                    # Some configurations wrap scalar returns
+                    first = rpc_resp.data[0]
+                    if isinstance(first, dict):
+                        resolved_id = first.get("resolve_or_create_class") or first.get("id")
+                    elif isinstance(first, int):
+                        resolved_id = first
+
+                if resolved_id is not None:
+                    if self._class_cache is not None:
+                        self._class_cache[cache_key] = resolved_id
+                    return resolved_id
+        except Exception as e:
+            logger.debug(f"[_resolve_or_create_class] RPC resolve_or_create_class failed, falling back: {str(e)}")
+
+        # Try to find existing class with same name and grade (case-insensitive)
+        response = await self.supabase.table("classes").select("id").ilike(
+            "class_name", sanitized_name
+        ).eq("grade_level", grade_level).execute()
         
+        if response.data:
+            class_id = response.data[0]["id"]
+            logger.info(f"[_resolve_or_create_class] Existing class found: id={class_id}, name={sanitized_name}, grade={grade_level}")
+            if self._class_cache is not None:
+                self._class_cache[cache_key] = class_id
+            return class_id
+        
+        # Create new class
+        logger.debug(f"[_resolve_or_create_class] Creating new class: name={sanitized_name}, grade={grade_level}")
+        response = await self.supabase.table("classes").insert({
+            "class_name": sanitized_name,
+            "grade_level": grade_level
+        }).execute()
+        
+        if not response.data:
+            logger.error(f"[_resolve_or_create_class] Failed to insert class: {sanitized_name}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to create class."
+            )
+        
+        class_id = response.data[0]["id"]
+        logger.info(f"[_resolve_or_create_class] New class created: id={class_id}, name={sanitized_name}, grade={grade_level}")
         if self._class_cache is not None:
-            self._class_cache[cache_key] = resolved_id
-        
-        logger.info(f"[_resolve_or_create_class] Class resolved: id={resolved_id}")
-        return resolved_id
+            self._class_cache[cache_key] = class_id
+        return class_id
 
     # =========================================================================
     # STUDENT ID GENERATION
@@ -285,20 +417,19 @@ class StudentRegistrationService:
         Uses database function for atomic increment.
         Returns 5-digit padded string.
         """
-        result = await self.db.execute(
-            text("SELECT public.get_next_student_number(:p_school_id, :p_major_id)"),
+        response = await self.supabase.rpc(
+            "get_next_student_number",
             {"p_school_id": school_id, "p_major_id": major_id}
-        )
-        row = result.scalar()
+        ).execute()
         
-        if row is None:
+        if response.data is None:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to generate student number."
             )
         
         # Pad to 5 digits
-        return str(row).zfill(5)
+        return str(response.data).zfill(5)
 
     async def _generate_student_id(
         self,
@@ -343,14 +474,23 @@ class StudentRegistrationService:
             # Hash the password for storage
             hashed_pwd = bcrypt_hash_password(password)
             
-            # Create user profile using repository
-            user_profile = await self.user_repo.create_user(
-                id=user_id,
-                email=fake_email,
-                full_name=full_name,
-                hashed_password=hashed_pwd,
-                role_id=STUDENT_ROLE_ID,
-            )
+            # Create user profile directly in the database
+            profile_data = {
+                "id": str(user_id),
+                "email": fake_email,
+                "full_name": full_name,
+                "role_id": STUDENT_ROLE_ID,
+                "hashed_password": hashed_pwd
+            }
+            
+            response = await self.supabase.table("user_profiles").insert(profile_data).execute()
+            
+            if not response.data:
+                logger.error(f"[_create_auth_user] Failed to insert user profile")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Failed to create user profile."
+                )
             
             logger.info(f"[_create_auth_user] User profile created successfully: user_id={user_id}")
             return user_id
@@ -371,6 +511,30 @@ class StudentRegistrationService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Failed to create user: {error_message}"
             )
+    # Deprecated: user_profiles are now created via DB trigger on auth.user creation
+    async def _create_user_profile(
+        self,
+        user_id: UUID,
+        full_name: str,
+        student_id: str
+    ) -> None:
+        """
+        Create user profile record for the student.
+        """
+        fake_email = self._generate_student_email(student_id)
+        
+        response = await self.supabase.table("user_profiles").insert({
+            "id": str(user_id),
+            "full_name": full_name,
+            "email": fake_email,
+            "role_id": STUDENT_ROLE_ID
+        }).execute()
+        
+        if not response.data:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to create user profile."
+            )
 
     async def _create_student_record(
         self,
@@ -385,16 +549,22 @@ class StudentRegistrationService:
         Create student record in students table.
         Returns the student record ID.
         """
-        student = await self.student_repo.create(
-            user_id=user_id,
-            student_id=student_id,
-            school_id=school_id,
-            major_id=major_id,
-            current_class_id=class_id,
-            stored_password=hashed_password,
-        )
+        response = await self.supabase.table("students").insert({
+            "user_id": str(user_id),
+            "student_id": student_id,
+            "school_id": school_id,
+            "major_id": major_id,
+            "current_class_id": class_id,
+            "stored_password": hashed_password
+        }).execute()
         
-        return student.id
+        if not response.data:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to create student record."
+            )
+        
+        return response.data[0]["id"]
 
     # =========================================================================
     # MAIN REGISTRATION METHODS
@@ -426,17 +596,19 @@ class StudentRegistrationService:
         elif creator_school_id:
             logger.debug(f"[create_student_account] Using creator's school: {creator_school_id}")
             # Get school info from creator's school
-            school = await self.school_repo.get_by_id(creator_school_id)
+            response = await self.supabase.table("schools").select(
+                "id, school_number"
+            ).eq("id", creator_school_id).execute()
             
-            if not school:
+            if not response.data:
                 logger.error(f"[create_student_account] Creator's school not found: {creator_school_id}")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Creator's school not found."
                 )
             
-            school_id = school.id
-            school_number = school.school_number
+            school_id = response.data[0]["id"]
+            school_number = response.data[0].get("school_number")
             logger.info(f"[create_student_account] Creator's school retrieved: id={school_id}, number={school_number}")
             
             if not school_number:
@@ -512,7 +684,7 @@ class StudentRegistrationService:
             # Cleanup: delete user profile if subsequent steps fail
             try:
                 logger.debug(f"[create_student_account] Cleaning up user profile: {user_id}")
-                await self.user_repo.delete(user_id)
+                await self.supabase.table("user_profiles").delete().eq("id", str(user_id)).execute()
                 logger.info(f"[create_student_account] User profile deleted during cleanup")
             except Exception as cleanup_error:
                 logger.warning(f"[create_student_account] Failed to cleanup user profile: {str(cleanup_error)}")
@@ -558,7 +730,7 @@ class StudentRegistrationService:
             # Rollback: delete all created user profiles
             for user_id in created_user_ids:
                 try:
-                    await self.user_repo.delete(user_id)
+                    await self.supabase.table("user_profiles").delete().eq("id", str(user_id)).execute()
                 except:
                     pass  # Best effort cleanup
             
@@ -592,15 +764,18 @@ class StudentRegistrationService:
         
         try:
             # Get user profile with role info
-            user_profile = await self.user_repo.get_by_email_with_role(fake_email)
+            response = await self.supabase.table("user_profiles").select(
+                "id, email, full_name, role_id, hashed_password, created_at, updated_at, roles(id, role_name)"
+            ).eq("email", fake_email).execute()
             
-            if not user_profile:
+            if not response.data:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Incorrect student ID or password"
                 )
             
-            hashed_password = user_profile.hashed_password
+            user_profile = response.data[0]
+            hashed_password = user_profile.get("hashed_password")
             
             if not hashed_password:
                 raise HTTPException(
@@ -615,25 +790,26 @@ class StudentRegistrationService:
                     detail="Incorrect student ID or password"
                 )
             
-            role_name = user_profile.role.role_name if user_profile.role else None
+            role_data = user_profile.get("roles", {}) or {}
+            role_name = role_data.get("role_name") if isinstance(role_data, dict) else None
             
             # Generate tokens
             token_pair = self.jwt_manager.create_token_pair(
-                user_id=str(user_profile.id),
-                email=user_profile.email,
-                role_id=user_profile.role_id,
+                user_id=user_profile["id"],
+                email=user_profile["email"],
+                role_id=user_profile.get("role_id"),
                 role_name=role_name
             )
             
             # Build authenticated user object
             user = AuthenticatedUser(
-                id=user_profile.id,
-                email=user_profile.email,
-                full_name=user_profile.full_name,
-                role_id=user_profile.role_id,
+                id=UUID(user_profile["id"]),
+                email=user_profile["email"],
+                full_name=user_profile.get("full_name"),
+                role_id=user_profile.get("role_id"),
                 role_name=role_name,
-                created_at=user_profile.created_at.isoformat() if user_profile.created_at else None,
-                updated_at=user_profile.updated_at.isoformat() if user_profile.updated_at else None
+                created_at=user_profile.get("created_at"),
+                updated_at=user_profile.get("updated_at")
             )
             
             return {
@@ -661,10 +837,12 @@ class StudentRegistrationService:
         Get the school_id associated with a teacher.
         Returns None if user is not a teacher or has no school assigned.
         """
-        teacher = await self.teacher_repo.get_by_user_id(user_id)
+        response = await self.supabase.table("teachers").select(
+            "school_id"
+        ).eq("user_id", str(user_id)).execute()
         
-        if teacher:
-            return teacher.school_id
+        if response.data and len(response.data) > 0:
+            return response.data[0].get("school_id")
         
         return None
 
@@ -673,52 +851,21 @@ class StudentRegistrationService:
         Fetch student details along with related profile, school, major, and class data.
         """
         try:
-            student = await self.student_repo.get_by_student_id(student_id)
-            
+            response = await self.supabase.table("students").select(
+                "id, user_id, student_id, interview_session_quota, "
+                "user_profiles!user_id(full_name, role_id, roles!role_id(role_name)), "
+                "schools(id, school_name), "
+                "majors(id, major_name), "
+                "classes(id, class_name, grade_level)"
+            ).eq("student_id", student_id).single().execute()
+
+            student = response.data
             if not student:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Student record not found for ID {student_id}."
                 )
-            
-            # Get student with relations for full context
-            student_with_relations = await self.student_repo.get_with_relations(student.id)
-            
-            if not student_with_relations:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Student record not found for ID {student_id}."
-                )
-            
-            # Format the response to match the old Supabase structure
-            result = {
-                "id": student_with_relations.id,
-                "user_id": str(student_with_relations.user_id),
-                "student_id": student_with_relations.student_id,
-                "interview_session_quota": student_with_relations.interview_session_quota,
-                "user_profiles": {
-                    "full_name": student_with_relations.user.full_name if student_with_relations.user else None,
-                    "role_id": student_with_relations.user.role_id if student_with_relations.user else None,
-                    "roles": {
-                        "role_name": student_with_relations.user.role.role_name if student_with_relations.user and student_with_relations.user.role else None
-                    }
-                },
-                "schools": {
-                    "id": student_with_relations.school.id if student_with_relations.school else None,
-                    "school_name": student_with_relations.school.school_name if student_with_relations.school else None
-                } if student_with_relations.school else None,
-                "majors": {
-                    "id": student_with_relations.major.id if student_with_relations.major else None,
-                    "major_name": student_with_relations.major.major_name if student_with_relations.major else None
-                } if student_with_relations.major else None,
-                "classes": {
-                    "id": student_with_relations.current_class.id if student_with_relations.current_class else None,
-                    "class_name": student_with_relations.current_class.class_name if student_with_relations.current_class else None,
-                    "grade_level": student_with_relations.current_class.grade_level if student_with_relations.current_class else None
-                } if student_with_relations.current_class else None
-            }
-            
-            return result
+            return student
         except HTTPException:
             raise
         except Exception as e:

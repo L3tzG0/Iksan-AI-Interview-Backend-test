@@ -1,8 +1,15 @@
+"""
+API endpoints for student account creation.
+
+Updated to use SQLAlchemy AsyncSession instead of Supabase.
+"""
 from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, status
-from supabase import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.api.dependencies import require_role, RoleContext
-from app.core.database import get_supabase
+from app.core.database import get_db
 from app.schemas.student import (
     StudentAccountCreate, 
     StudentAccountResponse,
@@ -10,13 +17,15 @@ from app.schemas.student import (
     StudentBulkCreateResponse,
 )
 from app.services.student_registration_service import StudentRegistrationService
+from app.repositories.teacher_repository import TeacherRepository
 
 router = APIRouter()
+
 
 @router.post("/create", response_model=StudentAccountResponse)
 async def create_student_account(
     student_account_in: StudentAccountCreate,
-    supabase: Annotated[AsyncClient, Depends(get_supabase)],
+    db: Annotated[AsyncSession, Depends(get_db)],
     role_context: RoleContext = Depends(require_role(["teacher", "admin"])),
 ):
     """
@@ -52,9 +61,10 @@ async def create_student_account(
     # Get teacher's school_id if they are a teacher
     creator_school_id = None
     if role_id == 2:  # Teacher
-        teacher_response = await supabase.table("teachers").select("school_id").eq("user_id", str(role_context.user.id)).single().execute()
-        if teacher_response.data:
-            creator_school_id = teacher_response.data.get("school_id")
+        teacher_repo = TeacherRepository(db)
+        teacher = await teacher_repo.get_by_user_id(role_context.user.id)
+        if teacher:
+            creator_school_id = teacher.school_id
         
         # Prevent teachers from specifying school_name
         if student_account_in.school_name is not None:
@@ -63,7 +73,7 @@ async def create_student_account(
                 detail="Teachers cannot specify school_name. Students will be created for your school automatically."
             )
     
-    registration_service = StudentRegistrationService(supabase)
+    registration_service = StudentRegistrationService(db)
     
     try:
         result = await registration_service.create_student_account(
@@ -78,6 +88,8 @@ async def create_student_account(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -85,11 +97,10 @@ async def create_student_account(
         )
 
 
-
 @router.post("/bulk-create", response_model=StudentBulkCreateResponse)
 async def bulk_create_student_accounts(
     request: StudentBulkCreateRequest,
-    supabase: Annotated[AsyncClient, Depends(get_supabase)],
+    db: Annotated[AsyncSession, Depends(get_db)],
     role_context: RoleContext = Depends(require_role(["teacher", "admin"])),
 ):
     """
@@ -102,7 +113,7 @@ async def bulk_create_student_accounts(
     Each student gets:
     - Auto-generated 12-digit student ID
     - Auto-generated secure password
-    - Supabase auth account (using fake email pattern for username login)
+    - Auth account (using fake email pattern for username login)
     
     Parameters:
     - students: List of student account creation requests
@@ -134,9 +145,10 @@ async def bulk_create_student_accounts(
     # Get teacher's school_id if they are a teacher
     creator_school_id = None
     if role_id == 2:  # Teacher
-        teacher_response = await supabase.table("teachers").select("school_id").eq("user_id", str(role_context.user.id)).single().execute()
-        if teacher_response.data:
-            creator_school_id = teacher_response.data.get("school_id")
+        teacher_repo = TeacherRepository(db)
+        teacher = await teacher_repo.get_by_user_id(role_context.user.id)
+        if teacher:
+            creator_school_id = teacher.school_id
         
         # Prevent teachers from specifying school_name in any student
         for idx, student in enumerate(request.students):
@@ -146,7 +158,7 @@ async def bulk_create_student_accounts(
                     detail=f"Teachers cannot specify school_name. Student at index {idx} contains school_name field. Students will be created for your school automatically."
                 )
     
-    registration_service = StudentRegistrationService(supabase)
+    registration_service = StudentRegistrationService(db)
     
     try:
         results = await registration_service.bulk_create_student_accounts(request.students, creator_school_id=creator_school_id)
@@ -161,6 +173,8 @@ async def bulk_create_student_accounts(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

@@ -2,12 +2,14 @@
 Email Domain Management Service
 
 Handles CRUD operations for allowed email domains.
+Refactored from Supabase AsyncClient to SQLAlchemy AsyncSession.
 """
 
 import logging
 from typing import List, Optional
-from datetime import datetime
-from supabase import AsyncClient
+
+from sqlalchemy import select, or_
+from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status
 
 from app.schemas.domain import (
@@ -15,6 +17,8 @@ from app.schemas.domain import (
     AllowedDomainUpdate,
     AllowedDomainResponse,
 )
+from app.models.allowed_email_domain import AllowedEmailDomain
+from app.repositories.domain_repository import DomainRepository
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +26,15 @@ logger = logging.getLogger(__name__)
 class DomainService:
     """Service for managing allowed email domains."""
 
-    def __init__(self, supabase: AsyncClient):
-        self.supabase = supabase
+    def __init__(self, db: AsyncSession):
+        """
+        Initialize service with SQLAlchemy session.
+        
+        Args:
+            db: SQLAlchemy AsyncSession for database operations
+        """
+        self.db = db
+        self.repo = DomainRepository(db)
 
     async def get_all_domains(
         self,
@@ -41,26 +52,31 @@ class DomainService:
             List of allowed domains
         """
         try:
-            query = self.supabase.table("allowed_email_domains").select("*")
+            # Build query
+            query = select(AllowedEmailDomain)
             
             if not include_inactive:
-                query = query.eq("is_active", True)
+                query = query.where(AllowedEmailDomain.is_active == True)
 
             if search:
                 sanitized_search = search.strip()
                 if sanitized_search:
                     search_pattern = f"%{sanitized_search}%"
-                    query = query.or_(
-                        f"domain.ilike.{search_pattern},organization_name.ilike.{search_pattern}"
+                    query = query.where(
+                        or_(
+                            AllowedEmailDomain.domain.ilike(search_pattern),
+                            AllowedEmailDomain.organization_name.ilike(search_pattern)
+                        )
                     )
             
-            query = query.order("domain", desc=False)
+            query = query.order_by(AllowedEmailDomain.domain)
             
-            response = await query.execute()
+            result = await self.db.execute(query)
+            domains = result.scalars().all()
             
             return [
-                AllowedDomainResponse(**domain)
-                for domain in response.data
+                AllowedDomainResponse(**self._to_dict(domain))
+                for domain in domains
             ]
             
         except Exception as e:
@@ -81,15 +97,10 @@ class DomainService:
             Domain details or None if not found
         """
         try:
-            response = await (
-                self.supabase.table("allowed_email_domains")
-                .select("*")
-                .eq("id", domain_id)
-                .execute()
-            )
+            domain = await self.repo.get_by_id(domain_id)
             
-            if response.data and len(response.data) > 0:
-                return AllowedDomainResponse(**response.data[0])
+            if domain:
+                return AllowedDomainResponse(**self._to_dict(domain))
             return None
             
         except Exception as e:
@@ -110,15 +121,10 @@ class DomainService:
             Domain details or None if not found
         """
         try:
-            response = await (
-                self.supabase.table("allowed_email_domains")
-                .select("*")
-                .eq("domain", domain.lower())
-                .execute()
-            )
+            domain_obj = await self.repo.get_by_domain(domain.lower())
             
-            if response.data and len(response.data) > 0:
-                return AllowedDomainResponse(**response.data[0])
+            if domain_obj:
+                return AllowedDomainResponse(**self._to_dict(domain_obj))
             return None
             
         except Exception as e:
@@ -152,32 +158,33 @@ class DomainService:
                     detail=f"Domain '{domain_data.domain}' already exists"
                 )
             
-            # Insert domain
-            insert_data = {
-                "domain": domain_data.domain.lower(),
-                "organization_name": domain_data.organization_name,
-                "is_active": True,
-                "added_by": added_by,
-            }
+            # Create domain using repository
+            from uuid import UUID
+            added_by_uuid = UUID(added_by) if added_by else None
             
-            response = await (
-                self.supabase.table("allowed_email_domains")
-                .insert(insert_data)
-                .execute()
+            new_domain = await self.repo.add_domain(
+                domain=domain_data.domain.lower(),
+                organization_name=domain_data.organization_name,
+                added_by=added_by_uuid,
+                is_active=True,
             )
             
-            if not response.data:
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Failed to create domain"
-                )
+            # Commit the transaction
+            await self.db.commit()
+            await self.db.refresh(new_domain)
             
             logger.info(f"Created allowed domain: {domain_data.domain}")
-            return AllowedDomainResponse(**response.data[0])
+            return AllowedDomainResponse(**self._to_dict(new_domain))
             
         except HTTPException:
             raise
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e)
+            )
         except Exception as e:
+            await self.db.rollback()
             logger.error(f"Error creating domain: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -201,7 +208,7 @@ class DomainService:
         """
         try:
             # Check if domain exists
-            existing = await self.get_domain_by_id(domain_id)
+            existing = await self.repo.get_by_id(domain_id)
             if not existing:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -216,7 +223,7 @@ class DomainService:
                 new_domain = domain_data.domain.lower()
                 # If the new domain is different, ensure it doesn't already exist
                 if new_domain != existing.domain:
-                    conflict = await self.get_domain_by_name(new_domain)
+                    conflict = await self.repo.get_by_domain(new_domain)
                     if conflict:
                         raise HTTPException(
                             status_code=status.HTTP_409_CONFLICT,
@@ -230,29 +237,21 @@ class DomainService:
                 update_data["is_active"] = domain_data.is_active
 
             if not update_data:
-                # No changes
-                return existing
+                # No changes, return existing
+                return AllowedDomainResponse(**self._to_dict(existing))
 
             # Update domain
-            response = await (
-                self.supabase.table("allowed_email_domains")
-                .update(update_data)
-                .eq("id", domain_id)
-                .execute()
-            )
-            
-            if not response.data:
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Failed to update domain"
-                )
+            updated = await self.repo.update_by_id(domain_id, **update_data)
+            await self.db.commit()
+            await self.db.refresh(updated)
             
             logger.info(f"Updated domain ID {domain_id}")
-            return AllowedDomainResponse(**response.data[0])
+            return AllowedDomainResponse(**self._to_dict(updated))
             
         except HTTPException:
             raise
         except Exception as e:
+            await self.db.rollback()
             logger.error(f"Error updating domain: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -271,27 +270,26 @@ class DomainService:
         """
         try:
             # Check if domain exists
-            existing = await self.get_domain_by_id(domain_id)
+            existing = await self.repo.get_by_id(domain_id)
             if not existing:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Domain with ID {domain_id} not found"
                 )
             
-            # Delete domain
-            await (
-                self.supabase.table("allowed_email_domains")
-                .delete()
-                .eq("id", domain_id)
-                .execute()
-            )
+            domain_name = existing.domain
             
-            logger.info(f"Deleted domain ID {domain_id} ({existing.domain})")
+            # Delete domain
+            await self.repo.delete_by_id(domain_id)
+            await self.db.commit()
+            
+            logger.info(f"Deleted domain ID {domain_id} ({domain_name})")
             return True
             
         except HTTPException:
             raise
         except Exception as e:
+            await self.db.rollback()
             logger.error(f"Error deleting domain: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -330,16 +328,28 @@ class DomainService:
         """
         try:
             domain_name = domain.lower()
-            response = await (
-                self.supabase.table("allowed_email_domains")
-                .select("id")
-                .eq("domain", domain_name)
-                .eq("is_active", True)
-                .maybe_single()
-                .execute()
-            )
-            return response.data is not None
+            domain_obj = await self.repo.get_by_domain(domain_name)
+            return domain_obj is not None and domain_obj.is_active
         except Exception as e:
             logger.error(f"Error checking domain: {str(e)}")
             # Fail closed - don't allow if check fails
             return False
+
+    def _to_dict(self, domain: AllowedEmailDomain) -> dict:
+        """
+        Convert AllowedEmailDomain model to dictionary.
+        
+        Args:
+            domain: AllowedEmailDomain SQLAlchemy model instance
+        
+        Returns:
+            dict: Dictionary representation
+        """
+        return {
+            "id": domain.id,
+            "domain": domain.domain,
+            "organization_name": domain.organization_name,
+            "is_active": domain.is_active,
+            "added_by": str(domain.added_by) if domain.added_by else None,
+            "created_at": domain.created_at.isoformat() if domain.created_at else None,
+        }

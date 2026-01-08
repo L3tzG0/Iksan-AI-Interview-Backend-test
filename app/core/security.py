@@ -4,16 +4,22 @@ Security utilities for custom JWT-based authentication.
 This module provides FastAPI integration helpers for our custom auth system
 that uses locally-managed JWTs and the user_profiles table for user data.
 
+Refactored from Supabase to SQLAlchemy for database operations.
+
 All functions are async to maintain consistency with the rest of the application
 and to support async database queries when enriching user data.
 """
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from supabase import AsyncClient
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from app.core.database import get_supabase
+from app.core.database import get_db
 from app.core.jwt import get_jwt_manager, JWTExpiredError, JWTInvalidError, TokenType
 from app.core.auth_user import AuthenticatedUser
+from app.models.user_profile import UserProfile
+from app.models.role import Role
 from uuid import UUID
 
 security = HTTPBearer()
@@ -21,7 +27,7 @@ security = HTTPBearer()
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    supabase: AsyncClient = Depends(get_supabase)
+    db: AsyncSession = Depends(get_db)
 ) -> AuthenticatedUser:
     """
     Validate JWT token and get current user.
@@ -29,7 +35,8 @@ async def get_current_user(
     This validates our custom JWT tokens and returns an AuthenticatedUser
     object with user information from the token claims.
     
-    For enriched data (full profile, etc.), the user_profiles table is queried.
+    For enriched data (full profile, etc.), the user_profiles table is queried
+    using SQLAlchemy.
     """
     try:
         jwt_manager = get_jwt_manager()
@@ -37,25 +44,28 @@ async def get_current_user(
         # Verify the access token
         payload = jwt_manager.verify_access_token(credentials.credentials)
         
-        # Optionally fetch full profile from database for up-to-date role info
+        # Fetch full profile from database for up-to-date role info
         # This ensures role changes take effect immediately
-        response = await supabase.table('user_profiles').select(
-            'id, email, full_name, role_id, created_at, updated_at, roles(id, role_name)'
-        ).eq('id', payload.sub).execute()
+        stmt = (
+            select(UserProfile)
+            .options(selectinload(UserProfile.role))
+            .where(UserProfile.id == UUID(payload.sub))
+        )
+        result = await db.execute(stmt)
+        profile = result.scalar_one_or_none()
         
-        if response.data:
-            profile = response.data[0]
-            role_data = profile.get('roles', {}) or {}
+        if profile:
+            role_name = profile.role.role_name if profile.role else None
             
             return AuthenticatedUser(
-                id=UUID(profile['id']),
-                email=profile.get('email', payload.email),
-                full_name=profile.get('full_name'),
-                role_id=profile.get('role_id'),
-                role_name=role_data.get('role_name') if isinstance(role_data, dict) else None,
+                id=profile.id,
+                email=profile.email,
+                full_name=profile.full_name,
+                role_id=profile.role_id,
+                role_name=role_name,
                 email_verified=True,
-                created_at=profile.get('created_at'),
-                updated_at=profile.get('updated_at')
+                created_at=profile.created_at.isoformat() if profile.created_at else None,
+                updated_at=profile.updated_at.isoformat() if profile.updated_at else None
             )
         
         # Fallback to token claims if profile not found

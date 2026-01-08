@@ -193,24 +193,22 @@ async def close_db() -> None:
 
 
 # =============================================================================
-# DEPRECATED: Supabase client support (kept for migration phase)
-# Remove this section once all services are migrated to SQLAlchemy
+# DEPRECATED: Supabase client support (removed after migration)
+# All database operations now use SQLAlchemy get_db() dependency
 # =============================================================================
 
-from supabase import AsyncClient
-
-
-def get_supabase(request: Request) -> AsyncClient:
+def get_supabase(request: Request):
     """
-    DEPRECATED: Dependency to get async Supabase client from app.state.
+    DEPRECATED: Supabase client is no longer supported.
     
-    This function is kept for backward compatibility during the migration
-    to SQLAlchemy. New code should use get_db() instead.
+    This function is kept only to provide a clear error message if any
+    legacy code still tries to use it. All database operations should
+    use get_db() instead.
     
-    Args:
-        request: FastAPI Request object (injected automatically)
-    
-    Returns:
-        AsyncClient: The shared async Supabase client instance
+    Raises:
+        NotImplementedError: Always, as Supabase is no longer supported
     """
-    return request.app.state.supabase
+    raise NotImplementedError(
+        "Supabase client is no longer supported. "
+        "Use get_db() dependency with SQLAlchemy AsyncSession instead."
+    )

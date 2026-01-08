@@ -1,17 +1,23 @@
 """
-FastAPI dependencies for the API using Supabase client and custom auth.
+FastAPI dependencies for the API using SQLAlchemy and custom auth.
 
-All dependency functions that call Supabase are async because
-the Supabase AsyncClient uses async HTTP calls. This ensures proper
+All dependency functions that interact with the database are async because
+SQLAlchemy async sessions use async database calls. This ensures proper
 connection handling under concurrent load.
+
+Migration Note: This module has been updated from Supabase AsyncClient
+to SQLAlchemy AsyncSession as part of the backend-agnostic refactor.
 """
 from dataclasses import dataclass
-from typing import Annotated, Union, List, Any, Optional
+from typing import Annotated, Union, List, Optional
+
 from fastapi import Depends, HTTPException, status
-from supabase import AsyncClient
-from app.core.database import get_supabase
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import get_db
 from app.core.security import get_current_user
 from app.core.auth_user import AuthenticatedUser
+from app.repositories.user_repository import UserRepository
 
 
 @dataclass
@@ -21,6 +27,7 @@ class RoleContext:
     profile: Optional[dict]
     role_id: Optional[int]
     role_name: Optional[str]
+
 
 def require_role(role_names: Union[str, List[str]]):
     """
@@ -44,31 +51,29 @@ def require_role(role_names: Union[str, List[str]]):
     allowed_roles = [role_names] if isinstance(role_names, str) else role_names
     
     async def role_checker(
-        supabase: Annotated[AsyncClient, Depends(get_supabase)],
+        db: Annotated[AsyncSession, Depends(get_db)],
         current_user: AuthenticatedUser = Depends(get_current_user)
     ) -> RoleContext:
         try:
-            # Get user profile with role information from database
-            response = await supabase.table('user_profiles').select(
-                '*, roles(id, role_name)'
-            ).eq('id', str(current_user.id)).execute()
+            # Get user profile with role information using SQLAlchemy repository
+            user_repo = UserRepository(db)
+            user_profile = await user_repo.get_with_role(current_user.id)
             
-            if not response.data:
+            if not user_profile:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="User profile not found"
                 )
             
-            user_profile: Optional[Any] = response.data[0]
-            role_data: Optional[Any] = user_profile.get('roles') if isinstance(user_profile, dict) else None
-            
-            # Extract role metadata
+            # Extract role metadata from SQLAlchemy model
             user_role_name: Optional[str] = None
             user_role_id: Optional[int] = None
-            if isinstance(role_data, dict):
-                user_role_name = role_data.get('role_name')
-            if isinstance(user_profile, dict):
-                user_role_id = user_profile.get('role_id')
+            
+            if user_profile.role:
+                user_role_name = user_profile.role.role_name
+                user_role_id = user_profile.role.id
+            else:
+                user_role_id = user_profile.role_id
             
             # Check if user's role is in the list of allowed roles
             if not user_role_name or user_role_name not in allowed_roles:
@@ -77,9 +82,23 @@ def require_role(role_names: Union[str, List[str]]):
                     detail=f"Operation not permitted. Required role(s): {', '.join(allowed_roles)}"
                 )
             
+            # Convert SQLAlchemy model to dict for backward compatibility
+            profile_dict = {
+                "id": str(user_profile.id),
+                "email": user_profile.email,
+                "full_name": user_profile.full_name,
+                "role_id": user_profile.role_id,
+                "created_at": user_profile.created_at.isoformat() if user_profile.created_at else None,
+                "updated_at": user_profile.updated_at.isoformat() if user_profile.updated_at else None,
+                "roles": {
+                    "id": user_profile.role.id,
+                    "role_name": user_profile.role.role_name,
+                } if user_profile.role else None,
+            }
+            
             return RoleContext(
                 user=current_user,
-                profile=user_profile if isinstance(user_profile, dict) else None,
+                profile=profile_dict,
                 role_id=user_role_id,
                 role_name=user_role_name
             )

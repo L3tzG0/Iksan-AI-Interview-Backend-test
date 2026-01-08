@@ -1,6 +1,16 @@
+"""
+Job Processor for background interview processing tasks.
+
+Refactored from Supabase AsyncClient to SQLAlchemy AsyncSession.
+Handles async job processing for interview generation and evaluation.
+"""
 import asyncio
 from typing import Dict, Any, List
 import logging
+from datetime import datetime
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.services.question_generator import generate_interview_questions
 from app.services.university_question_generator import generate_university_prep_questions
 from app.services.evaluation_generator import generate_session_evaluation
@@ -10,8 +20,6 @@ from app.services.interview_session_service import InterviewSessionService
 from app.schemas.interview_session import GeneratedQuestion, QuestionAnswerPair 
 from app.schemas.summary import InterviewSummaryCreate
 from app.schemas.next_step import InterviewNextStepCreate
-from supabase import AsyncClient
-from datetime import datetime
 
 # from app.services.question_generator_qwen import generate_interview_questions_qwen
 from app.services.question_generator_gpt import generate_interview_questions_gpt
@@ -27,19 +35,26 @@ INITIAL_BACKOFF_SECONDS = 7
 
 async def process_interview_job(
     job_data: Dict[str, Any], 
-    supabase: AsyncClient
+    db: AsyncSession
 ) -> List[GeneratedQuestion]:
     """
     Executes the slow, core logic for an interview session job, with retry mechanism.
     This function is executed by the background worker process.
+    
+    Args:
+        job_data: Dictionary containing session_id, cv_text, field, role
+        db: SQLAlchemy AsyncSession for database operations
+    
+    Returns:
+        List of generated questions
     """
     session_id = job_data["session_id"]
     cv_text = job_data["cv_text"]
     field = job_data["field"]
     role = job_data["role"]
     
-    session_service = InterviewSessionService(supabase)
-    feedback_service = FeedbackService(supabase)
+    session_service = InterviewSessionService(db)
+    feedback_service = FeedbackService(db)
 
     try:
         logging.info(f"Session {session_id}: Starting RAG query and LLM generation...")
@@ -98,18 +113,25 @@ async def process_interview_job(
 
 async def process_interview_uni(
     job_data: Dict[str, Any], 
-    supabase: AsyncClient
+    db: AsyncSession
 ) -> List[GeneratedQuestion]:
     """
     Executes the core logic for a university preparation session job, with retry mechanism.
+    
+    Args:
+        job_data: Dictionary containing session_id, student_record_text, universities, departments
+        db: SQLAlchemy AsyncSession for database operations
+    
+    Returns:
+        List of generated questions
     """
     session_id = job_data["session_id"]
     student_record_text = job_data["student_record_text"]
     universities = job_data["universities"]
     departments = job_data["departments"]
     
-    session_service = InterviewSessionService(supabase)
-    feedback_service = FeedbackService(supabase)
+    session_service = InterviewSessionService(db)
+    feedback_service = FeedbackService(db)
 
     try:
         logging.info(f"Session {session_id}: Starting University Prep RAG query and LLM generation...")
@@ -168,11 +190,15 @@ async def process_interview_uni(
 
 async def process_evaluation_job(
     job_data: Dict[str, Any], 
-    supabase: AsyncClient
+    db: AsyncSession
 ) -> None:
     """
     Executes the core LLM evaluation and database update logic for a completed session.
     Implements a retry mechanism for transient LLM API errors.
+    
+    Args:
+        job_data: Dictionary containing session_id, qa_pairs, q_type
+        db: SQLAlchemy AsyncSession for database operations
     """
     session_id = job_data["session_id"]
     
@@ -182,8 +208,8 @@ async def process_evaluation_job(
     
     q_type = job_data["q_type"]
 
-    session_service = InterviewSessionService(supabase)
-    feedback_service = FeedbackService(supabase)
+    session_service = InterviewSessionService(db)
+    feedback_service = FeedbackService(db)
     
     try:
         logging.info(f"Session {session_id}: Starting LLM evaluation...")
@@ -287,18 +313,25 @@ async def process_evaluation_job(
 
 async def process_interview_job_gpt(
     job_data: Dict[str, Any], 
-    supabase: AsyncClient
+    db: AsyncSession
 ) -> List[GeneratedQuestion]:
     """
     Executes the interview generation logic using GPT-4o.
+    
+    Args:
+        job_data: Dictionary containing session_id, cv_text, field, role
+        db: SQLAlchemy AsyncSession for database operations
+    
+    Returns:
+        List of generated questions
     """
     session_id = job_data["session_id"]
     cv_text = job_data["cv_text"]
     field = job_data["field"]
     role = job_data["role"]
     
-    session_service = InterviewSessionService(supabase)
-    feedback_service = FeedbackService(supabase)
+    session_service = InterviewSessionService(db)
+    feedback_service = FeedbackService(db)
 
     try:
         logging.info(f"Session {session_id}: Starting GPT-4o generation job...")
@@ -347,18 +380,25 @@ async def process_interview_job_gpt(
 
 async def process_interview_uni_gpt(
     job_data: Dict[str, Any], 
-    supabase: AsyncClient
+    db: AsyncSession
 ) -> List[GeneratedQuestion]:
     """
     Executes the university prep generation logic using GPT-4o.
+    
+    Args:
+        job_data: Dictionary containing session_id, student_record_text
+        db: SQLAlchemy AsyncSession for database operations
+    
+    Returns:
+        List of generated questions
     """
     session_id = job_data["session_id"]
     student_record_text = job_data["student_record_text"]
     # universities = job_data["universities"]
     # departments = job_data["departments"]
     
-    session_service = InterviewSessionService(supabase)
-    feedback_service = FeedbackService(supabase)
+    session_service = InterviewSessionService(db)
+    feedback_service = FeedbackService(db)
 
     try:
         logging.info(f"Session {session_id}: Starting GPT-4o University Prep job...")

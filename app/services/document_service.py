@@ -1,25 +1,37 @@
-from datetime import datetime
-from typing import Optional, Any
-from fastapi import HTTPException
-from supabase import AsyncClient
+"""
+Document Service for document database operations.
 
-# Explicit columns to select for documents (avoiding SELECT *)
-DOCUMENT_COLUMNS = "id, session_id, cleaned_text"
+Refactored from Supabase AsyncClient to SQLAlchemy AsyncSession.
+Handles document records associated with interview sessions.
+"""
+from typing import Optional, Any
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import HTTPException
+
+from app.models.document import Document
 
 
 class DocumentService:
-    """Service for handling document database operations"""
+    """Service for handling document database operations."""
     
-    def __init__(self, supabase: AsyncClient):
-        self.supabase = supabase
+    def __init__(self, db: AsyncSession):
+        """
+        Initialize service with SQLAlchemy session.
+        
+        Args:
+            db: SQLAlchemy AsyncSession for database operations
+        """
+        self.db = db
     
     async def create_document(
         self,
         session_id: int,
         cleaned_text: str
-    ) -> Any:
+    ) -> dict:
         """
-        Create document record in database with cleaned text
+        Create document record in database with cleaned text.
         
         Args:
             session_id: ID of the interview session
@@ -32,20 +44,16 @@ class DocumentService:
             HTTPException: If creation fails
         """
         try:
-            document_data = {
-                "session_id": session_id,
-                "cleaned_text": cleaned_text
-            }
+            document = Document(
+                session_id=session_id,
+                cleaned_text=cleaned_text
+            )
             
-            response = await self.supabase.table('documents').insert(document_data).execute()
+            self.db.add(document)
+            await self.db.flush()
+            await self.db.refresh(document)
             
-            if not response.data:
-                raise HTTPException(
-                    status_code=500,
-                    detail="Failed to create document record"
-                )
-            
-            return response.data[0]
+            return self._to_dict(document)
             
         except HTTPException:
             raise
@@ -55,9 +63,9 @@ class DocumentService:
                 detail=f"Database error while creating document: {str(e)}"
             )
     
-    async def get_document_by_session(self, session_id: int) -> Optional[Any]:
+    async def get_document_by_session(self, session_id: int) -> Optional[dict]:
         """
-        Get document by session ID with explicit column selection
+        Get document by session ID.
         
         Args:
             session_id: Session ID
@@ -66,10 +74,29 @@ class DocumentService:
             dict or None: Document record if found
         """
         try:
-            response = await self.supabase.table('documents').select(DOCUMENT_COLUMNS).eq('session_id', session_id).execute()
-            return response.data[0] if response.data else None
+            stmt = select(Document).where(Document.session_id == session_id)
+            result = await self.db.execute(stmt)
+            document = result.scalar_one_or_none()
+            
+            return self._to_dict(document) if document else None
         except Exception as e:
             raise HTTPException(
                 status_code=500,
                 detail=f"Failed to fetch document: {str(e)}"
             )
+
+    def _to_dict(self, document: Document) -> dict:
+        """
+        Convert Document model to dictionary.
+        
+        Args:
+            document: Document SQLAlchemy model instance
+        
+        Returns:
+            dict: Dictionary representation
+        """
+        return {
+            "id": document.id,
+            "session_id": document.session_id,
+            "cleaned_text": document.cleaned_text,
+        }

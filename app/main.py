@@ -1,10 +1,17 @@
+"""
+FastAPI Application Main Entry Point.
+
+Refactored to use SQLAlchemy for database operations.
+Supabase client has been removed - all database operations
+now go through SQLAlchemy AsyncSession.
+"""
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from supabase import acreate_client, AsyncClient
+
 from app.core.config import settings
 from app.core.rate_limit import limiter, rate_limit_exceeded_handler
 from app.core.database import init_db, close_db
@@ -18,26 +25,18 @@ async def lifespan(app: FastAPI):
     Lifespan context manager for FastAPI application.
     
     Handles startup and shutdown events:
-    - Startup: Initialize SQLAlchemy engine, Supabase client (legacy), Redis
+    - Startup: Initialize SQLAlchemy engine, Redis
     - Shutdown: Cleanup all resources
     
     This pattern ensures:
-    - Single async client/engine instance shared across all requests
+    - Single async engine instance shared across all requests
     - Explicit lifecycle management
     - Better testability (can override app.state in tests)
     - Proper async connection pooling under concurrent load
     """
-    # Startup: Initialize SQLAlchemy async engine (new)
+    # Startup: Initialize SQLAlchemy async engine
     if settings.DATABASE_URL:
         await init_db()
-    
-    # Startup: Initialize async Supabase client (legacy - kept during migration)
-    # if settings.SUPABASE_URL and settings.SUPABASE_KEY:
-    #     app.state.supabase = await acreate_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
-    # else:
-    #     app.state.supabase = None
-    
-    app.state.supabase = None  # Supabase client is deprecated; set to None
     
     # Initialize rate limiter state
     app.state.limiter = limiter

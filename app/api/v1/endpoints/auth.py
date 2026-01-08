@@ -1,9 +1,16 @@
+"""
+API endpoints for authentication.
+
+Updated to use SQLAlchemy AsyncSession instead of Supabase.
+"""
 from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
-from supabase import AsyncClient
-from app.core.database import get_supabase
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import get_db
 from app.core.security import get_current_user
 from app.core.auth_user import AuthenticatedUser
 from app.core.config import settings
@@ -15,12 +22,13 @@ from app.schemas.auth import Token, LoginRequest, RegisterRequest, UserResponse,
 
 router = APIRouter()
 
+
 @router.post("/register", response_model=UserResponse)
 @limiter.limit(settings.RATE_LIMIT_AUTH, key_func=get_ip_address)
 async def register_user(
     request: Request,
     user_in: RegisterRequest,
-    supabase: Annotated[AsyncClient, Depends(get_supabase)]
+    db: Annotated[AsyncSession, Depends(get_db)]
 ):
     """
     Register a new user with custom authentication.
@@ -31,7 +39,7 @@ async def register_user(
     
     Rate limited: 5 requests per minute per IP address.
     """
-    auth_service = AuthService(supabase)
+    auth_service = AuthService(db)
     result = await auth_service.register_user(user_in)
     
     user = result["user"]
@@ -45,20 +53,21 @@ async def register_user(
 
     return JSONResponse(content=jsonable_encoder(user_response.dict(exclude_none=True)))
 
+
 @router.post("/refresh", response_model=Token)
 async def refresh_access_token(
     refresh_data: RefreshRequest,
-    supabase: Annotated[AsyncClient, Depends(get_supabase)]
+    db: Annotated[AsyncSession, Depends(get_db)]
 ):
     """
     Refresh access token using a valid refresh token.
     This allows users to stay logged in beyond the 1-hour access token limit.
     """
-    auth_service = AuthService(supabase)
+    auth_service = AuthService(db)
     result = await auth_service.refresh_token(refresh_data.refresh_token)
     
     # Re-fetch user context to return the full Token object (consistent with login)
-    profile_service = UserProfileService(supabase)
+    profile_service = UserProfileService(db)
     user = result["user"]
     
     try:
@@ -81,12 +90,13 @@ async def refresh_access_token(
 
     return JSONResponse(content=jsonable_encoder(token_response.dict(exclude_none=True)))
 
+
 @router.post("/login", response_model=Token)
 @limiter.limit(settings.RATE_LIMIT_AUTH, key_func=get_ip_address)
 async def login_for_access_token(
     request: Request,
     login_data: LoginRequest,
-    supabase: Annotated[AsyncClient, Depends(get_supabase)]
+    db: Annotated[AsyncSession, Depends(get_db)]
 ):
     """
     Login with email and password to get access token.
@@ -95,11 +105,11 @@ async def login_for_access_token(
     
     Rate limited: 5 requests per minute per IP address.
     """
-    auth_service = AuthService(supabase)
+    auth_service = AuthService(db)
     result = await auth_service.authenticate_user(login_data)
     
     # Get user context (same as /auth/me)
-    profile_service = UserProfileService(supabase)
+    profile_service = UserProfileService(db)
     user = result["user"]
     
     try:
@@ -126,27 +136,29 @@ async def login_for_access_token(
 
     return JSONResponse(content=jsonable_encoder(token_response.dict(exclude_none=True)))
 
+
 @router.post("/logout")
 @limiter.limit(settings.RATE_LIMIT_DEFAULT)
 async def logout(
     request: Request,
-    supabase: Annotated[AsyncClient, Depends(get_supabase)],
+    db: Annotated[AsyncSession, Depends(get_db)],
     current_user: AuthenticatedUser = Depends(get_current_user)
 ):
     """
     Sign out the current user.
     With JWT auth, this is mainly a client-side operation.
     """
-    auth_service = AuthService(supabase)
+    auth_service = AuthService(db)
     sign_out_payload = await auth_service.sign_out()
     return JSONResponse(content=sign_out_payload)
+
 
 @router.get("/me", response_model=UserResponse)
 @limiter.limit(settings.RATE_LIMIT_DEFAULT)
 async def read_users_me(
     request: Request,
     current_user: AuthenticatedUser = Depends(get_current_user),
-    supabase: AsyncClient = Depends(get_supabase)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get current authenticated user information.
@@ -156,7 +168,7 @@ async def read_users_me(
     
     Optimized to minimize database queries using relational selects.
     """
-    profile_service = UserProfileService(supabase)
+    profile_service = UserProfileService(db)
     
     try:
         # Get complete user context in optimized queries (avoids N+1)
@@ -185,7 +197,7 @@ async def read_users_me(
 async def student_login(
     request: Request,
     login_data: StudentLoginRequest,
-    supabase: Annotated[AsyncClient, Depends(get_supabase)]
+    db: Annotated[AsyncSession, Depends(get_db)]
 ):
     """
     Login with student ID and password (username-based login for students).
@@ -193,7 +205,7 @@ async def student_login(
     Students use their auto-generated student ID (12 digits) and password
     instead of email-based login.
     
-    This uses a fake email pattern internally to work with Supabase Auth:
+    This uses a fake email pattern internally to work with Auth:
     {student_id}@students.internal
     
     Parameters:
@@ -204,7 +216,7 @@ async def student_login(
     
     Rate limited: 5 requests per minute per IP address.
     """
-    registration_service = StudentRegistrationService(supabase)
+    registration_service = StudentRegistrationService(db)
     
     try:
         result = await registration_service.authenticate_student(

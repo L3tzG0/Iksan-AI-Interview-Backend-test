@@ -1,20 +1,25 @@
+"""
+API endpoints for schools.
+
+Updated to use SQLAlchemy AsyncSession instead of Supabase.
+"""
 from typing import Annotated, Optional
+
 from fastapi import APIRouter, Depends, Query
-from supabase import AsyncClient
-from app.core.database import get_supabase
+from sqlalchemy import select, func
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import get_db
+from app.models.school import School
 from app.schemas.school import SchoolResponse
 from app.schemas.pagination import PaginatedResponse, create_paginated_response
-from app.utils.pagination import paginate_query
 
 router = APIRouter()
-
-# Explicit columns to select (avoiding SELECT *)
-SCHOOL_COLUMNS = "id, school_name"
 
 
 @router.get("/", response_model=PaginatedResponse[SchoolResponse])
 async def read_schools(
-    supabase: Annotated[AsyncClient, Depends(get_supabase)],
+    db: Annotated[AsyncSession, Depends(get_db)],
     skip: int = Query(default=0, ge=0, description="Number of records to skip"),
     limit: int = Query(default=20, ge=1, le=100, description="Maximum records to return"),
     search: Optional[str] = Query(default=None, description="Search by school name")
@@ -26,11 +31,24 @@ async def read_schools(
     - **limit**: Max records to return (default: 20, max: 100)
     - **search**: Search by school name (partial match)
     """
-    def build_query():
-        base_query = supabase.table('schools').select(SCHOOL_COLUMNS, count='exact')
-        if search:
-            base_query = base_query.ilike('school_name', f'%{search}%')
-        return base_query
-
-    items, total = await paginate_query(build_query, skip, limit)
+    # Build query
+    query = select(School)
+    count_query = select(func.count()).select_from(School)
+    
+    if search:
+        query = query.where(School.school_name.ilike(f'%{search}%'))
+        count_query = count_query.where(School.school_name.ilike(f'%{search}%'))
+    
+    # Get total count
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+    
+    # Get paginated items
+    query = query.offset(skip).limit(limit)
+    result = await db.execute(query)
+    schools = result.scalars().all()
+    
+    # Convert to response format
+    items = [{"id": s.id, "school_name": s.school_name} for s in schools]
+    
     return create_paginated_response(items=items, total=total, skip=skip, limit=limit)

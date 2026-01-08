@@ -1,20 +1,25 @@
+"""
+API endpoints for roles.
+
+Updated to use SQLAlchemy AsyncSession instead of Supabase.
+"""
 from typing import Annotated
+
 from fastapi import APIRouter, Depends, Query
-from supabase import AsyncClient
-from app.core.database import get_supabase
+from sqlalchemy import select, func
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import get_db
+from app.models.role import Role
 from app.schemas.role import RoleResponse
 from app.schemas.pagination import PaginatedResponse, create_paginated_response
-from app.utils.pagination import paginate_query
 
 router = APIRouter()
-
-# Explicit columns to select (avoiding SELECT *)
-ROLE_COLUMNS = "id, role_name"
 
 
 @router.get("/", response_model=PaginatedResponse[RoleResponse])
 async def read_roles(
-    supabase: Annotated[AsyncClient, Depends(get_supabase)],
+    db: Annotated[AsyncSession, Depends(get_db)],
     skip: int = Query(default=0, ge=0, description="Number of records to skip"),
     limit: int = Query(default=20, ge=1, le=100, description="Maximum records to return")
 ):
@@ -24,8 +29,20 @@ async def read_roles(
     - **skip**: Number of records to skip (default: 0)
     - **limit**: Max records to return (default: 20, max: 100)
     """
-    def build_query():
-        return supabase.table('roles').select(ROLE_COLUMNS, count='exact')
-
-    items, total = await paginate_query(build_query, skip, limit)
+    # Build query
+    query = select(Role)
+    count_query = select(func.count()).select_from(Role)
+    
+    # Get total count
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+    
+    # Get paginated items
+    query = query.offset(skip).limit(limit)
+    result = await db.execute(query)
+    roles = result.scalars().all()
+    
+    # Convert to response format
+    items = [{"id": r.id, "role_name": r.role_name} for r in roles]
+    
     return create_paginated_response(items=items, total=total, skip=skip, limit=limit)

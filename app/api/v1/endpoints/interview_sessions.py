@@ -1,19 +1,26 @@
+"""
+API endpoints for interview session management.
+
+Updated to use SQLAlchemy AsyncSession instead of Supabase.
+"""
 from typing import Annotated, Optional
 from datetime import datetime
 import logging
 import json
+
 from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException, status, Query, Request, Path
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
-from supabase import AsyncClient
-from app.core.database import get_supabase
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import get_db
 from app.core.config import settings
 from app.core.security import get_current_user
 from app.core.rate_limit import limiter
 from app.api.dependencies import require_role, RoleContext
 from app.services.storage_service import StorageService
 
-#redis import
+# Redis import
 import redis 
 from app.core.redis_client import get_redis_connection
 from app.services.queue_service import QueueService 
@@ -53,6 +60,10 @@ from app.schemas.summary import InterviewSummaryCreate
 from app.schemas.next_step import InterviewNextStepCreate
 from app.services.datetime_utils import pad_microseconds 
 
+# Repository imports for direct queries
+from app.repositories.teacher_repository import TeacherRepository
+from app.repositories.student_repository import StudentRepository
+
 
 router = APIRouter()
 
@@ -61,7 +72,7 @@ router = APIRouter()
 @limiter.limit(settings.RATE_LIMIT_DEFAULT)
 async def get_my_sessions(
     request: Request,
-    supabase: Annotated[AsyncClient, Depends(get_supabase)],
+    db: Annotated[AsyncSession, Depends(get_db)],
     current_user = Depends(get_current_user),
     skip: int = Query(default=0, ge=0, description="Number of records to skip"),
     limit: int = Query(default=20, ge=1, le=100, description="Maximum records to return"),
@@ -82,7 +93,7 @@ async def get_my_sessions(
     Returns: Paginated list of session history
     """
     # Get student_id from current_user
-    user_service = UserProfileService(supabase)
+    user_service = UserProfileService(db)
     student_details = await user_service.get_student_details(current_user.id)
     
     if not student_details:
@@ -94,7 +105,7 @@ async def get_my_sessions(
     student_id = student_details.get("id")
     
     # Fetch real session data with pagination
-    session_service = InterviewSessionService(supabase)
+    session_service = InterviewSessionService(db)
     sessions, total = await session_service.get_sessions_by_student(
         student_id=student_id,
         skip=skip,
@@ -121,7 +132,7 @@ async def get_my_sessions(
 @limiter.limit(settings.RATE_LIMIT_DEFAULT)
 async def get_sessions_with_students(
     request: Request,
-    supabase: Annotated[AsyncClient, Depends(get_supabase)],
+    db: Annotated[AsyncSession, Depends(get_db)],
     role_context: RoleContext = Depends(require_role(["teacher", "admin"])),
     skip: int = Query(default=0, ge=0, description="Number of records to skip"),
     limit: int = Query(default=20, ge=1, le=100, description="Maximum records to return"),
@@ -136,12 +147,13 @@ async def get_sessions_with_students(
     - Returns one session per student (the most recent one).
     - Optional filter by interview_type applies before grouping.
     """
-    session_service = InterviewSessionService(supabase)
+    session_service = InterviewSessionService(db)
 
     school_id: Optional[int] = None
     if role_context.role_name == "teacher":
-        teacher_response = await supabase.table("teachers").select("school_id").eq("user_id", str(role_context.user.id)).single().execute()
-        school_id = teacher_response.data.get("school_id") if teacher_response and teacher_response.data else None
+        teacher_repo = TeacherRepository(db)
+        teacher = await teacher_repo.get_by_user_id(role_context.user.id)
+        school_id = teacher.school_id if teacher else None
         if not school_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -171,6 +183,7 @@ async def get_sessions_with_students(
     )
     return JSONResponse(content=jsonable_encoder(response.dict()))
 
+
 @router.post("/submit", 
     response_model=SessionQueueResponse, # Use the new queue response model
     status_code=status.HTTP_202_ACCEPTED # Returns 202 Accepted immediately
@@ -178,9 +191,9 @@ async def get_sessions_with_students(
 @limiter.limit(settings.RATE_LIMIT_LLM)
 async def submit_session_answers(
     request: Request,
-    redis_conn: Annotated[redis.Redis, Depends(get_redis_connection)], # ADDED
+    redis_conn: Annotated[redis.Redis, Depends(get_redis_connection)],
     submit_request: SessionSubmitRequest,
-    supabase: Annotated[AsyncClient, Depends(get_supabase)],
+    db: Annotated[AsyncSession, Depends(get_db)],
     current_user = Depends(get_current_user)
 ):
     """
@@ -190,9 +203,9 @@ async def submit_session_answers(
     and immediately returns a 202 Accepted response. The heavy evaluation is done
     by a background worker.
     """
-    session_service = InterviewSessionService(supabase)
-    user_service = UserProfileService(supabase)
-    queue_service = QueueService(redis_conn) # ADDED
+    session_service = InterviewSessionService(db)
+    user_service = UserProfileService(db)
+    queue_service = QueueService(redis_conn)
     
     session_id = submit_request.session_id
     
@@ -284,14 +297,14 @@ async def submit_session_answers(
 @router.get("/status/{session_id}", response_model=SessionStatusResponse)
 async def get_session_status(
     session_id: Annotated[int, Path(description="The ID of the interview session")],
-    supabase: Annotated[AsyncClient, Depends(get_supabase)],
+    db: Annotated[AsyncSession, Depends(get_db)],
     role_context: RoleContext = Depends(require_role(["student", "teacher", "admin"]))
 ):
     """
     Allows the client to poll for the current status of a queued session.
     """
-    user_service = UserProfileService(supabase)
-    session_service = InterviewSessionService(supabase)
+    user_service = UserProfileService(db)
+    session_service = InterviewSessionService(db)
     
     # 1. Fetch session
     session = await session_service.get_session(session_id)
@@ -312,16 +325,18 @@ async def get_session_status(
                 detail="You are not authorized to view this session."
             )
     elif role_context.role_name == "teacher":
-        teacher_response = await supabase.table("teachers").select("school_id").eq("user_id", str(role_context.user.id)).single().execute()
-        teacher_school_id = teacher_response.data.get("school_id") if teacher_response and teacher_response.data else None
+        teacher_repo = TeacherRepository(db)
+        teacher = await teacher_repo.get_by_user_id(role_context.user.id)
+        teacher_school_id = teacher.school_id if teacher else None
         if not teacher_school_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Teacher is not associated with a school"
             )
 
-        student_response = await supabase.table("students").select("school_id").eq("id", session.get("student_id")).single().execute()
-        student_school_id = student_response.data.get("school_id") if student_response and student_response.data else None
+        student_repo = StudentRepository(db)
+        student = await student_repo.get_by_id(session.get("student_id"))
+        student_school_id = student.school_id if student else None
         if not student_school_id or student_school_id != teacher_school_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -339,12 +354,13 @@ async def get_session_status(
         is_ready=(status_message == "in_progress")
     )
 
+
 @router.get("/{session_id}", response_model=SessionDetailResponse)
 @limiter.limit(settings.RATE_LIMIT_DEFAULT)
 async def get_session_detail(
     request: Request,
     session_id: int,
-    supabase: Annotated[AsyncClient, Depends(get_supabase)],
+    db: Annotated[AsyncSession, Depends(get_db)],
     role_context: RoleContext = Depends(require_role(["student", "teacher", "admin"]))
 ):
     """
@@ -352,8 +368,8 @@ async def get_session_detail(
     
     If the session is not 'completed', this returns a 409 Conflict.
     """
-    session_service = InterviewSessionService(supabase)
-    user_service = UserProfileService(supabase)
+    session_service = InterviewSessionService(db)
+    user_service = UserProfileService(db)
     
     # Get the session with all related data in single query
     session = await session_service.get_session_with_feedbacks(session_id)
@@ -392,15 +408,17 @@ async def get_session_detail(
                 detail="You can only view your own sessions"
             )
     elif role_context.role_name == "teacher":
-        teacher_response = await supabase.table("teachers").select("school_id").eq("user_id", str(role_context.user.id)).single().execute()
-        teacher_school_id = teacher_response.data.get("school_id") if teacher_response and teacher_response.data else None
+        teacher_repo = TeacherRepository(db)
+        teacher = await teacher_repo.get_by_user_id(role_context.user.id)
+        teacher_school_id = teacher.school_id if teacher else None
         if not teacher_school_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Teacher is not associated with a school"
             )
-        student_response = await supabase.table("students").select("school_id").eq("id", session.get("student_id")).single().execute()
-        student_school_id = student_response.data.get("school_id") if student_response and student_response.data else None
+        student_repo = StudentRepository(db)
+        student = await student_repo.get_by_id(session.get("student_id"))
+        student_school_id = student.school_id if student else None
         if not student_school_id or student_school_id != teacher_school_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -419,12 +437,9 @@ async def get_session_detail(
     student_id_int = session.get("student_id")
     if student_id_int:
         try:
-            student_lookup = await supabase.table("students") \
-                .select("user_id") \
-                .eq("id", student_id_int) \
-                .single().execute()
-            
-            student_user_id = student_lookup.data.get("user_id") if student_lookup.data else None
+            student_repo = StudentRepository(db)
+            student = await student_repo.get_by_id(student_id_int)
+            student_user_id = student.user_id if student else None
 
             if student_user_id:
                 ctx = await user_service.get_full_user_context(student_user_id)
@@ -545,7 +560,7 @@ async def initiate_interview_session(
     field: str = Form(..., description="Target industry/field for the interview."),
     role: str = Form(..., description="Target job role for the interview."),
     role_context: RoleContext = Depends(require_role("student")),
-    supabase: AsyncClient = Depends(get_supabase)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Initiate new interview session. Saves input data, creates a session in 'pending' status, 
@@ -553,12 +568,12 @@ async def initiate_interview_session(
     Returns 202 Accepted immediately.
     """
     # Initialize services
-    storage_service = StorageService(supabase)
-    session_service = InterviewSessionService(supabase)
-    document_service = DocumentService(supabase)
+    storage_service = StorageService(db)
+    session_service = InterviewSessionService(db)
+    document_service = DocumentService(db)
     extraction_service = TextExtractionService()
-    user_service = UserProfileService(supabase)
-    student_service = StudentService(supabase)
+    user_service = UserProfileService(db)
+    student_service = StudentService(db)
     queue_service = QueueService(redis_conn)
     
     session_id: int | None = None
@@ -697,8 +712,8 @@ async def initiate_interview_session(
 @limiter.limit(settings.RATE_LIMIT_LLM)
 async def initiate_university_prep_session(
     request: Request,
-    redis_conn: Annotated[redis.Redis, Depends(get_redis_connection)], # ADDED
-    supabase: Annotated[AsyncClient, Depends(get_supabase)],
+    redis_conn: Annotated[redis.Redis, Depends(get_redis_connection)],
+    db: Annotated[AsyncSession, Depends(get_db)],
     file: Optional[UploadFile] = File(None, description="Student Record/Transcript file (PDF, DOCX, TXT, MD)"),
     raw_text: Optional[str] = Form(None, description="Raw student record text content"),
     universities: Optional[str] = Form(None, description="Comma-separated list of preferred universities (e.g., 'Stanford, MIT')"),
@@ -711,13 +726,13 @@ async def initiate_university_prep_session(
     Returns 202 Accepted immediately.
     """
     # Initialize services
-    storage_service = StorageService(supabase)
-    session_service = InterviewSessionService(supabase)
-    document_service = DocumentService(supabase)
+    storage_service = StorageService(db)
+    session_service = InterviewSessionService(db)
+    document_service = DocumentService(db)
     extraction_service = TextExtractionService()
-    user_service = UserProfileService(supabase)
-    student_service = StudentService(supabase)
-    queue_service = QueueService(redis_conn) # ADDED
+    user_service = UserProfileService(db)
+    student_service = StudentService(db)
+    queue_service = QueueService(redis_conn)
     
     session_id: int | None = None
     current_quota: int | None = None

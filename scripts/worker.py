@@ -1,3 +1,9 @@
+"""
+Background Worker for Interview Processing Jobs.
+
+Refactored from Supabase AsyncClient to SQLAlchemy AsyncSession.
+Processes interview generation and evaluation jobs from Redis queue.
+"""
 import asyncio
 import time
 import logging
@@ -5,14 +11,16 @@ import redis
 import os
 import sys
 from typing import Dict, Any
-from supabase import create_async_client, AsyncClient # Use async Supabase client
 
-# --- Setup Imports and Path (Kept from your original file) ---
+from sqlalchemy.ext.asyncio import AsyncSession
+
+# --- Setup Imports and Path ---
 # Adjust path to correctly find app/core/config.py and app/services
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from app.services.job_processor import process_interview_job, process_interview_uni, process_evaluation_job, process_interview_job_gpt, process_interview_uni_gpt
 from app.services.queue_service import QueueService
-from app.core.config import settings # <-- Use centralized settings
+from app.core.config import settings
+from app.core.database import get_db_context
 
 # --- Initialization ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - WORKER - %(message)s')
@@ -20,19 +28,6 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - WORKER - %(message
 # Global variable to track the next moment a job is allowed to START processing.
 # This is the core of the rate limiting enforcement.
 next_allowed_start_time = time.time()
-
-async def initialize_supabase() -> AsyncClient:
-    """Initializes and returns the async Supabase client using settings."""
-    try:
-        logging.info("Initializing Supabase Client...")
-        
-        if not settings.SUPABASE_URL or not settings.SUPABASE_KEY:
-            raise ValueError("Supabase credentials are not fully configured.")
-            
-        return await create_async_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
-    except Exception as e:
-        logging.error(f"Failed to initialize Supabase: {e}")
-        sys.exit(1)
 
 def initialize_redis() -> redis.Redis:
     """Initializes and returns the Redis client."""
@@ -67,17 +62,20 @@ async def run_worker():
     """
     The main worker function that enforces rate limiting at the START of each job 
     and uses asyncio.create_task() for non-blocking concurrent processing.
+    
+    Uses SQLAlchemy sessions for database operations - creates a new session
+    for each job to ensure proper connection management.
     """
     global next_allowed_start_time
     
     # Initialize services
-    supabase = await initialize_supabase()
     redis_conn = initialize_redis()
     queue_service = QueueService(redis_conn)
     
     # Get the event loop for running synchronous Redis calls in the executor
     loop = asyncio.get_event_loop()
     
+    logging.info("Database connection using SQLAlchemy AsyncSession")
     TARGET_INTERVAL = settings.JOB_PROCESSING_INTERVAL_SECONDS # e.g., 7.0 seconds
 
     logging.info(f"Starting Interview Generation Worker. Target interval: {TARGET_INTERVAL}s")
@@ -106,22 +104,31 @@ async def run_worker():
             
             try:
                 # --- 3. CRITICAL: SCHEDULE CONCURRENT TASK ---
+                # Create a wrapper to manage database session lifecycle for each job
+                async def run_job_with_session(job_func, job_data):
+                    """Wrapper that creates a new DB session for each job and ensures cleanup."""
+                    async with get_db_context() as db:
+                        try:
+                            await job_func(job_data, db)
+                        except Exception as e:
+                            logging.error(f"Job processing error for {job_data.get('session_id')}: {e}", exc_info=True)
+                            raise e
+                
                 if job_type == "interview_generation":
                     # Start the slow job in the background and continue immediately.
-                    # The completion (and status update) will happen entirely in the background.
-                    asyncio.create_task(process_interview_job(job_data, supabase))
-                elif job_type == "university_generation": # NEW ROUTING
+                    asyncio.create_task(run_job_with_session(process_interview_job, job_data))
+                elif job_type == "university_generation":
                     # Start the slow job in the background and continue immediately.
-                    asyncio.create_task(process_interview_uni(job_data, supabase))
-                elif job_type == "evaluation": # NEW ROUTING FOR SUBMIT
+                    asyncio.create_task(run_job_with_session(process_interview_uni, job_data))
+                elif job_type == "evaluation":
                     # Start the slow job (LLM evaluation) in the background
-                    asyncio.create_task(process_evaluation_job(job_data, supabase))
+                    asyncio.create_task(run_job_with_session(process_evaluation_job, job_data))
                 elif job_type == "interview_generation_gpt":
-                    # Start the slow job (LLM evaluation) in the background
-                    asyncio.create_task(process_interview_job_gpt(job_data, supabase))
+                    # Start the slow job in the background
+                    asyncio.create_task(run_job_with_session(process_interview_job_gpt, job_data))
                 elif job_type == "university_generation_gpt":
-                    # Start the slow job (LLM evaluation) in the background
-                    asyncio.create_task(process_interview_uni_gpt(job_data, supabase))
+                    # Start the slow job in the background
+                    asyncio.create_task(run_job_with_session(process_interview_uni_gpt, job_data))
                 else:
                     logging.warning(f"Session ID: {session_id} -> Skipping unknown job type: {job_type}")
                     
