@@ -171,7 +171,11 @@ class SessionDetailResponse(BaseModel):
     areas_for_growth: Optional[str] = None
     detailed_feedback: Optional[List[FeedbackDetail]] = None
     next_steps: Optional[List[NextStepItem]] = None
-
+    student_name: Optional[str]
+    grade_level: Optional[int]
+    major_name: Optional[str]
+    school_name: Optional[str]
+    
     class Config:
         from_attributes = True
 

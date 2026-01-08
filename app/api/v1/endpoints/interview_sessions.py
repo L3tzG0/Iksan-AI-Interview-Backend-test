@@ -410,6 +410,36 @@ async def get_session_detail(
         # Admins can view any session
         pass
     
+    student_meta = {
+        "student_name": None,
+        "grade_level": None,
+        "major_name": None,
+        "school_name": None
+    }
+    student_id_int = session.get("student_id")
+    if student_id_int:
+        try:
+            student_lookup = await supabase.table("students") \
+                .select("user_id") \
+                .eq("id", student_id_int) \
+                .single().execute()
+            
+            student_user_id = student_lookup.data.get("user_id") if student_lookup.data else None
+
+            if student_user_id:
+                ctx = await user_service.get_full_user_context(student_user_id)
+                profile = ctx.get("profile", {})
+                details = ctx.get("student_details", {})
+                
+                student_meta["student_name"] = profile.get("full_name")
+                if details:
+                    student_meta["grade_level"] = details.get("classes", {}).get("grade_level")
+                    student_meta["major_name"] = details.get("majors", {}).get("major_name")
+                    student_meta["school_name"] = details.get("schools", {}).get("school_name")
+        except Exception as e:
+            print(f"Metadata fetch failed: {e}")
+            pass
+
     # --- CALCULATE DIMENSION AVERAGES (NEW LOGIC) ---
     raw_feedbacks = session.get("detailed_feedbacks", [])
     
@@ -490,7 +520,11 @@ async def get_session_detail(
         strength_summary=strength_summary,
         areas_for_growth=areas_for_growth,
         detailed_feedback=feedback_list if feedback_list else None,
-        next_steps=next_steps if next_steps else None
+        next_steps=next_steps if next_steps else None,
+        student_name=student_meta["student_name"],
+        grade_level=student_meta["grade_level"],
+        major_name=student_meta["major_name"],
+        school_name=student_meta["school_name"]
     )
     return JSONResponse(content=jsonable_encoder(response.dict()))
 
