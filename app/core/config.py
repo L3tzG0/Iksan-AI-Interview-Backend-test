@@ -13,11 +13,19 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"  # development, staging, production
     DEBUG: bool = Field(default=False)
     
-    # Supabase (for database access only - auth is handled locally)
-    SUPABASE_URL: str
-    SUPABASE_KEY: str
+    # Supabase (DEPRECATED - kept during migration phase)
+    # Will be removed once SQLAlchemy migration is complete
+    SUPABASE_URL: str = ""
+    SUPABASE_KEY: str = ""
     # DEPRECATED: Storage bucket not currently in use - kept for future implementation
     SUPABASE_STORAGE_BUCKET: str = ""
+    
+    # PostgreSQL Direct Connection (SQLAlchemy)
+    # Format: postgresql+asyncpg://user:password@host:port/database
+    DATABASE_URL: str = Field(default="")
+    DATABASE_POOL_SIZE: int = 5  # Number of connections to maintain in the pool
+    DATABASE_MAX_OVERFLOW: int = 10  # Max additional connections beyond pool_size
+    DATABASE_POOL_TIMEOUT: int = 30  # Seconds to wait for a connection from pool
     
     # JWT Configuration (Custom Auth)
     JWT_SECRET_KEY: str = Field(default_factory=lambda: secrets.token_urlsafe(32))
