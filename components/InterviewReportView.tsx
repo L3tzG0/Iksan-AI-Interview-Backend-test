@@ -1,12 +1,37 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import type { InterviewReport } from '../types';
 import Card from './Card';
-import { CheckCircleIcon, AlertTriangleIcon, BrainIcon, FileTextIcon, MicIcon, ShieldIcon, ChevronDownIcon } from './icons';
 import Button from './ui/Button';
+import { CheckCircleIcon, AlertTriangleIcon, BrainIcon, FileTextIcon, MicIcon, ShieldIcon, ChevronDownIcon, ArrowLeftIcon, UserIcon, GraduationCapIcon, BookOpenIcon, SchoolIcon, } from './icons';
+import { useNavigate } from 'react-router-dom';
+import { deriveReportScores } from '../utils/report';
 
 interface InterviewReportViewProps {
   report: InterviewReport;
+  onBack?: () => void;
+  onDownload?: () => void;
+  canDownload?: boolean;
+  isExporting?: boolean;
 }
+
+const formatGradeLevel = (grade: unknown) => {
+  const numeric = Number(grade);
+  if (!Number.isFinite(numeric) || numeric <= 0) return 'N/A';
+  const suffix = numeric === 1 ? 'st' : numeric === 2 ? 'nd' : numeric === 3 ? 'rd' : 'th';
+  return `${numeric}${suffix} year`;
+};
+
+const toDisplayString = (value: unknown) => {
+  if (value === null || value === undefined) return 'N/A';
+  const str = String(value).trim();
+  return str.length ? str : 'N/A';
+};
+
+const toDisplayScore = (value: unknown) => {
+  const numeric = typeof value === 'string' ? Number(value) : value;
+  if (!Number.isFinite(numeric)) return 'N/A';
+  return Number(numeric).toFixed(1);
+};
 
 const createChips = (paragraph?: string | null) => {
   if (!paragraph) return [];
@@ -15,6 +40,12 @@ const createChips = (paragraph?: string | null) => {
     .map((item) => item.trim())
     .filter(Boolean)
     .slice(0, 4);
+};
+
+const formatInterviewType = (type: unknown) => {
+  if (type === 'job') return '취업';
+  if (type === 'university') return '입시';
+  return toDisplayString(type);
 };
 
 const RadarChart: React.FC<{ scores: { contentRelevance: number; structure: number; fluency: number; confidence: number } }> = ({ scores }) => {
@@ -43,7 +74,7 @@ const RadarChart: React.FC<{ scores: { contentRelevance: number; structure: numb
 
   const axes = [
     { label: '내용 연관성', key: 'contentRelevance', angle: 0, anchor: 'middle', baseline: 'auto' },
-    { label: '구조 (STAR)', key: 'structure', angle: Math.PI / 2, anchor: 'start', baseline: 'middle' },
+    { label: '답변 구조​', key: 'structure', angle: Math.PI / 2, anchor: 'start', baseline: 'middle' },
     { label: '유창성', key: 'fluency', angle: Math.PI, anchor: 'middle', baseline: 'hanging' },
     { label: '자신감', key: 'confidence', angle: (3 * Math.PI) / 2, anchor: 'end', baseline: 'middle' },
   ];
@@ -120,29 +151,95 @@ const RadarChart: React.FC<{ scores: { contentRelevance: number; structure: numb
   );
 };
 
-const InterviewReportView: React.FC<InterviewReportViewProps> = ({ report }) => {
-  const detailedFeedback = report.detailedFeedback || [];
-  const scores = useMemo(() => {
-    if (report.scores) return report.scores;
-    if (!detailedFeedback.length) {
-      return { contentRelevance: 0, structure: 0, fluency: 0, confidence: 0 };
-    }
-    const avg = (key: string) =>
-      detailedFeedback.reduce((sum, item: any) => sum + (item?.[key] || 0), 0) / detailedFeedback.length || 0;
-    return {
-      contentRelevance: avg('content_relevance_score'),
-      structure: avg('structure_score'),
-      fluency: avg('fluency_score'),
-      confidence: avg('confidence_score'),
-    };
-  }, [report.scores, detailedFeedback]);
+const InterviewReportView: React.FC<InterviewReportViewProps> = ({ report, onDownload, canDownload, isExporting }) => {
+  const detailedFeedback = report?.detailedFeedback || [];
+  const navigate = useNavigate();
+    
+  const categoryMeta = [
+    { key: 'contentRelevance', label: '내용 연관성', icon: FileTextIcon, accent: 'text-indigo-600', bg: 'bg-indigo-50' },
+    { key: 'structure', label: '구조/STAR', icon: BrainIcon, accent: 'text-purple-600', bg: 'bg-purple-50' },
+    { key: 'fluency', label: '유창성', icon: MicIcon, accent: 'text-pink-600', bg: 'bg-pink-50' },
+    { key: 'confidence', label: '자신감', icon: ShieldIcon, accent: 'text-emerald-600', bg: 'bg-emerald-50' },
+  ] as const;
 
-  const totalScore = useMemo(() => {
-    if (typeof report.overallScore === 'number') return report.overallScore;
-    if (typeof report.totalScore === 'number') return report.totalScore;
-    const vals = [scores.contentRelevance, scores.structure, scores.fluency, scores.confidence];
-    return vals.reduce((a, b) => a + b, 0) / (vals.length || 1);
-  }, [report.overallScore, report.totalScore, scores]);
+  const { scores, totalScore } = useMemo(() => deriveReportScores(report), [report]);
+
+  const totalScoreDisplay = useMemo(
+    () => toDisplayScore((report as any)?.total_score ?? totalScore),
+    [report, totalScore]
+  );
+
+  const studentInfoContent = useMemo(() => {
+    const studentName = toDisplayString((report as any)?.student_name);
+    const gradeLevel = formatGradeLevel((report as any)?.grade_level);
+    const majorName = toDisplayString((report as any)?.major_name);
+    const schoolName = toDisplayString((report as any)?.school_name);
+    return {
+      student_name: studentName,
+      grade_level: gradeLevel,
+      major_name: majorName,
+      school_name: schoolName,
+    };
+  }, [report]);
+
+  const breakdownContent = useMemo(() => {
+    const contentRelevance = toDisplayScore((report as any)?.content_relevance_score ?? (report as any)?.avg_cr);
+    const structure = toDisplayScore((report as any)?.structure_score ?? (report as any)?.avg_st);
+    const fluency = toDisplayScore((report as any)?.fluency_score ?? (report as any)?.avg_fl);
+    const confidence = toDisplayScore((report as any)?.confidence_score ?? (report as any)?.avg_cp);
+    return {
+      content_relevance_score: contentRelevance,
+      structure_score: structure,
+      fluency_score: fluency,
+      confidence_score: confidence,
+    };
+  }, [report]);
+
+  const cards = useMemo(() => {
+    const studentMissing = Object.values(studentInfoContent).every((value) => value === 'N/A');
+    const totalMissing = totalScoreDisplay === 'N/A';
+    const breakdownMissing = Object.values(breakdownContent).every((value) => value === 'N/A');
+
+    return [
+      {
+        card_type: 'student_info',
+        title: '면접 정보​',
+        content: studentInfoContent,
+        ...(studentMissing ? { error: '학생 정보를 불러올 수 없습니다.' } : {}),
+      },
+      {
+        card_type: 'total_score',
+        title: '총점',
+        content: { total_score: totalScoreDisplay },
+        ...(totalMissing ? { error: '총점을 불러올 수 없습니다.' } : {}),
+      },
+      {
+        card_type: 'score_radar',
+        title: '점수 레이더',
+        content: scores,
+      },
+      {
+        card_type: 'score_breakdown',
+        title: '점수 세부 항목',
+        content: breakdownContent,
+        ...(breakdownMissing ? { error: '점수 세부 항목을 불러올 수 없습니다.' } : {}),
+      },
+    ];
+  }, [studentInfoContent, totalScoreDisplay, breakdownContent, scores]);
+
+  // console.log('Report cards:', cards);
+
+  const totalScoreCard = cards.find((card) => card.card_type === 'total_score');
+  const studentInfoCard = cards.find((card) => card.card_type === 'student_info');
+  const breakdownCard = cards.find((card) => card.card_type === 'score_breakdown');
+
+  if (!report || typeof report !== 'object') {
+    return (
+      <Card className="text-center">
+        <p className="text-slate-600">리포트를 불러올 수 없습니다.</p>
+      </Card>
+    );
+  }
 
   const strengthText = report.strengthSummary || report.summary?.strengths || '';
   const weaknessText = report.areasForGrowth || report.summary?.areasForGrowth || '';
@@ -156,29 +253,101 @@ const InterviewReportView: React.FC<InterviewReportViewProps> = ({ report }) => 
   const nextSteps = useMemo(() => {
     if (Array.isArray(report.nextStepsDetailed) && report.nextStepsDetailed.length) return report.nextStepsDetailed;
     if (Array.isArray(report.nextSteps) && report.nextSteps.length) {
-      return report.nextSteps.map((step) =>
-        typeof step === 'string' ? { title: step, description: step } : { title: step.title, description: step.description }
+      return report.nextSteps.map((step: any) =>
+        typeof step === 'string'
+          ? { title: step, description: step }
+          : {
+              title: step?.title || step?.title_text || step?.label || '',
+              description: step?.description || step?.description_text || step?.body || '',
+            }
       );
     }
     return [] as { title: string; description: string }[];
   }, [report.nextSteps, report.nextStepsDetailed]);
 
-  const categoryMeta = [
-    { key: 'contentRelevance', label: '내용 연관성', icon: FileTextIcon, accent: 'text-indigo-600', bg: 'bg-indigo-50' },
-    { key: 'structure', label: '구조/STAR', icon: BrainIcon, accent: 'text-purple-600', bg: 'bg-purple-50' },
-    { key: 'fluency', label: '유창성', icon: MicIcon, accent: 'text-pink-600', bg: 'bg-pink-50' },
-    { key: 'confidence', label: '자신감', icon: ShieldIcon, accent: 'text-emerald-600', bg: 'bg-emerald-50' },
-  ] as const;
-
   return (
     <div className="space-y-8">
-      <div className="gap-6 grid lg:grid-cols-3">
-        <Card className="flex flex-col gap-6 lg:col-span-1 text-center">
-          <div>
-            <p className="font-semibold text-slate-400 text-xs uppercase tracking-[0.25em]">TOTAL</p>
-            <div className="mt-2 font-bold text-primary text-6xl">{totalScore.toFixed(1)}<span className="font-normal text-slate-400 text-2xl">/10</span></div>
-            <p className="mt-2 text-slate-500 text-xs">AI 평가(40 / 30 / 20 / 10%) 기반</p>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => navigate(-1)}
+            className="flex items-center gap-2 font-medium text-slate-500 hover:text-primary text-sm transition-colors"
+          >
+            <ArrowLeftIcon className="w-4 h-4" />
+            대시보드로 돌아가기
+          </button>
+        </div>
+
+      <div className="flex justify-between items-baseline">
+        <h1 className="font-semibold text-slate-900 text-2xl">AI 분석 리포트</h1>
+
+        {canDownload && onDownload && (
+          <div className="flex gap-2">
+            <Button
+              onClick={onDownload}
+              variant="secondary"
+              className="shadow-soft px-4 py-2 rounded-[12px]"
+              disabled={isExporting}
+            >
+              PDF로 저장​
+            </Button>
           </div>
+        )}
+      </div>
+
+      <div className="gap-6 grid lg:grid-cols-2">
+        <Card className="flex flex-col gap-4 lg:col-span-1">
+          <h3 className="font-semibold text-slate-700 text-lg">면접 정보​</h3>
+          {studentInfoCard?.error ? (
+            <p className="text-rose-500 text-sm">{studentInfoCard.error}</p>
+          ) : (
+            <dl className="flex flex-col gap-2 text-sm">
+              <div className="flex items-center gap-16">
+                <dt className="flex items-center gap-2 font-semibold text-slate-800"><UserIcon className="w-4 h-4" />이름</dt>
+                <dd className="gap-2 text-slate-500">{studentInfoContent.student_name}</dd>
+              </div>
+              <div className="flex items-center gap-16">
+                <dt className="flex items-center gap-2 font-semibold text-slate-800"><GraduationCapIcon className="w-4 h-4" />학년</dt>
+                <dd className="gap-2 text-slate-500">{studentInfoContent.grade_level}</dd>
+              </div>
+              <div className="flex items-center gap-16">
+                <dt className="flex items-center gap-2 font-semibold text-slate-800"><BookOpenIcon className="w-4 h-4" />전공</dt>
+                <dd className="gap-2 text-slate-500">{studentInfoContent.major_name}</dd>
+              </div>
+              <div className="flex items-center gap-16">
+                <dt className="flex items-center gap-2 font-semibold text-slate-800"><SchoolIcon className="w-4 h-4" />학교</dt>
+                <dd className="gap-2 text-slate-500">{studentInfoContent.school_name}</dd>
+              </div>
+              <div className="flex items-center gap-9">
+                <dt className="flex items-center gap-2 font-semibold text-slate-800"><FileTextIcon className="w-4 h-4" />면접 유형</dt>
+                <dd className="gap-2 text-slate-500">{formatInterviewType(report?.interview_type)}</dd>
+              </div>
+            </dl>
+          )}
+        </Card>
+
+        <Card className="flex flex-col justify-center gap-4 lg:col-span-1 text-center">
+          <div className="flex flex-col items-center">
+            <p className="font-semibold text-slate-400 text-xs uppercase tracking-[0.25em]">학생 정보</p>
+            <div className="mt-2 font-bold text-primary text-6xl">
+              {totalScoreDisplay}
+              {totalScoreDisplay !== 'N/A' && <span className="font-normal text-slate-400 text-2xl">/10</span>}
+            </div>
+            {totalScoreCard?.error && <p className="mt-2 text-rose-500 text-xs">{totalScoreCard.error}</p>}
+          </div>
+        </Card>
+
+        <h1 className="lg:col-span-2 font-semibold text-slate-900 text-2xl">상세 분석​</h1>
+
+        <Card className="lg:col-span-1">
+          <h3 className="mb-4 font-semibold text-slate-500 text-sm text-center uppercase tracking-widest">점수 레이더</h3>
+          <RadarChart scores={scores} />
+        </Card>
+
+      <Card className="lg:col-span-1">
+        <h3 className="mb-4 font-semibold text-slate-700 text-lg">점수 세부 항목</h3>
+        {breakdownCard?.error ? (
+          <p className="text-rose-500 text-sm">{breakdownCard.error}</p>
+        ) : (
           <div className="gap-3 grid">
             {categoryMeta.map((category) => {
               const Icon = category.icon;
@@ -195,27 +364,17 @@ const InterviewReportView: React.FC<InterviewReportViewProps> = ({ report }) => 
                 </div>
               );
             })}
-          </div>
-        </Card>
-
-        <Card className="lg:col-span-2">
-          <h3 className="mb-4 font-semibold text-slate-500 text-sm text-center uppercase tracking-widest">점수 레이더</h3>
-          <RadarChart scores={scores} />
-        </Card>
+            </div>
+        )}
+      </Card>
       </div>
+
 
       <div className="gap-6 grid md:grid-cols-2">
         <Card className="bg-green-50/60 border border-green-200/60">
           <h3 className="flex items-center gap-2 mb-3 font-bold text-green-700 text-xl">
             <CheckCircleIcon className="w-5 h-5" /> 강점 요약
           </h3>
-          {/* <div className="flex flex-wrap gap-2 mb-3">
-            {strengthChips.map((chip, index) => (
-              <span key={`${chip}-${index}`} className="bg-green-100 px-3 py-1 rounded-full font-semibold text-green-600 text-xs">
-                {chip}
-              </span>
-            ))}
-          </div> */}
           <p className="text-slate-600 leading-relaxed">{strengthText || '강점 요약이 없습니다.'}</p>
         </Card>
 
@@ -225,15 +384,6 @@ const InterviewReportView: React.FC<InterviewReportViewProps> = ({ report }) => 
           <h3 className="flex items-center gap-2 mb-3 font-bold text-primary text-xl">
             <AlertTriangleIcon className="w-5 h-5" /> 개선 영역
           </h3>
-{/* 
-
-          <div className="flex flex-wrap gap-2 mb-3">
-            {weaknessChips.map((chip, index) => (
-              <span key={`${chip}-${index}`} className="bg-rose-100 px-3 py-1 rounded-full font-semibold text-rose-600 text-xs">
-                {chip}
-              </span>
-            ))}
-          </div> */}
           <p className="text-slate-600 leading-relaxed">{weaknessText || '개선 영역 요약이 없습니다.'}</p>
         </Card>
 
@@ -284,8 +434,8 @@ const InterviewReportView: React.FC<InterviewReportViewProps> = ({ report }) => 
                     <p className="font-semibold text-slate-800 text-base">{questionText}</p>
                     <p className="text-slate-500 text-xs">문항별 평가</p>
                   </div>
-                  <div className="ml-auto flex-shrink-0">
-                    <ChevronDownIcon className="w-5 h-5 text-slate-400 transition-transform duration-200 transform group-open:rotate-180" />
+                  <div className="flex-shrink-0 ml-auto">
+                    <ChevronDownIcon className="w-5 h-5 text-slate-400 group-open:rotate-180 transition-transform duration-200 transform" />
                   </div>
                 </summary>
                 <div className="space-y-3 px-6 pb-6">

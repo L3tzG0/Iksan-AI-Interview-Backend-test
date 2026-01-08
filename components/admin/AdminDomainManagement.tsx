@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
+import { Info } from 'lucide-react';
 import Card from '../Card';
 import Button from '../ui/Button';
 import SearchBar from '../teacher-dashboard/SearchBar';
@@ -21,6 +22,7 @@ const AdminDomainManagement: React.FC = () => {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const protectedDomain = '@students.internal';
 
   const loadDomains = async () => {
     setIsLoading(true);
@@ -99,6 +101,11 @@ const AdminDomainManagement: React.FC = () => {
   };
 
   const openDeleteModal = (domainId: number) => {
+    const target = domains.find((domain) => domain.id === domainId);
+    if (target && target.domainEmail.toLowerCase() === protectedDomain) {
+      addToast('해당 도메인은 삭제할 수 없습니다.', 'error');
+      return;
+    }
     setDeletingId(domainId);
     setIsDeleteOpen(true);
   };
@@ -110,6 +117,12 @@ const AdminDomainManagement: React.FC = () => {
 
   const confirmDelete = async () => {
     if (!deletingId) return;
+    const target = domains.find((domain) => domain.id === deletingId);
+    if (target && target.domainEmail.toLowerCase() === protectedDomain) {
+      addToast('해당 도메인은 삭제할 수 없습니다.', 'error');
+      closeDeleteModal();
+      return;
+    }
     try {
       await deleteDomain(deletingId);
       addToast('도메인이 삭제되었습니다.', 'success');
@@ -123,6 +136,7 @@ const AdminDomainManagement: React.FC = () => {
 
   const deletingDomain = domains.find((item) => item.id === deletingId);
   const isEmpty = domains.length === 0;
+  const isTableEmpty = !isLoading && isEmpty;
 
   return (
     <div className="space-y-8 mx-auto animate-fadeIn">
@@ -145,9 +159,7 @@ const AdminDomainManagement: React.FC = () => {
           </Button>
         </div>
 
-        {isLoading ? (
-          <Spinner label="불러오는 중..." />
-        ) : isEmpty ? (
+        {isTableEmpty ? (
           <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-10 text-center space-y-2">
             <p className="text-slate-700 font-semibold">등록된 도메인이 없습니다.</p>
             <p className="text-sm text-slate-500">도메인을 추가하면 업무용 이메일만 허용됩니다.</p>
@@ -166,30 +178,53 @@ const AdminDomainManagement: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {domains.map((domain) => (
-                  <tr key={domain.id} className="hover:bg-slate-50/70">
-                    <td className="px-4 py-3 font-semibold text-slate-800">{domain.organizationName}</td>
-                    <td className="px-4 py-3 text-black">{domain.domainEmail}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() => openEditModal(domain)}
-                          className="text-sm font-semibold text-primary hover:text-primary-dark"
-                        >
-                          수정
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => openDeleteModal(domain.id)}
-                          className="text-sm font-semibold text-rose-500 hover:text-rose-600"
-                        >
-                          삭제
-                        </button>
-                      </div>
+                {isLoading && domains.length === 0 && (
+                  <tr>
+                    <td colSpan={3} className="px-4 py-6 text-slate-400 text-center">
+                      <Spinner />
                     </td>
                   </tr>
-                ))}
+                )}
+                {domains.map((domain) => {
+                  const isProtected = domain.domainEmail.toLowerCase() === protectedDomain;
+                  return (
+                    <tr key={domain.id} className="hover:bg-slate-50/70">
+                      <td className="px-4 py-3 font-semibold text-slate-800">{domain.organizationName}</td>
+                      <td className="px-4 py-3 text-black">{domain.domainEmail}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-2">
+                          {isProtected ? (
+                            <button
+                              type="button"
+                              onClick={() => addToast('해당 도메인은 수정/삭제할 수 없습니다.', 'info')}
+                              className="text-slate-400 hover:text-slate-600"
+                              aria-label="도메인 보호됨"
+                            >
+                              <Info className="w-4 h-4" />
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => openEditModal(domain)}
+                              className="text-sm font-semibold text-primary hover:text-primary-dark"
+                            >
+                              수정
+                            </button>
+                          )}
+                          {!isProtected && (
+                            <button
+                              type="button"
+                              onClick={() => openDeleteModal(domain.id)}
+                              className="text-sm font-semibold text-rose-500 hover:text-rose-600"
+                            >
+                              삭제
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -284,3 +319,4 @@ const AdminDomainManagement: React.FC = () => {
 };
 
 export default AdminDomainManagement;
+

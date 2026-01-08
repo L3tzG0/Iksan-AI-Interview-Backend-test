@@ -6,11 +6,11 @@ import InterviewSession from './components/InterviewSession';
 import ResultsScreen from './components/ResultsScreen';
 import TeacherDashboard from './components/TeacherDashboard';
 import StudentDetailView from './components/StudentDetailView';
+import StudentHistory from './components/StudentHistory';
 import AdminDomainManagement from './components/admin/AdminDomainManagement';
 import SignInScreen from './components/auth/SignInScreen';
 import SignUpScreen from './components/auth/SignUpScreen';
 import Navbar from './components/layout/Navbar';
-import AddStudentModal from './components/AddStudentModal';
 import Spinner from './components/Spinner';
 import { InterviewReport, Question, Answer, User, InterviewStartPayload } from './types';
 import { fetchStudentSessionsForStudentRole } from './services/studentService';
@@ -61,7 +61,9 @@ const App: React.FC = () => {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [isWaitingForQuestions, setIsWaitingForQuestions] = useState(false);
   const [isWaitingForResults, setIsWaitingForResults] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
   const refreshTimerRef = React.useRef<number | null>(null);
+  const progressTimerRef = React.useRef<number | null>(null);
 
   const clearDrafts = useCallback(() => {
     try {
@@ -193,6 +195,13 @@ const App: React.FC = () => {
     }
   }, []);
 
+  const clearProgressTimer = useCallback(() => {
+    if (progressTimerRef.current) {
+      window.clearInterval(progressTimerRef.current);
+      progressTimerRef.current = null;
+    }
+  }, []);
+
   useEffect(() => {
     if (!isAuthenticated) {
       clearRefreshTimer();
@@ -244,6 +253,7 @@ const App: React.FC = () => {
     setReport(null);
     setIsWaitingForResults(false);
     setIsWaitingForQuestions(true);
+    setLoadingProgress(0);
     setPerQuestionSeconds(input.perQuestionSeconds || 60);
     setSessionId(null);
 
@@ -258,6 +268,7 @@ const App: React.FC = () => {
       setError('서버 오류로 인터뷰를 시작할 수 없습니다. 잠시 후 다시 시도해 주세요.');
       setIsWaitingForQuestions(false);
       setIsLoading(false);
+      setLoadingProgress(0);
     }
   }, [clearDrafts]);
 
@@ -313,31 +324,44 @@ const App: React.FC = () => {
 
   const mapReportFromDetail = useCallback((detail: any): InterviewReport => {
     const feedback = Array.isArray(detail?.detailed_feedback) ? detail.detailed_feedback : [];
-    const overallScore = detail?.overall_score ?? detail?.overallScore;
-    return {
+    const overallScore = detail?.overall_score ?? detail?.overallScore ?? detail?.total_score;
+    const scoresFromFeedback = feedback.length
+      ? {
+          contentRelevance: feedback.reduce((sum: number, item: any) => sum + (item.content_relevance_score || 0), 0) / feedback.length || 0,
+          structure: feedback.reduce((sum: number, item: any) => sum + (item.structure_score || 0), 0) / feedback.length || 0,
+          fluency: feedback.reduce((sum: number, item: any) => sum + (item.fluency_score || 0), 0) / feedback.length || 0,
+          confidence: feedback.reduce((sum: number, item: any) => sum + (item.confidence_score || 0), 0) / feedback.length || 0,
+        }
+      : undefined;
+
+    const mapped: InterviewReport = {
+      ...detail,
       sessionId: detail?.session_id || detail?.sessionId,
       status: detail?.status,
       overallScore,
-      strengthSummary: detail?.strength_summary,
-      areasForGrowth: detail?.areas_for_growth,
+      totalScore: detail?.total_score ?? overallScore,
+      strengthSummary: detail?.strength_summary ?? detail?.strengthSummary,
+      areasForGrowth: detail?.areas_for_growth ?? detail?.areasForGrowth,
       detailedFeedback: feedback,
-      nextSteps: detail?.next_steps,
-      scores: feedback.length
-        ? {
-            contentRelevance: feedback.reduce((sum: number, item: any) => sum + (item.content_relevance_score || 0), 0) / feedback.length || 0,
-            structure: feedback.reduce((sum: number, item: any) => sum + (item.structure_score || 0), 0) / feedback.length || 0,
-            fluency: feedback.reduce((sum: number, item: any) => sum + (item.fluency_score || 0), 0) / feedback.length || 0,
-            confidence: feedback.reduce((sum: number, item: any) => sum + (item.confidence_score || 0), 0) / feedback.length || 0,
-          }
-        : undefined,
-      totalScore: overallScore,
-      summary: detail?.strength_summary || detail?.areas_for_growth
-        ? { strengths: detail.strength_summary || '', areasForGrowth: detail.areas_for_growth || '' }
-        : undefined,
+      nextSteps: detail?.next_steps ?? detail?.nextSteps,
+      scores: scoresFromFeedback,
+      summary:
+        detail?.strength_summary || detail?.areas_for_growth
+          ? { strengths: detail.strength_summary || '', areasForGrowth: detail.areas_for_growth || '' }
+          : undefined,
       nextStepsDetailed: Array.isArray(detail?.next_steps)
-        ? detail.next_steps.map((step: string) => ({ title: step, description: step }))
+        ? detail.next_steps.map((step: any) =>
+            typeof step === 'string'
+              ? { title: step, description: step }
+              : {
+                  title: step?.title || step?.title_text || step?.label || '',
+                  description: step?.description || step?.description_text || step?.body || '',
+                }
+          )
         : undefined,
     };
+
+    return mapped;
   }, []);
 
   const openReportBySessionId = useCallback(
@@ -349,7 +373,7 @@ const App: React.FC = () => {
         const detail = await fetchSessionDetail(sessionId);
         const mappedReport = mapReportFromDetail(detail);
         setReport(mappedReport as InterviewReport);
-        const resultsPath = currentUser?.role === 'student' ? '/student/results' : '/teacher/dashboard';
+        const resultsPath = currentUser?.role === 'student' ? '/student/history/results' : '/teacher/dashboard';
         navigate(resultsPath);
       } catch (err) {
         console.error('Failed to load report from history', err);
@@ -368,6 +392,8 @@ const App: React.FC = () => {
       try {
         const status = await fetchSessionStatus(sessionId);
         if (status.isReady) {
+          clearProgressTimer();
+          setLoadingProgress(100);
           const detail = await fetchSessionDetail(sessionId);
           console.log('Fetched session detail for questions', detail);
           const fetchedQuestions = mapQuestionsFromDetail(detail);
@@ -383,15 +409,39 @@ const App: React.FC = () => {
         }
       } catch (err) {
         console.error('Failed to poll questions', err);
-        setError('질문 생성에 실패했습니다. 다시 시도해 주세요.');
+        setError('?? ??? ??????. ?? ??? ???.');
         setIsWaitingForQuestions(false);
         setIsLoading(false);
+        setLoadingProgress(0);
       }
     };
     pollQuestions();
     timer = setInterval(pollQuestions, 3000);
     return () => clearInterval(timer);
-  }, [isWaitingForQuestions, sessionId, navigate, mapQuestionsFromDetail]);
+  }, [isWaitingForQuestions, sessionId, navigate, mapQuestionsFromDetail, clearProgressTimer]);
+
+  useEffect(() => {
+    if (!isWaitingForQuestions) {
+      clearProgressTimer();
+      setLoadingProgress(0);
+      return;
+    }
+
+    const tick = () => {
+      setLoadingProgress((prev) => {
+        if (prev >= 95) return prev;
+        let increment = 0.2 + Math.random() * 0.6;
+        if (prev < 70) increment = 0.8 + Math.random() * 1.6;
+        else if (prev < 90) increment = 0.4 + Math.random() * 0.8;
+        const next = Math.min(95, prev + increment);
+        return Math.round(next);
+      });
+    };
+
+    tick();
+    progressTimerRef.current = window.setInterval(tick, 500);
+    return () => clearProgressTimer();
+  }, [isWaitingForQuestions, clearProgressTimer]);
 
   useEffect(() => {
     if (!isWaitingForResults || !sessionId) return;
@@ -405,7 +455,7 @@ const App: React.FC = () => {
           setReport(mappedReport as InterviewReport);
           setIsWaitingForResults(false);
           setIsLoading(false);
-          const resultsPath = currentUser?.role === 'student' ? '/student/results' : '/teacher/dashboard';
+          const resultsPath = currentUser?.role === 'student' ? '/student/history/results' : '/teacher/dashboard';
           navigate(resultsPath);
         }
       } catch (err) {
@@ -486,7 +536,7 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
   const latestReport = report ?? (studentHistory.length > 0 ? studentHistory[0] : null);
 
   const handleOpenLatestReport = () => {
-    const resultsPath = currentUser?.role === 'student' ? '/student/results' : '/teacher/dashboard';
+    const resultsPath = currentUser?.role === 'student' ? '/student/history/results' : '/teacher/dashboard';
     if (report) {
       navigate(resultsPath);
       return;
@@ -499,11 +549,11 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
   const InlineStudentDetail: React.FC = () => {
     const { id } = useParams();
     if (!id) return <Navigate to="/teacher/dashboard" replace />;
-    return <StudentDetailView studentId={id} onBack={() => navigate('/teacher/dashboard')} />;
+    return <StudentDetailView studentId={id} />;
   };
 
   const renderRestoringShell = () => (
-    <div className="relative flex justify-center items-center min-h-screen text-slate-700 overflow-hidden">
+    <div className="relative flex justify-center items-center min-h-screen overflow-hidden text-slate-700">
       <div className="-top-24 -right-16 absolute bg-primary/10 blur-3xl rounded-full w-72 h-72 animate-pulseSlow pointer-events-none"></div>
       <div className="top-32 -left-24 absolute bg-primary-light/40 blur-3xl rounded-full w-80 h-80 animate-pulseSlow pointer-events-none"></div>
       <Spinner label="로딩 중..." />
@@ -576,25 +626,27 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
           onToggleRole={handleRoleToggle}
           currentPath={location.pathname}
           onNavigate={(path) => navigate(path)}
-          hasResults={!!report}
-          onOpenAddStudent={isStaff ? () => setIsAddStudentOpen(true) : undefined}
         />
-        {isStaff && (
-          <AddStudentModal
-            isOpen={isAddStudentOpen}
-            onClose={() => setIsAddStudentOpen(false)}
-            defaultSchool={currentUser?.schoolName}
-          />
-        )}
-        <main className="mx-auto p-4 sm:p-6 lg:px-8 pt-8 pb-16 max-w-8xl">
+        <main className="mx-auto p-4 sm:p-6 lg:px-8 pt-8 pb-16 max-w-7xl">
           {/* AdminHeader removed */}
           {isLoading && (
-            <div className="relative flex flex-col justify-center items-center h-[60vh] text-slate-700 overflow-hidden rounded-3xl border border-white/70 bg-white/80 shadow-soft">
+            <div className="relative flex flex-col justify-center items-center bg-white/80 shadow-soft border border-white/70 rounded-3xl h-[60vh] overflow-hidden text-slate-700">
               <div className="-top-20 -right-12 absolute bg-primary/10 blur-3xl rounded-full w-64 h-64 animate-pulseSlow pointer-events-none"></div>
               <div className="top-16 -left-16 absolute bg-primary-light/40 blur-3xl rounded-full w-72 h-72 animate-pulseSlow pointer-events-none"></div>
-              <div className="scale-150 sm:scale-200">
-                <Spinner label="AI가 준비를 마치고 있어요..." />
-              </div>
+              {isWaitingForQuestions ? (
+                <div className="flex flex-col items-center gap-4">
+                  <div className="scale-150 sm:scale-200">
+                    <Spinner label="AI가 맞춤형 면접 질문을 준비하고 있어요" />
+                  </div>
+                  <p className="font-semibold text-primary text-sm">
+                    {loadingProgress}%
+                  </p>
+                </div>
+              ) : (
+                <div className="scale-150 sm:scale-200">
+                  <Spinner label="AI가 맞춤형 면접 질문을 준비하고 있어요" />
+                </div>
+              )}
             </div>
           )}
           {!isLoading && (
@@ -619,7 +671,7 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
                         hasResults={!!latestReport}
                         latestReport={latestReport}
                         onStartInterview={() => navigate('/student/interview/start')}
-                        onGoDashboard={() => navigate('/student/results')}
+                        onGoDashboard={() => navigate('/student/history/results')}
                         onViewResults={handleOpenLatestReport}
                       />
                     }
@@ -635,7 +687,7 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
                       <WelcomeScreen
                         onStart={handleStartInterview}
                         history={studentHistory}
-                        onViewReport={handleViewHistoryReport}
+                        remainingAttempts={currentUser?.interviewSessionQuota ?? null}
                       />
                     }
                   />
@@ -662,7 +714,7 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
                 }
               />
               <Route
-                path="/student/results"
+                path="/student/history/results"
                 element={
                   <ProtectedRoute
                     allowed={['student', 'teacher', 'admin']}
@@ -682,6 +734,15 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
                         <Navigate to="/student/home" replace />
                       )
                     }
+                  />
+                }
+              />
+              <Route
+                path="/student/history"
+                element={
+                  <ProtectedRoute
+                    allowed={['student']}
+                    element={<StudentHistory history={studentHistory} onViewReport={handleViewHistoryReport} />}
                   />
                 }
               />

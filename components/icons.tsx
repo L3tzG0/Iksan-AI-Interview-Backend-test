@@ -3,7 +3,10 @@ import {
   AlertTriangle,
   ArrowLeft,
   ArrowUpDown,
+  BookOpen,
   Brain,
+  Briefcase,
+  BriefcaseBusiness,
   ChartColumn,
   ChevronDown,
   CircleCheck,
@@ -24,12 +27,14 @@ import {
   Mail,
   Menu,
   Mic,
+  School,
   Search,
   Shield,
   Sparkles,
   UploadCloud,
   User,
   Users,
+  X
 } from 'lucide-react';
 
 export const UploadCloudIcon = UploadCloud;
@@ -46,6 +51,7 @@ export const SortIcon = ArrowUpDown;
 export const SearchIcon = Search;
 export const CheckCircleIcon = CircleCheck;
 export const XCircleIcon = CircleX;
+export const CloseIcon = X;
 export const EyeIcon = Eye;
 export const EyeOffIcon = EyeOff;
 export const ArrowLeftIcon = ArrowLeft;
@@ -53,6 +59,7 @@ export const GraduationCapIcon = GraduationCap;
 export const HistoryIcon = History;
 export const LightbulbIcon = Lightbulb;
 export const BrainIcon = Brain;
+export const BriefcaseIcon = BriefcaseBusiness;
 export const AlertTriangleIcon = AlertTriangle;
 export const ClockIcon = Clock;
 export const UserIcon = User;
@@ -62,6 +69,8 @@ export const LockIcon = Lock;
 export const LogOutIcon = LogOut;
 export const ChevronDownIcon = ChevronDown;
 export const MenuIcon = Menu;
+export const BookOpenIcon = BookOpen;
+export const SchoolIcon = School;
 
 export const EliceLogoIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg {...props} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1603 500" fill="currentColor">

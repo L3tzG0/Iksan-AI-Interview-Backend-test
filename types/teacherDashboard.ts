@@ -33,17 +33,11 @@ export interface DashboardHeroProps {
   averageScore: number;
 }
 
-export interface TabSwitcherProps {
-  activeTab: DashboardTab;
-  onChange: (tab: DashboardTab) => void;
-}
-
 export type NewStudentInput = {
   name: string;
   school: string;
   gradeYear: 1 | 2 | 3;
   major: string;
-  classLabel: string;
 };
 
 export interface CompletedSessionsSectionProps {
@@ -85,6 +79,7 @@ export interface AccountManagementSectionProps {
   onHighlightStudent: (studentId: string) => void;
   fileInputRef: RefObject<HTMLInputElement>;
   canSubmitBulkUpload: boolean;
+  refreshKey?: number;
 }
 
 export interface TeacherDashboardProps {

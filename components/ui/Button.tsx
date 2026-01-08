@@ -20,9 +20,9 @@ const Button: React.FC<ButtonProps> = ({
 
   const variants: Record<NonNullable<ButtonProps['variant']>, string> = {
     primary:
-      'bg-gradient-to-r from-[#a47dfc] via-[#8d63ff] to-[#6d2de2] text-white shadow-soft focus:ring-primary/40',
+      'bg-gradient-to-r from-[#a47dfc] via-[#8d63ff] to-[#6d2de2] text-white shadow-md focus:ring-primary/40',
     secondary:
-      'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 focus:ring-slate-200 shadow-soft',
+      'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 focus:ring-slate-200 shadow-md',
     ghost:
       'bg-transparent text-slate-600 hover:bg-primary-lightest/60 hover:text-primary focus:ring-primary-light',
     danger:

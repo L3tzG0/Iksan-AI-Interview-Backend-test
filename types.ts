@@ -88,10 +88,16 @@ export interface InterviewReport {
   sessionId?: string;
   status?: string;
   overallScore?: number;
+  overall_score?: number; // backend raw
+  total_score?: number; // backend raw
   strengthSummary?: string;
+  strength_summary?: string; // backend raw
   areasForGrowth?: string;
+  areas_for_growth?: string; // backend raw
   detailedFeedback?: QuestionFeedback[];
+  detailed_feedback?: QuestionFeedback[]; // backend raw
   nextSteps?: string[];
+  next_steps?: any[]; // backend raw
   date?: string; // legacy/history support
   scores?: {
     contentRelevance: number;
@@ -108,6 +114,14 @@ export interface InterviewReport {
     title: string;
     description: string;
   }[];
+  student_name?: string;
+  grade_level?: number | string;
+  major_name?: string;
+  school_name?: string;
+  content_relevance_score?: number;
+  structure_score?: number;
+  fluency_score?: number;
+  confidence_score?: number;
 }
 
 
@@ -125,6 +139,8 @@ export interface StudentSummary {
   tempPassword?: string; // optional: temporary password for account
   sessionId?: string;
   session_id?: string;
+  completedAt?: string;
+  createdAt?: string;
 }
 
 // StudentDetail now holds the history
@@ -170,6 +186,7 @@ export interface User {
     refreshToken?: string;
   studentId?: string;
   tempPassword?: string;
+  interviewSessionQuota?: number;
 }
 
 export interface StudentAccountInput {
@@ -177,7 +194,6 @@ export interface StudentAccountInput {
     school: string;
     gradeYear: 1 | 2 | 3;
     major: string;
-    classLabel?: string;
 }
 
 export interface GeneratedStudentAccount extends StudentAccountInput {

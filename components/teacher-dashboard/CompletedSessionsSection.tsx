@@ -1,7 +1,7 @@
 import type { FC } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { CompletedSessionsSectionProps } from "../../types/teacherDashboard";
+import type { CompletedSessionsSectionProps, SortOption } from "../../types/teacherDashboard";
 import type { StudentGoal, StudentSummary } from "../../types";
 import FilterControls from "./FilterControls";
 import SearchBar from "./SearchBar";
@@ -44,6 +44,8 @@ const normalizeSessionToSummary = (
         intent: mapInterviewTypeToGoal(session.interviewType),
         sessionId: sessionIdValue !== undefined ? String(sessionIdValue) : undefined,
         session_id: sessionIdValue !== undefined ? String(sessionIdValue) : undefined,
+        completedAt: session.completedAt,
+        createdAt: session.createdAt,
     };
 };
 
@@ -57,6 +59,7 @@ const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({}) => {
     const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>(searchTerm);
     const SEARCH_DEBOUNCE_MS = 300;
     const [goalFilter, setGoalFilter] = useState<'all' | 'work' | 'university'>('all');
+    const [sortOption, setSortOption] = useState<SortOption>('recent');
 
     useEffect(() => {
         const id = setTimeout(() => setDebouncedSearchTerm(searchTerm), SEARCH_DEBOUNCE_MS);
@@ -104,6 +107,28 @@ const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({}) => {
     }, [goalFilter, debouncedSearchTerm]);
 
     const navigate = useNavigate();
+    const sortedStudents = useMemo(() => {
+        const list = [...studentWithSessionList];
+        const toTimestamp = (value?: string) => {
+            if (!value) return 0;
+            const parsed = Date.parse(value);
+            return Number.isNaN(parsed) ? 0 : parsed;
+        };
+
+        switch (sortOption) {
+            case "score":
+                return list.sort((a, b) => b.latestScore - a.latestScore);
+            case "growth":
+                return list.sort((a, b) => b.improvement - a.improvement);
+            case "recent":
+            default:
+                return list.sort((a, b) => {
+                    const aTime = toTimestamp(a.completedAt) || toTimestamp(a.createdAt);
+                    const bTime = toTimestamp(b.completedAt) || toTimestamp(b.createdAt);
+                    return bTime - aTime;
+                });
+        }
+    }, [studentWithSessionList, sortOption]);
 
     return (
         <div className="space-y-4">
@@ -112,6 +137,10 @@ const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({}) => {
                 <FilterControls
                     goalFilter={goalFilter}
                     onGoalChange={(v) => setGoalFilter(v as typeof goalFilter)}
+                    gradeFilter="all"
+                    onGradeChange={() => {}}
+                    sortOption={sortOption}
+                    onSortChange={setSortOption}
                     compact
                     showGrade={false}
                 />
@@ -123,7 +152,7 @@ const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({}) => {
                         <Spinner label="학생 목록을 불러오는 중..." />
                     </div>
                 </div>
-            ) : studentWithSessionList.length === 0 ? (
+            ) : sortedStudents.length === 0 ? (
                 <div className="py-16 text-slate-500 text-center">
                     <p className="font-semibold text-lg">
                         표시할 세션이 없습니다.
@@ -147,12 +176,12 @@ const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({}) => {
                             학생을 클릭하면 상세로 이동합니다.
                         </span>
                         <span className="ml-auto text-slate-400">
-                            총 {studentWithSessionList.length}명
+                            총 {sortedStudents.length}명
                         </span>
                     </div>
                     <div className="overflow-x-auto">
-                        <table className="min-w-full text-slate-600 text-sm text-left">
-                            <thead className="bg-slate-50 border-slate-200 border-b text-slate-500 text-xs uppercase">
+                        <table className="min-w-full text-black text-sm text-left">
+                            <thead className="bg-slate-50 border-slate-200 border-b text-black text-xs uppercase">
                                 <tr>
                                     <th className="px-6 py-4 font-bold">
                                         이름
@@ -178,10 +207,10 @@ const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({}) => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                                {studentWithSessionList.map((student) => (
+                                {sortedStudents.map((student) => (
                                     <tr
                                         key={student.id}
-                                        className={`group cursor-pointer transition-all border-primary text-primary hover:bg-primary-lightest/80 `}
+                                        className={`group cursor-pointer transition-all border-primary text-black hover:bg-primary-lightest/80 `}
                                         onClick={() => {
                                             const sessionId =
                                                 student.session_id ||
@@ -196,20 +225,20 @@ const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({}) => {
                                             navigate(path);
                                         }}
                                     >
-                                        <td className="px-6 py-4 font-semibold text-slate-800 group-hover:text-primary">
+                                        <td className="px-6 py-4 font-semibold text-black group-hover:text-black">
                                             {student.name}
                                         </td>
                                         <td className="px-6 py-4">
                                             {student.grade}학년
                                         </td>
-                                        <td className="px-6 py-4 font-medium text-slate-700">
+                                        <td className="px-6 py-4 font-medium text-black">
                                             {student.major}
                                         </td>
                                         <td className="px-6 py-4 text-center">
                                             {student.intent
                                                 ? student.intent === "work"
                                                     ? "취업"
-                                                    : "대학"
+                                                    : "입시"
                                                 : "알 수 없음"}
                                         </td>
                                         <td className="px-6 py-4 text-center">
@@ -217,8 +246,8 @@ const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({}) => {
                                                 className={`inline-flex items-center justify-center px-2.5 py-1 rounded-full text-xs font-semibold ${
                                                     student.status ===
                                                     "completed"
-                                                        ? "bg-green-100 text-green-700 border border-green-200"
-                                                        : "bg-amber-100 text-amber-700 border border-amber-200"
+                                                        ? "bg-green-100 text-black border border-green-200"
+                                                        : "bg-amber-100 text-black border border-amber-200"
                                                 }`}
                                             >
                                                 {student.status === "completed"
@@ -226,15 +255,11 @@ const CompletedSessionsSection: FC<CompletedSessionsSectionProps> = ({}) => {
                                                     : "진행중"}
                                             </span>
                                         </td>
-                                        <td className="px-6 py-4 font-mono font-bold text-slate-800 text-center">
+                                        <td className="px-6 py-4 font-mono font-bold text-black text-center">
                                             {`${Number((student.latestScore).toFixed(2))}/10`}
                                         </td>
                                         <td
-                                            className={`px-6 py-4 text-center font-mono font-bold ${
-                                                student.improvement >= 0
-                                                    ? "text-green-600"
-                                                    : "text-red-600"
-                                            }`}
+                                            className="px-6 py-4 text-center font-mono font-bold text-black"
                                         >
                                             {student.improvement >= 0
                                                 ? `+ ${student.improvement}%`

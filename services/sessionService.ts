@@ -120,6 +120,7 @@ export const fetchSessionDetail = async (sessionId: string) => {
     const msg = typeof data === 'string' ? data : data?.message || data?.error;
     throw new Error(msg || 'Failed to fetch session detail');
   }
+  console.log(data);
   return data;
 };
 
