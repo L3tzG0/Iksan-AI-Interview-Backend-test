@@ -76,7 +76,7 @@ class DomainRepository(BaseRepository[AllowedEmailDomain]):
     async def add_domain(
         self,
         domain: str,
-        organization_name: Optional[str] = None,
+        description: Optional[str] = None,
         added_by: Optional[UUID] = None,
         is_active: bool = True,
     ) -> AllowedEmailDomain:
@@ -85,7 +85,7 @@ class DomainRepository(BaseRepository[AllowedEmailDomain]):
         
         Args:
             domain: The domain name (will be lowercased)
-            organization_name: Name of the organization
+            description: Name of the organization
             added_by: UUID of the user adding the domain
             is_active: Whether the domain should be active
         
@@ -107,7 +107,7 @@ class DomainRepository(BaseRepository[AllowedEmailDomain]):
         
         return await self.create(
             domain=domain,
-            organization_name=organization_name,
+            description=description,
             added_by=added_by,
             is_active=is_active,
         )
@@ -136,22 +136,22 @@ class DomainRepository(BaseRepository[AllowedEmailDomain]):
         """
         return await self.update_by_id(domain_id, is_active=False)
     
-    async def update_organization_name(
+    async def update_description(
         self,
         domain_id: int,
-        organization_name: str,
+        description: str,
     ) -> Optional[AllowedEmailDomain]:
         """
         Update the organization name for a domain.
         
         Args:
             domain_id: The domain's primary key ID
-            organization_name: New organization name
+            description: New organization name
         
         Returns:
             Updated AllowedEmailDomain, or None if not found
         """
-        return await self.update_by_id(domain_id, organization_name=organization_name)
+        return await self.update_by_id(domain_id, description=description)
     
     async def search_domains(
         self,
@@ -175,7 +175,7 @@ class DomainRepository(BaseRepository[AllowedEmailDomain]):
         conditions = [
             or_(
                 AllowedEmailDomain.domain.ilike(f"%{query}%"),
-                AllowedEmailDomain.organization_name.ilike(f"%{query}%"),
+                AllowedEmailDomain.description.ilike(f"%{query}%"),
             )
         ]
         if not include_inactive:

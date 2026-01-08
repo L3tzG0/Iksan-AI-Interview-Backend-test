@@ -76,7 +76,7 @@ async def create_domain(
     
     **Request Body:**
     - `domain`: Domain name (e.g., "example.com")
-    - `organization_name`: Optional organization name
+    - `description`: Optional organization name
     
     **Returns:**
     - Created domain details
@@ -110,7 +110,7 @@ async def update_domain(
     
     **Request Body:**
     - `domain`: New domain name (optional)
-    - `organization_name`: Updated organization name (optional)
+    - `description`: Updated organization name (optional)
     - `is_active`: Active status (optional)
     
     **Returns:**

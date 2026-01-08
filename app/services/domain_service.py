@@ -65,7 +65,7 @@ class DomainService:
                     query = query.where(
                         or_(
                             AllowedEmailDomain.domain.ilike(search_pattern),
-                            AllowedEmailDomain.organization_name.ilike(search_pattern)
+                            AllowedEmailDomain.description.ilike(search_pattern)
                         )
                     )
             
@@ -164,7 +164,7 @@ class DomainService:
             
             new_domain = await self.repo.add_domain(
                 domain=domain_data.domain.lower(),
-                organization_name=domain_data.organization_name,
+                description=domain_data.description,
                 added_by=added_by_uuid,
                 is_active=True,
             )
@@ -231,8 +231,8 @@ class DomainService:
                         )
                 update_data["domain"] = new_domain
 
-            if domain_data.organization_name is not None:
-                update_data["organization_name"] = domain_data.organization_name
+            if domain_data.description is not None:
+                update_data["description"] = domain_data.description
             if domain_data.is_active is not None:
                 update_data["is_active"] = domain_data.is_active
 
@@ -348,8 +348,9 @@ class DomainService:
         return {
             "id": domain.id,
             "domain": domain.domain,
-            "organization_name": domain.organization_name,
+            "description": domain.description,
             "is_active": domain.is_active,
             "added_by": str(domain.added_by) if domain.added_by else None,
             "created_at": domain.created_at.isoformat() if domain.created_at else None,
+            "updated_at": domain.updated_at.isoformat() if domain.updated_at else None,
         }

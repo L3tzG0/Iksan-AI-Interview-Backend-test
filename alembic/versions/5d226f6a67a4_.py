@@ -116,7 +116,7 @@ def upgrade() -> None:
     op.create_index('idx_teachers_user_id', 'teachers', ['user_id'])
     op.create_index('idx_teachers_school_id', 'teachers', ['school_id'])
     
-    # students table (with stored_password and quota from migrations 003, 010)
+    # students table (with stored_password and quot
     op.create_table(
         'students',
         sa.Column('id', sa.BigInteger(), autoincrement=True, nullable=False),
@@ -148,7 +148,7 @@ def upgrade() -> None:
     # Session and Interview Tables
     # =========================================================================
     
-    # sessions table (with type from migration 007)
+    # sessions table (with typ
     op.create_table(
         'sessions',
         sa.Column('id', sa.BigInteger(), autoincrement=True, nullable=False),
@@ -228,7 +228,7 @@ def upgrade() -> None:
     op.create_index('idx_next_steps_session_id', 'next_steps', ['session_id'])
     
     # =========================================================================
-    # Student Registration Support Tables (from migration 003)
+    # Student Registration Support Tables
     # =========================================================================
     
     # student_number_tracking table
@@ -248,15 +248,14 @@ def upgrade() -> None:
     op.create_index('idx_student_number_tracking_school_major', 'student_number_tracking', ['school_id', 'major_id'])
     
     # =========================================================================
-    # Email Domain Restrictions (from migrations 008, 009)
+    # Email Domain Restrictions
     # =========================================================================
     
-    # allowed_email_domains table (with organization_name from migration 009)
     op.create_table(
         'allowed_email_domains',
         sa.Column('id', sa.BigInteger(), autoincrement=True, nullable=False),
         sa.Column('domain', sa.String(), nullable=False),
-        sa.Column('organization_name', sa.String(), nullable=True),
+        sa.Column('description', sa.String(), nullable=True),
         sa.Column('is_active', sa.Boolean(), server_default='true', nullable=False),
         sa.Column('added_by', postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),

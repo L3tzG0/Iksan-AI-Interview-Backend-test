@@ -6,7 +6,7 @@ for user registration, enabling organization-level access control.
 
 Schema Reference:
 - migrations/008_email_domain_restrictions.sql
-- migrations/009_email_domain_org_name.sql (renames description to organization_name)
+- migrations/009_email_domain_org_name.sql (renames description to description)
 """
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
@@ -27,7 +27,7 @@ class AllowedEmailDomain(Base, TimestampMixin):
     Attributes:
         id: Primary key (BIGSERIAL)
         domain: Email domain (e.g., 'example.com', 'students.internal')
-        organization_name: Name of the organization this domain belongs to
+        description: Name of the organization this domain belongs to
         is_active: Whether this domain is currently allowed
         added_by: User who added this domain (optional)
         created_at: Timestamp when domain was added
@@ -49,7 +49,7 @@ class AllowedEmailDomain(Base, TimestampMixin):
     )
     
     # Renamed from 'description' in migration 009
-    organization_name: Mapped[Optional[str]] = mapped_column(
+    description: Mapped[Optional[str]] = mapped_column(
         String,
         nullable=True,
         comment="Name of the organization this domain belongs to",

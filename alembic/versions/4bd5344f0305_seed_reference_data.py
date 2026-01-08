@@ -80,12 +80,28 @@ def upgrade() -> None:
         SELECT setval('majors_id_seq', (SELECT MAX(id) FROM majors))
     """))
 
+    # ============================================================================
+    # SEED ALLOWED EMAIL DOMAINS (students)
+    # ============================================================================
+    conn.execute(text("""
+        INSERT INTO allowed_email_domains (id, domain, description, is_active)
+        VALUES
+            (1, 'students.internal', 'Internal domain for student accounts (must not be deleted)', true)
+        ON CONFLICT (domain) DO NOTHING
+    """))
+
+    # Reset sequence if needed
+    conn.execute(text("""
+        SELECT setval('allowed_email_domains_id_seq', (SELECT MAX(id) FROM allowed_email_domains))
+    """))
+
 
 def downgrade() -> None:
     """Downgrade schema."""
     conn = op.get_bind()
     
     # Delete seeded data in reverse order
+    conn.execute(text("DELETE FROM allowed_email_domains WHERE domain = 'students.internal'"))
     conn.execute(text("DELETE FROM majors WHERE id IN (1, 2, 3, 4, 5, 6, 7)"))
     conn.execute(text("DELETE FROM schools WHERE id IN (1, 2)"))
     conn.execute(text("DELETE FROM roles WHERE id IN (1, 2, 3)"))
