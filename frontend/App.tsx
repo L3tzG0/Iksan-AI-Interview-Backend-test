@@ -619,7 +619,7 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
     <div className="relative bg-white min-h-screen overflow-visible font-elice text-slate-700">
       {/* <div className="-top-24 -right-16 absolute bg-primary/10 blur-3xl rounded-full w-72 h-72 animate-pulseSlow pointer-events-none"></div>
       <div className="top-24 -left-24 absolute bg-primary-light/40 blur-3xl rounded-full w-80 h-80 animate-pulseSlow pointer-events-none"></div> */}
-      <div className="z-10 relative">
+      <div className="z-10 relative flex flex-col min-h-screen">
         <Navbar 
           user={currentUser!} 
           onLogout={handleLogout} 
@@ -627,8 +627,171 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
           currentPath={location.pathname}
           onNavigate={(path) => navigate(path)}
         />
-        <main className="mx-auto p-4 sm:p-6 lg:px-8 pt-8 pb-16 max-w-7xl">
-          {/* AdminHeader removed */}
+        <main className="relative mx-auto w-full flex-grow flex flex-col">
+          <div className="flex-grow flex items-center justify-center">
+            <div className="w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+              {!isLoading && (
+                <Routes>
+          <Route
+            path="/"
+            element={
+            <Navigate
+              to={currentUser?.role === 'student' ? '/student/home' : '/teacher/home'}
+              replace
+            />
+            }
+          />
+                <Route
+                  path="/student/home"
+                  element={
+                    <ProtectedRoute
+                      allowed={['student', 'teacher', 'admin']}
+                      element={
+                        <Landing
+                          user={currentUser!}
+                          hasResults={!!latestReport}
+                          latestReport={latestReport}
+                          onStartInterview={() => navigate('/student/interview/start')}
+                          onGoDashboard={() => navigate('/student/history/results')}
+                          onViewResults={handleOpenLatestReport}
+                          onViewHistory={() => navigate('/student/history')}
+                        />
+                      }
+                    />
+                  }
+                />
+                <Route
+                  path="/student/interview/start"
+                  element={
+                    <ProtectedRoute
+                      allowed={['student', 'teacher', 'admin']}
+                      element={
+                        <WelcomeScreen
+                          onStart={handleStartInterview}
+                          history={studentHistory}
+                          remainingAttempts={currentUser?.interviewSessionQuota ?? null}
+                        />
+                      }
+                    />
+                  }
+                />
+                <Route
+                  path="/student/interview"
+                  element={
+                    <ProtectedRoute
+                      allowed={['student', 'teacher', 'admin']}
+                      element={
+                        questions.length === 0 ? (
+                          <Navigate to="/student/home" replace />
+                        ) : (
+                          <InterviewSession
+                            questions={questions}
+                            onFinish={handleFinishInterview}
+                            perQuestionSeconds={perQuestionSeconds}
+                            onExit={() => navigate('/student/home', { replace: true })}
+                          />
+                        )
+                      }
+                    />
+                  }
+                />
+                <Route
+                  path="/student/history/results"
+                  element={
+                    <ProtectedRoute
+                      allowed={['student', 'teacher', 'admin']}
+                      element={
+                        report ? (
+                          <ResultsScreen
+                            report={report}
+                            onRetry={handleTryAnotherTopic}
+                            studentMeta={{
+                              name: currentUser!.name,
+                              schoolName: currentUser!.schoolName,
+                              grade: currentUser!.grade,
+                              major: currentUser!.major,
+                            }}
+                          />
+                        ) : (
+                          <Navigate to="/student/home" replace />
+                        )
+                      }
+                    />
+                  }
+                />
+                <Route
+                  path="/student/history"
+                  element={
+                    <ProtectedRoute
+                      allowed={['student']}
+                      element={<StudentHistory history={studentHistory} onViewReport={handleViewHistoryReport} />}
+                    />
+                  }
+                />
+                <Route
+                  path="/teacher/home"
+                  element={
+                    <ProtectedRoute
+                      allowed={['teacher', 'admin']}
+                      element={
+                        <Landing
+                          user={currentUser!}
+                          hasResults={!!latestReport}
+                          latestReport={latestReport}
+                          onStartInterview={() => navigate('/teacher/dashboard/2')}
+                          onGoDashboard={() => navigate('/teacher/dashboard/1')}
+                          onViewResults={handleOpenLatestReport}
+                          onGoTeacherTab1={() => navigate('/teacher/dashboard/1')}
+                          onGoTeacherTab2={() => navigate('/teacher/dashboard/2')}
+                          onGoTeacherPreview={() => navigate('/teacher/interview/preview')}
+                        />
+                      }
+                    />
+                  }
+                />
+                <Route path="/teacher/dashboard" element={<Navigate to="/teacher/dashboard/1" replace />} />
+                <Route
+                  path="/teacher/dashboard/:tab"
+                  element={
+                    <ProtectedRoute
+                      allowed={['teacher', 'admin']}
+                      element={<TeacherDashboard currentUser={currentUser!} />}
+                    />
+                  }
+                />
+                <Route
+                  path="/teacher/interview/preview"
+                  element={
+                    <ProtectedRoute
+                      allowed={['teacher', 'admin']}
+                      element={
+                        <WelcomeScreen
+                          onStart={() => {}}
+                          history={[]}
+                          onViewReport={() => {}}
+                        />
+                      }
+                    />
+                  }
+                />
+                <Route
+                  path="/teacher/students/:id"
+                  element={
+                    <ProtectedRoute allowed={['teacher', 'admin']} element={<InlineStudentDetail />} />
+                  }
+                />
+                <Route
+                  path="/admin/domains"
+                  element={
+                    <ProtectedRoute allowed={['admin']} element={<AdminDomainManagement />} />
+                  }
+                />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+              )}
+            </div>
+          </div>
+
           {isLoading && (
             <div className="relative flex flex-col justify-center items-center bg-white/80 shadow-soft border border-white/70 rounded-3xl h-[60vh] overflow-hidden text-slate-700">
               <div className="-top-20 -right-12 absolute bg-primary/10 blur-3xl rounded-full w-64 h-64 animate-pulseSlow pointer-events-none"></div>
@@ -648,164 +811,6 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
                 </div>
               )}
             </div>
-          )}
-          {!isLoading && (
-            <Routes>
-        <Route
-          path="/"
-          element={
-          <Navigate
-            to={currentUser?.role === 'student' ? '/student/home' : '/teacher/home'}
-            replace
-          />
-          }
-        />
-              <Route
-                path="/student/home"
-                element={
-                  <ProtectedRoute
-                    allowed={['student', 'teacher', 'admin']}
-                    element={
-                      <Landing
-                        user={currentUser!}
-                        hasResults={!!latestReport}
-                        latestReport={latestReport}
-                        onStartInterview={() => navigate('/student/interview/start')}
-                        onGoDashboard={() => navigate('/student/history/results')}
-                        onViewResults={handleOpenLatestReport}
-                      />
-                    }
-                  />
-                }
-              />
-              <Route
-                path="/student/interview/start"
-                element={
-                  <ProtectedRoute
-                    allowed={['student', 'teacher', 'admin']}
-                    element={
-                      <WelcomeScreen
-                        onStart={handleStartInterview}
-                        history={studentHistory}
-                        remainingAttempts={currentUser?.interviewSessionQuota ?? null}
-                      />
-                    }
-                  />
-                }
-              />
-              <Route
-                path="/student/interview"
-                element={
-                  <ProtectedRoute
-                    allowed={['student', 'teacher', 'admin']}
-                    element={
-                      questions.length === 0 ? (
-                        <Navigate to="/student/home" replace />
-                      ) : (
-                        <InterviewSession
-                          questions={questions}
-                          onFinish={handleFinishInterview}
-                          perQuestionSeconds={perQuestionSeconds}
-                          onExit={() => navigate('/student/home', { replace: true })}
-                        />
-                      )
-                    }
-                  />
-                }
-              />
-              <Route
-                path="/student/history/results"
-                element={
-                  <ProtectedRoute
-                    allowed={['student', 'teacher', 'admin']}
-                    element={
-                      report ? (
-                        <ResultsScreen
-                          report={report}
-                          onRetry={handleTryAnotherTopic}
-                          studentMeta={{
-                            name: currentUser!.name,
-                            schoolName: currentUser!.schoolName,
-                            grade: currentUser!.grade,
-                            major: currentUser!.major,
-                          }}
-                        />
-                      ) : (
-                        <Navigate to="/student/home" replace />
-                      )
-                    }
-                  />
-                }
-              />
-              <Route
-                path="/student/history"
-                element={
-                  <ProtectedRoute
-                    allowed={['student']}
-                    element={<StudentHistory history={studentHistory} onViewReport={handleViewHistoryReport} />}
-                  />
-                }
-              />
-              <Route
-                path="/teacher/home"
-                element={
-                  <ProtectedRoute
-                    allowed={['teacher', 'admin']}
-                    element={
-                      <Landing
-                        user={currentUser!}
-                        hasResults={!!latestReport}
-                        latestReport={latestReport}
-                        onStartInterview={() => navigate('/teacher/dashboard/2')}
-                        onGoDashboard={() => navigate('/teacher/dashboard/1')}
-                        onViewResults={handleOpenLatestReport}
-                        onGoTeacherTab1={() => navigate('/teacher/dashboard/1')}
-                        onGoTeacherTab2={() => navigate('/teacher/dashboard/2')}
-                        onGoTeacherPreview={() => navigate('/teacher/interview/preview')}
-                      />
-                    }
-                  />
-                }
-              />
-              <Route path="/teacher/dashboard" element={<Navigate to="/teacher/dashboard/1" replace />} />
-              <Route
-                path="/teacher/dashboard/:tab"
-                element={
-                  <ProtectedRoute
-                    allowed={['teacher', 'admin']}
-                    element={<TeacherDashboard currentUser={currentUser!} />}
-                  />
-                }
-              />
-              <Route
-                path="/teacher/interview/preview"
-                element={
-                  <ProtectedRoute
-                    allowed={['teacher', 'admin']}
-                    element={
-                      <WelcomeScreen
-                        onStart={() => {}}
-                        history={[]}
-                        onViewReport={() => {}}
-                      />
-                    }
-                  />
-                }
-              />
-              <Route
-                path="/teacher/students/:id"
-                element={
-                  <ProtectedRoute allowed={['teacher', 'admin']} element={<InlineStudentDetail />} />
-                }
-              />
-              <Route
-                path="/admin/domains"
-                element={
-                  <ProtectedRoute allowed={['admin']} element={<AdminDomainManagement />} />
-                }
-              />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
           )}
           {error && renderError()}
         </main>
