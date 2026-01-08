@@ -1,0 +1,278 @@
+import React, { useState } from "react";
+import AuthLayout from "./AuthLayout";
+import Input from "../ui/Input";
+import SchoolSelect from "../ui/SchoolSelect";
+import Button from "../ui/Button";
+import StatusModal from "../ui/StatusModal";
+import {
+    MailIcon,
+    LockIcon,
+    UserIcon,
+    GraduationCapIcon,
+    BrainIcon,
+} from "../icons";
+import { signUp } from "../../services/authService";
+import { User } from "../../types";
+
+interface SignUpScreenProps {
+    onSignUp?: (user: User) => void;
+    onSwitchToSignIn: () => void;
+    defaultRole?: "teacher" | "admin";
+}
+
+const SignUpScreen: React.FC<SignUpScreenProps> = ({
+    onSignUp,
+    onSwitchToSignIn,
+    defaultRole = "teacher",
+}) => {
+    const [role, setRole] = useState<"teacher" | "admin">(defaultRole);
+    const [name, setName] = useState("");
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [confirmPassword, setConfirmPassword] = useState("");
+
+    const [schoolName, setSchoolName] = useState("");
+
+    const [isLoading, setIsLoading] = useState(false);
+    const [isSuccessOpen, setIsSuccessOpen] = useState(false);
+    const [createdUser, setCreatedUser] = useState<User | null>(null);
+
+    const [errorModal, setErrorModal] = useState<{ isOpen: boolean; title: string; description?: string }>({
+        isOpen: false,
+        title: "",
+        description: "",
+    });
+
+    const parseError = (err: any): string | undefined => {
+        const raw = err && (err.message ?? String(err)) ? String(err.message ?? err) : undefined;
+        if (!raw) return undefined;
+        // Try parse as JSON first (API sometimes returns JSON text)
+        try {
+            const parsed = JSON.parse(raw);
+            if (typeof parsed === 'string') return parsed;
+            if (parsed?.detail) return parsed.detail;
+            if (parsed?.message) return parsed.message;
+            if (parsed?.error) return parsed.error;
+            if (parsed?.errors) {
+                if (typeof parsed.errors === 'string') return parsed.errors;
+                if (Array.isArray(parsed.errors) && parsed.errors.length) return parsed.errors.join(', ');
+                if (typeof parsed.errors === 'object') {
+                    const vals = Object.values(parsed.errors).flat().map(String);
+                    return vals.join(', ');
+                }
+            }
+            const textValues = Object.values(parsed).filter(v => typeof v === 'string');
+            if (textValues.length) return textValues.join(' ');
+            return undefined;
+        } catch {
+            // not JSON
+        }
+        // Try extract known patterns
+        const match = raw.match(/Registration error:\s*(.+)/i);
+        if (match) return match[1];
+        // Strip surrounding braces/quotes and return trimmed text
+        const noBraces = raw.replace(/^[\s"'\{\[]+|[\s"'\}\]]+$/g, '').trim();
+        return noBraces || undefined;
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (password !== confirmPassword) {
+            setErrorModal({ isOpen: true, title: "비밀번호가 일치하지 않습니다.", description: "비밀번호를 다시 확인해주세요." });
+            return;
+        }
+        if (role === "teacher" && !schoolName.trim()) {
+            setErrorModal({ isOpen: true, title: "학교를 선택하거나 입력해주세요." });
+            return;
+        }
+        // if (role === 'admin' && !organization.trim()) {
+        //   alert('기관/회사를 입력해주세요.');
+        //   return;
+        // }
+
+        setIsLoading(true);
+        let role_id;
+        if (role === "teacher") {
+            role_id = 2; // 교사
+        } else if (role === "admin") {
+            role_id = 1; // 관리자
+        }
+
+        try {
+            const user = await signUp(
+                name,
+                email,
+                role_id,
+                { school_name: schoolName },
+                password
+            );
+            setCreatedUser(user);
+            setIsSuccessOpen(true);
+        } catch (error) {
+            console.error(error);
+            const description = parseError(error) || '알 수 없는 오류가 발생했습니다.';
+            setErrorModal({ isOpen: true, title: "등록에 실패했습니다.", description });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleConfirm = () => {
+        if (createdUser) {
+            onSignUp?.(createdUser);
+        }
+        setIsSuccessOpen(false);
+        onSwitchToSignIn();
+    };
+
+    return (
+        <AuthLayout
+            title="등록"
+            subtitle="교사/관리자 계정을 만들고 학생을 관리하세요."
+        >
+            <div className="flex bg-slate-100 mb-6 p-1 rounded-xl">
+                <button
+                    type="button"
+                    onClick={() => setRole("teacher")}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all ${
+                        role === "teacher"
+                            ? "bg-white text-primary shadow-sm"
+                            : "text-slate-500 hover:text-slate-700"
+                    }`}
+                >
+                    <GraduationCapIcon className="w-4 h-4" />
+                    교사 등록
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setRole("admin")}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all ${
+                        role === "admin"
+                            ? "bg-white text-primary shadow-sm"
+                            : "text-slate-500 hover:text-slate-700"
+                    }`}
+                >
+                    <BrainIcon className="w-4 h-4" />
+                    관리자 등록
+                </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+                <Input
+                    label="이름"
+                    type="text"
+                    placeholder="홍길동"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    icon={<UserIcon className="w-5 h-5" />}
+                    required
+                />
+
+                {role === "teacher" && (
+                    <SchoolSelect
+                        label="학교"
+                        placeholder="예: 익산고등학교"
+                        value={schoolName}
+                        onChange={(v) => setSchoolName(v)}
+                        required
+                    />
+                )}
+
+                {/* {role === 'teacher' ? (
+          <Input
+            label="학교"
+            placeholder="예: 익산고등학교"
+            value={schoolName}
+            onChange={(e) => setSchoolName(e.target.value)}
+            required
+          />
+        ) : (
+          <Input
+            label="기관 / 회사"
+            placeholder="예: 익산 교육청"
+            value={organization}
+            onChange={(e) => setOrganization(e.target.value)}
+            required
+          />
+        )} */}
+
+                <Input
+                    label="업무용 이메일"
+                    type="email"
+                    placeholder="name@school.ac.kr"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    icon={<MailIcon className="w-5 h-5" />}
+                    required
+                />
+                <Input
+                    label="비밀번호"
+                    type="password"
+                    allowReveal
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    icon={<LockIcon className="w-5 h-5" />}
+                    required
+                />
+                <Input
+                    label="비밀번호 확인"
+                    type="password"
+                    allowReveal
+                    placeholder="••••••••"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    icon={<LockIcon className="w-5 h-5" />}
+                    required
+                />
+
+                <Button
+                    type="submit"
+                    fullWidth
+                    isLoading={isLoading}
+                    className="mt-4"
+                >
+                    계정 만들기
+                </Button>
+            </form>
+
+            <div className="mt-6 text-slate-600 text-sm text-center">
+                이미 계정이 있으신가요?{" "}
+                <button
+                    onClick={onSwitchToSignIn}
+                    className="font-bold text-primary hover:text-primary-dark"
+                >
+                    로그인
+                </button>
+            </div>
+
+            <StatusModal
+                isOpen={isSuccessOpen}
+                type="success"
+                title="등록이 완료되었습니다"
+                description="확인을 누르면 로그인 페이지로 이동합니다."
+                onClose={() => setIsSuccessOpen(false)}
+                primaryAction={{ label: "확인", onClick: handleConfirm }}
+            >
+                {createdUser?.email && (
+                    <div className="space-y-1">
+                        <p className="font-semibold text-slate-800">등록 정보</p>
+                        <p className="text-slate-600 text-sm">이메일: {createdUser.email}</p>
+                    </div>
+                )}
+            </StatusModal>
+
+            
+            <StatusModal
+                isOpen={errorModal.isOpen}
+                type="error"
+                title={errorModal.title}
+                description={errorModal.description}
+                onClose={() => setErrorModal({ ...errorModal, isOpen: false })}
+                primaryAction={{ label: "확인", onClick: () => setErrorModal({ ...errorModal, isOpen: false }), variant: "danger" }}
+            />
+        </AuthLayout>
+    );
+};
+
+export default SignUpScreen;
