@@ -1,20 +1,25 @@
+"""
+API endpoints for majors.
+
+Uses SQLAlchemy AsyncSession for database operations.
+"""
 from typing import Annotated, Optional
+
 from fastapi import APIRouter, Depends, Query
-from supabase import AsyncClient
-from app.core.database import get_supabase
+from sqlalchemy import select, func
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import get_db
+from app.models.major import Major
 from app.schemas.major import MajorResponse
 from app.schemas.pagination import PaginatedResponse, create_paginated_response
-from app.utils.pagination import paginate_query
 
 router = APIRouter()
-
-# Explicit columns to select (avoiding SELECT *)
-MAJOR_COLUMNS = "id, major_name"
 
 
 @router.get("/", response_model=PaginatedResponse[MajorResponse])
 async def read_majors(
-    supabase: Annotated[AsyncClient, Depends(get_supabase)],
+    db: Annotated[AsyncSession, Depends(get_db)],
     skip: int = Query(default=0, ge=0, description="Number of records to skip"),
     limit: int = Query(default=20, ge=1, le=100, description="Maximum records to return"),
     search: Optional[str] = Query(default=None, description="Search by major name")
@@ -26,11 +31,24 @@ async def read_majors(
     - **limit**: Max records to return (default: 20, max: 100)
     - **search**: Search by major name (partial match)
     """
-    def build_query():
-        base_query = supabase.table('majors').select(MAJOR_COLUMNS, count='exact')
-        if search:
-            base_query = base_query.ilike('major_name', f'%{search}%')
-        return base_query
-
-    items, total = await paginate_query(build_query, skip, limit)
+    # Build query
+    query = select(Major)
+    count_query = select(func.count()).select_from(Major)
+    
+    if search:
+        query = query.where(Major.major_name.ilike(f'%{search}%'))
+        count_query = count_query.where(Major.major_name.ilike(f'%{search}%'))
+    
+    # Get total count
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+    
+    # Get paginated items
+    query = query.offset(skip).limit(limit)
+    result = await db.execute(query)
+    majors = result.scalars().all()
+    
+    # Convert to response format
+    items = [{"id": m.id, "major_name": m.major_name} for m in majors]
+    
     return create_paginated_response(items=items, total=total, skip=skip, limit=limit)

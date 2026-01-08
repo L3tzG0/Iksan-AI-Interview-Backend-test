@@ -2,6 +2,7 @@ from typing import List, Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 import os
+import secrets
 from urllib.parse import urlparse
 
 class Settings(BaseSettings):
@@ -12,11 +13,19 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"  # development, staging, production
     DEBUG: bool = Field(default=False)
     
-    # Supabase
-    SUPABASE_URL: str
-    SUPABASE_KEY: str
-    # DEPRECATED: Storage bucket not currently in use - kept for future implementation
-    SUPABASE_STORAGE_BUCKET: str = ""
+    # PostgreSQL Direct Connection (SQLAlchemy)
+    # Format: postgresql+asyncpg://user:password@host:port/database
+    DATABASE_URL: str = Field(default="")
+    DATABASE_POOL_SIZE: int = 5  # Number of connections to maintain in the pool
+    DATABASE_MAX_OVERFLOW: int = 10  # Max additional connections beyond pool_size
+    DATABASE_POOL_TIMEOUT: int = 30  # Seconds to wait for a connection from pool
+    
+    # JWT Configuration (Custom Auth)
+    JWT_SECRET_KEY: str = Field(default_factory=lambda: secrets.token_urlsafe(32))
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60  # 1 hour
+    JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 7  # 1 week
+    JWT_ISSUER: str = "iksan-ai-interview"
+    JWT_AUDIENCE: str = "iksan-ai-interview-api"
     
     # LLM Configuration
     # TODO: Set these values in .env when integrating with actual LLM provider

@@ -1,8 +1,15 @@
+"""
+Users API endpoints.
+
+Uses SQLAlchemy AsyncSession for database operations.
+"""
 from typing import Annotated, Optional
+
 from fastapi import APIRouter, Depends, Query
-from supabase import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.api.dependencies import require_role, RoleContext
-from app.core.database import get_supabase
+from app.core.database import get_db
 from app.schemas.pagination import PaginatedResponse, create_paginated_response
 from app.schemas.types import RoleName
 from app.schemas.user import UserListItemResponse
@@ -13,7 +20,7 @@ router = APIRouter()
 
 @router.get("/", response_model=PaginatedResponse[UserListItemResponse])
 async def read_user_profiles(
-    supabase: Annotated[AsyncClient, Depends(get_supabase)],
+    db: Annotated[AsyncSession, Depends(get_db)],
     skip: int = Query(default=0, ge=0, description="Number of records to skip"),
     limit: int = Query(default=20, ge=1, le=100, description="Maximum records to return"),
     role: Optional[RoleName] = Query(default=None, description="Filter by role name"),
@@ -36,7 +43,7 @@ async def read_user_profiles(
     Returns:
         PaginatedResponse[UserListItemResponse]: Paginated list of user profiles with total count.
     """
-    service = UserProfileService(supabase)
+    service = UserProfileService(db)
     profiles, total = await service.list_users(
         skip=skip,
         limit=limit,

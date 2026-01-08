@@ -1,13 +1,13 @@
 """
-Supabase JWT Token utilities for programmatic use.
+JWT Token utilities for programmatic use.
 
-This module provides utilities to parse and analyze JWT tokens from Supabase Auth,
+This module provides utilities to parse and analyze JWT tokens,
 supporting both backend service tokens and end-user tokens.
 
 Example usage:
-    from app.utils.jwt_utils import parse_supabase_token, TokenInfo
+    from app.utils.jwt_utils import parse_jwt_token, TokenInfo
     
-    token_info = parse_supabase_token(token_string)
+    token_info = parse_jwt_token(token_string)
     print(token_info.user_id)
     print(token_info.email)
     print(token_info.is_expired)
@@ -34,7 +34,7 @@ class TokenInfo:
     issuer: Optional[str]
     audience: Optional[str]
     
-    # Supabase-specific
+    # Token-specific metadata
     role: Optional[str]
     app_metadata: Optional[Dict[str, Any]]
     user_metadata: Optional[Dict[str, Any]]
@@ -101,12 +101,12 @@ def decode_base64url(data: str) -> str:
         raise JWTDecodeError(f"Failed to decode base64url: {str(e)}")
 
 
-def parse_supabase_token(token: str) -> TokenInfo:
+def parse_jwt_token(token: str) -> TokenInfo:
     """
-    Parse a Supabase JWT token.
+    Parse a JWT token.
     
     Args:
-        token: JWT token string from Supabase Auth
+        token: JWT token string
         
     Returns:
         TokenInfo object with parsed claims
@@ -117,7 +117,7 @@ def parse_supabase_token(token: str) -> TokenInfo:
         
     Example:
         try:
-            token_info = parse_supabase_token(access_token)
+            token_info = parse_jwt_token(access_token)
             print(f"User: {token_info.email}")
             print(f"Expired: {token_info.is_expired}")
         except JWTDecodeError as e:
@@ -206,7 +206,7 @@ def extract_user_id(token: str) -> str:
     Raises:
         JWTDecodeError: If token cannot be decoded
     """
-    token_info = parse_supabase_token(token)
+    token_info = parse_jwt_token(token)
     if not token_info.user_id:
         raise JWTDecodeError("Token does not contain a subject (user_id)")
     return token_info.user_id
@@ -225,7 +225,7 @@ def extract_email(token: str) -> str:
     Raises:
         JWTDecodeError: If token cannot be decoded
     """
-    token_info = parse_supabase_token(token)
+    token_info = parse_jwt_token(token)
     if not token_info.email:
         raise JWTDecodeError("Token does not contain an email")
     return token_info.email
@@ -244,7 +244,7 @@ def get_custom_claims(token: str) -> Optional[Dict[str, Any]]:
     Raises:
         JWTDecodeError: If token cannot be decoded
     """
-    token_info = parse_supabase_token(token)
+    token_info = parse_jwt_token(token)
     return token_info.user_metadata
 
 
@@ -261,5 +261,5 @@ def validate_token_not_expired(token: str) -> bool:
     Raises:
         JWTDecodeError: If token cannot be decoded
     """
-    token_info = parse_supabase_token(token)
+    token_info = parse_jwt_token(token)
     return not token_info.is_expired

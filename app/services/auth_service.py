@@ -1,22 +1,61 @@
-from typing import Optional
-from supabase import AsyncClient
+"""
+Authentication Service
+
+Handles user registration, login, and session management using custom JWT-based
+authentication with passwords stored in the user_profiles table.
+
+Uses SQLAlchemy AsyncSession for database operations.
+"""
+import uuid
+from typing import Optional, Dict, Any
+from uuid import UUID
+
 from fastapi import HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.schemas.auth import LoginRequest, RegisterRequest, TeacherRegistrationData
 from app.utils.string_utils import sanitize_name
+from app.core.password import hash_password, verify_password
+from app.core.jwt import get_jwt_manager, JWTExpiredError, JWTInvalidError
+from app.core.auth_user import AuthenticatedUser
+
+# Repository imports
+from app.repositories.user_repository import UserRepository
+from app.repositories.school_repository import SchoolRepository
+from app.repositories.major_repository import MajorRepository
+from app.repositories.teacher_repository import TeacherRepository
+
+# Model imports
+from app.models.role import Role
 
 
 class AuthService:
     """
-    Authentication service using Supabase Auth.
-    Handles user registration, login, and session management.
+    Authentication service using custom JWT-based authentication.
     
-    All methods are async because the Supabase AsyncClient
-    uses async HTTP calls. This ensures proper connection handling
-    under concurrent load.
+    Handles user registration, login, and session management with:
+    - Passwords stored in user_profiles.hashed_password
+    - JWT tokens for session management
+    - Role-based access control via roles table
+    
+    Updated to use SQLAlchemy AsyncSession and repositories.
     """
     
-    def __init__(self, supabase: AsyncClient):
-        self.supabase = supabase
+    def __init__(self, db: AsyncSession):
+        """
+        Initialize with SQLAlchemy AsyncSession.
+        
+        Args:
+            db: SQLAlchemy async session
+        """
+        self.db = db
+        self.jwt_manager = get_jwt_manager()
+        
+        # Initialize repositories
+        self.user_repo = UserRepository(db)
+        self.school_repo = SchoolRepository(db)
+        self.major_repo = MajorRepository(db)
+        self.teacher_repo = TeacherRepository(db)
 
     async def _resolve_or_create_school(self, school_id: Optional[int], school_name: Optional[str]) -> Optional[int]:
         """
@@ -25,8 +64,8 @@ class AuthService:
         """
         if school_id is not None:
             # Validate school exists
-            response = await self.supabase.table("schools").select("id").eq("id", school_id).execute()
-            if not response.data:
+            school = await self.school_repo.get_by_id(school_id)
+            if not school:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"School with id {school_id} does not exist."
@@ -41,19 +80,9 @@ class AuthService:
                     detail="School name cannot be empty."
                 )
             
-            # Try to find existing school (case-insensitive)
-            response = await self.supabase.table("schools").select("id, school_name").ilike("school_name", sanitized_name).execute()
-            if response.data:
-                return response.data[0]["id"]
-            
-            # Create new school
-            response = await self.supabase.table("schools").insert({"school_name": sanitized_name}).execute()
-            if not response.data:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Failed to create school."
-                )
-            return response.data[0]["id"]
+            # Use repository method which handles resolve_or_create
+            result_id, _ = await self.school_repo.resolve_or_create(sanitized_name)
+            return result_id
         
         return None
 
@@ -64,8 +93,8 @@ class AuthService:
         """
         if major_id is not None:
             # Validate major exists
-            response = await self.supabase.table("majors").select("id").eq("id", major_id).execute()
-            if not response.data:
+            major = await self.major_repo.get_by_id(major_id)
+            if not major:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Major with id {major_id} does not exist."
@@ -80,19 +109,9 @@ class AuthService:
                     detail="Major name cannot be empty."
                 )
             
-            # Try to find existing major (case-insensitive)
-            response = await self.supabase.table("majors").select("id, major_name").ilike("major_name", sanitized_name).execute()
-            if response.data:
-                return response.data[0]["id"]
-            
-            # Create new major
-            response = await self.supabase.table("majors").insert({"major_name": sanitized_name}).execute()
-            if not response.data:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Failed to create major."
-                )
-            return response.data[0]["id"]
+            # Use repository method which handles resolve_or_create
+            result_id, _ = await self.major_repo.resolve_or_create(sanitized_name)
+            return result_id
         
         return None
 
@@ -110,25 +129,41 @@ class AuthService:
             return {"school_id": school_id}
         return {}
 
-    async def register_user(self, register_data: RegisterRequest):
+    async def _check_email_exists(self, email: str) -> bool:
+        """Check if email already exists in user_profiles."""
+        user = await self.user_repo.get_by_email(email)
+        return user is not None
+
+    async def _get_role_info(self, role_id: int) -> Dict[str, Any]:
+        """Get role information by ID."""
+        from sqlalchemy import select
+        
+        result = await self.db.execute(
+            select(Role).where(Role.id == role_id)
+        )
+        role = result.scalar_one_or_none()
+        
+        if not role:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Role with id {role_id} does not exist."
+            )
+        return {"id": role.id, "role_name": role.role_name}
+
+    async def register_user(self, register_data: RegisterRequest) -> Dict[str, Any]:
         """
-        Register a new user with Supabase Auth.
-        Handles role-specific registration:
-        - Students: registration disabled
-        - Teachers: optional school assignment
-        - Admins: no additional data
+        Register a new user.
+        
+        Creates:
+        - user_profiles record with hashed password
+        - teachers record if role is teacher
+        
+        Note: Student registration is not allowed through this endpoint.
         """
         try:
             # Validate that role exists and get role_name
-            role_response = await self.supabase.table("roles").select("id, role_name").eq("id", register_data.role_id).execute()
-            
-            if not role_response.data or len(role_response.data) == 0:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Role with id {register_data.role_id} does not exist. Please ensure roles are seeded in the database."
-                )
-            
-            role_name = role_response.data[0].get("role_name")
+            role_info = await self._get_role_info(register_data.role_id)
+            role_name = role_info.get("role_name")
             
             # Block student registration
             if role_name == "student":
@@ -137,137 +172,226 @@ class AuthService:
                     detail="Student registration is not allowed through this endpoint."
                 )
             
-            # Build base metadata for Supabase Auth
-            user_metadata = {
-                "full_name": register_data.full_name,
-                "role_id": register_data.role_id
-            }
+            # Check if email already exists
+            if await self._check_email_exists(register_data.email):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="A user with this email already exists."
+                )
+            
+            # Generate user ID
+            user_id = uuid.uuid4()
+            
+            # Hash the password
+            hashed_password = hash_password(register_data.password)
+            
+            # Create user profile using repository
+            user_profile = await self.user_repo.create_user(
+                id=user_id,
+                email=register_data.email,
+                full_name=register_data.full_name,
+                hashed_password=hashed_password,
+                role_id=register_data.role_id,
+            )
             
             # Handle role-specific registration
             if role_name == "teacher":
                 teacher_metadata = await self._prepare_teacher_metadata(register_data.teacher_data)
-                user_metadata.update(teacher_metadata)
-            
-            # Admin role doesn't need additional metadata
-            
-            # Sign up user with Supabase Auth
-            response = await self.supabase.auth.sign_up({
-                "email": register_data.email,
-                "password": register_data.password,
-                "options": {
-                    "data": user_metadata
-                }
-            })
-            
-            if not response.user:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="User registration failed"
+                school_id = teacher_metadata.get("school_id")
+                
+                await self.teacher_repo.create(
+                    user_id=user_id,
+                    school_id=school_id
                 )
             
+            # Generate tokens
+            token_pair = self.jwt_manager.create_token_pair(
+                user_id=str(user_id),
+                email=register_data.email,
+                role_id=register_data.role_id,
+                role_name=role_name
+            )
+            
+            # Build response mimicking the old format
             return {
-                "user": response.user,
-                "session": response.session
+                "user": AuthenticatedUser(
+                    id=user_id,
+                    email=register_data.email,
+                    full_name=register_data.full_name,
+                    role_id=register_data.role_id,
+                    role_name=role_name,
+                    created_at=user_profile.created_at.isoformat() if user_profile.created_at else None
+                ),
+                "session": {
+                    "access_token": token_pair.access_token,
+                    "refresh_token": token_pair.refresh_token,
+                    "token_type": token_pair.token_type,
+                    "expires_in": token_pair.expires_in
+                }
             }
+            
         except HTTPException:
             raise
         except Exception as e:
             error_message = str(e)
-            # Check for common database errors
-            if "does not exist" in error_message.lower() and "role" in error_message.lower():
+            if "duplicate" in error_message.lower() and "email" in error_message.lower():
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid role_id. Please ensure roles are seeded in the database."
-                )
-            if "duplicate" in error_message.lower() and "student_id" in error_message.lower():
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="A student with this student_id already exists."
-                )
-            # Surface a clearer message when the auth hook blocks disallowed domains
-            domain_hook_signatures = (
-                "before_user_created_hook",
-                "error running hook uri",
-                "registration is restricted to approved email domains",
-            )
-            if any(sig in error_message.lower() for sig in domain_hook_signatures):
-                domain = register_data.email.split("@", 1)[1].lower() if "@" in register_data.email else "the provided email domain"
-                friendly_detail = (
-                    # "Registration is restricted to approved email domains. "
-                    f'도메인 "{domain}"은 등록이 승인되지 않았습니다. '
-                    "실수라고 생각되면 조직 관리자에게 문의하세요."
-                )
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=friendly_detail
+                    detail="A user with this email already exists."
                 )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Registration error: {error_message}"
             )
 
-    async def authenticate_user(self, login_data: LoginRequest):
+    async def authenticate_user(self, login_data: LoginRequest) -> Dict[str, Any]:
         """
-        Authenticate user with email and password using Supabase Auth.
+        Authenticate user with email and password.
+        
+        Returns tokens and user information on success.
         """
         try:
-            response = await self.supabase.auth.sign_in_with_password({
-                "email": login_data.email,
-                "password": login_data.password
-            })
+            # Get user profile with role info using repository
+            user_profile = await self.user_repo.get_by_email_with_role(login_data.email)
             
-            if not response.session:
+            if not user_profile:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Incorrect email or password"
                 )
             
+            hashed_password = user_profile.hashed_password
+            
+            if not hashed_password:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Incorrect email or password"
+                )
+            
+            # Verify password
+            if not verify_password(login_data.password, hashed_password):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Incorrect email or password"
+                )
+            
+            role_name = user_profile.role.role_name if user_profile.role else None
+            
+            # Generate tokens
+            token_pair = self.jwt_manager.create_token_pair(
+                user_id=str(user_profile.id),
+                email=user_profile.email,
+                role_id=user_profile.role_id,
+                role_name=role_name
+            )
+            
+            # Build authenticated user object
+            user = AuthenticatedUser(
+                id=user_profile.id,
+                email=user_profile.email,
+                full_name=user_profile.full_name,
+                role_id=user_profile.role_id,
+                role_name=role_name,
+                created_at=user_profile.created_at.isoformat() if user_profile.created_at else None,
+                updated_at=user_profile.updated_at.isoformat() if user_profile.updated_at else None
+            )
+            
             return {
-                "user": response.user,
-                "session": response.session,
-                "access_token": response.session.access_token,
-                "refresh_token": response.session.refresh_token
+                "user": user,
+                "session": {
+                    "access_token": token_pair.access_token,
+                    "refresh_token": token_pair.refresh_token,
+                    "token_type": token_pair.token_type,
+                    "expires_in": token_pair.expires_in
+                },
+                "access_token": token_pair.access_token,
+                "refresh_token": token_pair.refresh_token
             }
+            
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail=f"Authentication failed: {str(e)}"
             )
     
-    async def sign_out(self):
+    async def sign_out(self) -> Dict[str, str]:
         """
         Sign out the current user.
+        
+        With JWT-based auth, sign out is handled client-side by discarding tokens.
+        This endpoint can be used to invalidate tokens server-side if needed
+        (requires token blacklist implementation).
         """
-        try:
-            await self.supabase.auth.sign_out()
-            return {"message": "Successfully signed out"}
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Sign out failed: {str(e)}"
-            )
+        # For now, sign out is a no-op on the server side
+        # The client should discard their tokens
+        # TODO: Implement token blacklist for true server-side invalidation
+        return {"message": "Successfully signed out"}
 
-    async def refresh_token(self, refresh_token: str):
+    async def refresh_token(self, refresh_token: str) -> Dict[str, Any]:
         """
         Refresh the session using a refresh token.
         Returns a new access token and refresh token.
         """
         try:
-            # Supabase native method to refresh session
-            response = await self.supabase.auth.refresh_session(refresh_token)
+            # Verify the refresh token
+            payload = self.jwt_manager.verify_refresh_token(refresh_token)
             
-            if not response.session:
+            # Get current user profile to ensure user still exists and get latest role
+            user_profile = await self.user_repo.get_with_role(UUID(payload.sub))
+            
+            if not user_profile:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid or expired refresh token"
+                    detail="User not found"
                 )
             
+            role_name = user_profile.role.role_name if user_profile.role else None
+            
+            # Generate new token pair
+            token_pair = self.jwt_manager.create_token_pair(
+                user_id=str(user_profile.id),
+                email=user_profile.email,
+                role_id=user_profile.role_id,
+                role_name=role_name
+            )
+            
+            # Build authenticated user object
+            user = AuthenticatedUser(
+                id=user_profile.id,
+                email=user_profile.email,
+                full_name=user_profile.full_name,
+                role_id=user_profile.role_id,
+                role_name=role_name,
+                created_at=user_profile.created_at.isoformat() if user_profile.created_at else None,
+                updated_at=user_profile.updated_at.isoformat() if user_profile.updated_at else None
+            )
+            
             return {
-                "user": response.user,
-                "session": response.session,
-                "access_token": response.session.access_token,
-                "refresh_token": response.session.refresh_token
+                "user": user,
+                "session": {
+                    "access_token": token_pair.access_token,
+                    "refresh_token": token_pair.refresh_token,
+                    "token_type": token_pair.token_type,
+                    "expires_in": token_pair.expires_in
+                },
+                "access_token": token_pair.access_token,
+                "refresh_token": token_pair.refresh_token
             }
+            
+        except JWTExpiredError:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Refresh token has expired"
+            )
+        except JWTInvalidError as e:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=f"Invalid refresh token: {str(e)}"
+            )
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,

@@ -11,7 +11,7 @@ import re
 class AllowedDomainBase(BaseModel):
     """Base schema for allowed email domain"""
     domain: str = Field(..., description="Email domain (e.g., example.com)")
-    organization_name: Optional[str] = Field(
+    description: Optional[str] = Field(
         None,
         description="Organization name associated with the domain",
     )
@@ -47,7 +47,7 @@ class AllowedDomainUpdate(BaseModel):
     the same way as on create (lowercase, trimmed, basic format check).
     """
     domain: Optional[str] = Field(None, description="Updated domain name")
-    organization_name: Optional[str] = Field(
+    description: Optional[str] = Field(
         None,
         description="Updated organization name",
     )

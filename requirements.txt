@@ -1,7 +1,13 @@
 fastapi>=0.121.3
 uvicorn[standard]>=0.38.0
 gunicorn>=23.0.0
-supabase>=2.27.0
+
+# Database - SQLAlchemy ORM with async support
+sqlalchemy[asyncio]>=2.0.0
+alembic>=1.13.0
+asyncpg>=0.29.0
+psycopg2-binary==2.9.11  # Still needed by langchain-postgres
+
 python-dotenv>=1.2.1
 pydantic-settings>=2.12.0
 python-multipart>=0.0.20
@@ -13,11 +19,14 @@ deepgram-sdk==3.11.0
 langchain==1.1.0
 langchain-google-genai==3.2.0
 langchain-postgres==0.0.16
-psycopg2-binary==2.9.11
 redis==7.1.0
 google-genai==1.55.0
 openai==2.14.0
 langchain-openai==1.1.6
+
+# Custom Authentication
+PyJWT
+bcrypt
 
 # Load Testing
 locust>=2.20.0

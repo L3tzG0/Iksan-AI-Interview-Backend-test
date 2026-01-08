@@ -3,7 +3,7 @@ Utility modules for Iksan AI Interview Backend.
 """
 
 from app.utils.jwt_utils import (
-    parse_supabase_token,
+    parse_jwt_token,
     TokenInfo,
     JWTDecodeError,
     JWTExpiredError,
@@ -14,7 +14,7 @@ from app.utils.jwt_utils import (
 )
 
 __all__ = [
-    'parse_supabase_token',
+    'parse_jwt_token',
     'TokenInfo',
     'JWTDecodeError',
     'JWTExpiredError',

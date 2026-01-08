@@ -1,9 +1,31 @@
+"""
+Interview Session Service for session lifecycle management.
+
+Uses SessionRepository for database operations with SQLAlchemy AsyncSession.
+"""
 from datetime import datetime
+from decimal import Decimal
 from typing import Optional, Tuple, List, NamedTuple, Dict, Any
 from operator import itemgetter
-from supabase import AsyncClient
+
+from sqlalchemy import select, func, and_, or_
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload, joinedload
 from fastapi import HTTPException, status
+
+from app.models.session import Session
+from app.models.student import Student
+from app.models.user_profile import UserProfile
+from app.models.school import School
+from app.models.major import Major
+from app.models.class_ import Class
+from app.models.detailed_feedback import DetailedFeedback
+from app.models.summary import Summary
+from app.models.next_step import NextStep
+from app.models.document import Document
+from app.repositories.session_repository import SessionRepository
 from app.utils.pagination import paginate_query
+
 
 class CalculatedAverages(NamedTuple):
     """The four calculated dimension averages for a session."""
@@ -12,45 +34,22 @@ class CalculatedAverages(NamedTuple):
     avg_fl: float
     avg_cp: float
 
-# Explicit columns to select for sessions (avoiding SELECT *)
-SESSION_COLUMNS = "id, student_id, status, type, total_score, completed_at, created_at"
-SESSION_COLUMNS_WITH_DETAILS = """
-    id, student_id, status, type, total_score, completed_at, created_at,
-    students(id, user_id, school_id, major_id,
-        user_profiles(id, full_name, email),
-        schools(id, school_name),
-        majors(id, major_name)
-    )
-"""
-SESSION_COLUMNS_WITH_STUDENT_INFO = """
-    id, status, type, total_score, completed_at, created_at,
-    students!inner(
-        id, student_id, school_id,
-        user_profiles(full_name),
-        schools(id, school_name),
-        majors(id, major_name),
-        classes(id, class_name, grade_level)
-    )
-"""
-SESSION_WITH_FEEDBACKS = """
-    id, student_id, status, type, total_score, completed_at, created_at,
-    detailed_feedbacks(
-        id, question_order, question_text, answer_text, evaluation_text,
-        is_correct, content_relevance_score, structure_score, 
-        fluency_score, confidence_score, overall_score
-    ),
-    summaries(id, strength_text, areas_for_growth_text),
-    next_steps(id, next_step_order, title, description_text)
-"""
 
 ALLOWED_SESSION_TYPES = {"job", "university"}
 
 
 class InterviewSessionService:
-    """Service for handling interview session database operations"""
+    """Service for handling interview session database operations."""
     
-    def __init__(self, supabase: AsyncClient):
-        self.supabase = supabase
+    def __init__(self, db: AsyncSession):
+        """
+        Initialize service with SQLAlchemy session.
+        
+        Args:
+            db: SQLAlchemy AsyncSession for database operations
+        """
+        self.db = db
+        self.repo = SessionRepository(db)
 
     @staticmethod
     def _normalize_interview_type(interview_type: Optional[str]) -> Optional[str]:
@@ -68,7 +67,7 @@ class InterviewSessionService:
     
     async def create_session(self, student_id: int, status: str = "in_progress", session_type: str = "job") -> dict:
         """
-        Create new interview session
+        Create new interview session.
         
         Args:
             student_id: ID of the student
@@ -77,9 +76,6 @@ class InterviewSessionService:
         
         Returns:
             dict: Created session record
-        
-        Raises:
-            HTTPException: If creation fails
         """
         try:
             allowed_types = {"job", "university"}
@@ -89,21 +85,17 @@ class InterviewSessionService:
                     detail=f"Invalid session type '{session_type}'. Must be one of: {', '.join(sorted(allowed_types))}."
                 )
 
-            session_data = {
-                "student_id": student_id,
-                "status": status,
-                "type": session_type
-            }
+            session = Session(
+                student_id=student_id,
+                status=status,
+                type=session_type
+            )
             
-            response = await self.supabase.table('sessions').insert(session_data).execute()
+            self.db.add(session)
+            await self.db.flush()
+            await self.db.refresh(session)
             
-            if not response.data:
-                raise HTTPException(
-                    status_code=500,
-                    detail="Failed to create session record"
-                )
-            
-            return response.data[0]
+            return self._session_to_dict(session)
             
         except HTTPException:
             raise
@@ -121,7 +113,7 @@ class InterviewSessionService:
         total_score: Optional[float] = None
     ) -> dict:
         """
-        Update session status and related fields
+        Update session status and related fields.
         
         Args:
             session_id: Session ID
@@ -131,27 +123,27 @@ class InterviewSessionService:
         
         Returns:
             dict: Updated session record
-        
-        Raises:
-            HTTPException: If update fails
         """
         try:
-            update_data = {"status": status}
+            session = await self.repo.get_by_id(session_id)
             
-            if completed_at:
-                update_data["completed_at"] = completed_at.isoformat()
-            if total_score is not None:
-                update_data["total_score"] = total_score
-            
-            response = await self.supabase.table('sessions').update(update_data).eq('id', session_id).execute()
-            
-            if not response.data:
+            if not session:
                 raise HTTPException(
                     status_code=404,
                     detail=f"Session with id {session_id} not found"
                 )
             
-            return response.data[0]
+            session.status = status
+            
+            if completed_at:
+                session.completed_at = completed_at
+            if total_score is not None:
+                session.total_score = Decimal(str(total_score))
+            
+            await self.db.flush()
+            await self.db.refresh(session)
+            
+            return self._session_to_dict(session)
             
         except HTTPException:
             raise
@@ -163,19 +155,16 @@ class InterviewSessionService:
     
     async def delete_session(self, session_id: int) -> bool:
         """
-        Delete session (hard delete for rollback)
+        Delete session (hard delete for rollback).
         
         Args:
             session_id: Session ID to delete
         
         Returns:
             bool: True if successful
-        
-        Raises:
-            HTTPException: If deletion fails
         """
         try:
-            response = await self.supabase.table('sessions').delete().eq('id', session_id).execute()
+            await self.repo.delete_by_id(session_id)
             return True
             
         except Exception as e:
@@ -186,7 +175,7 @@ class InterviewSessionService:
     
     async def get_session(self, session_id: int) -> Optional[dict]:
         """
-        Get session by ID with explicit column selection
+        Get session by ID.
         
         Args:
             session_id: Session ID
@@ -195,8 +184,8 @@ class InterviewSessionService:
             dict or None: Session record if found
         """
         try:
-            response = await self.supabase.table('sessions').select(SESSION_COLUMNS).eq('id', session_id).execute()
-            return response.data[0] if response.data else None
+            session = await self.repo.get_by_id(session_id)
+            return self._session_to_dict(session) if session else None
         except Exception as e:
             raise HTTPException(
                 status_code=500,
@@ -206,7 +195,6 @@ class InterviewSessionService:
     async def get_session_with_details(self, session_id: int) -> Optional[dict]:
         """
         Get session by ID with student and related info (single query).
-        Uses relational select to avoid N+1 queries.
         
         Args:
             session_id: Session ID
@@ -215,10 +203,24 @@ class InterviewSessionService:
             dict or None: Session with nested student details
         """
         try:
-            response = await self.supabase.table('sessions').select(
-                SESSION_COLUMNS_WITH_DETAILS
-            ).eq('id', session_id).execute()
-            return response.data[0] if response.data else None
+            stmt = (
+                select(Session)
+                .options(
+                    joinedload(Session.student).options(
+                        joinedload(Student.user),
+                        joinedload(Student.school),
+                        joinedload(Student.major),
+                    )
+                )
+                .where(Session.id == session_id)
+            )
+            result = await self.db.execute(stmt)
+            session = result.unique().scalar_one_or_none()
+            
+            if not session:
+                return None
+            
+            return self._session_to_dict_with_details(session)
         except Exception as e:
             raise HTTPException(
                 status_code=500,
@@ -228,7 +230,6 @@ class InterviewSessionService:
     async def get_session_with_feedbacks(self, session_id: int) -> Optional[dict]:
         """
         Get session with all feedbacks, summary, and next steps in single query.
-        Uses relational select to avoid N+1 queries.
         
         Args:
             session_id: Session ID
@@ -237,10 +238,12 @@ class InterviewSessionService:
             dict or None: Session with nested feedback data
         """
         try:
-            response = await self.supabase.table('sessions').select(
-                SESSION_WITH_FEEDBACKS
-            ).eq('id', session_id).execute()
-            return response.data[0] if response.data else None
+            session = await self.repo.get_with_feedbacks(session_id)
+            
+            if not session:
+                return None
+            
+            return self._session_to_dict_with_feedbacks(session)
         except Exception as e:
             raise HTTPException(
                 status_code=500,
@@ -271,17 +274,17 @@ class InterviewSessionService:
         try:
             normalized_type = self._normalize_interview_type(interview_type)
 
-            def build_query():
-                base_query = self.supabase.table('sessions').select(
-                    SESSION_COLUMNS, count='exact'
-                ).eq('student_id', student_id)
-                if status_filter:
-                    base_query = base_query.eq('status', status_filter)
-                if normalized_type:
-                    base_query = base_query.eq('type', normalized_type)
-                return base_query.order('created_at', desc=True)
-
-            return await paginate_query(build_query, skip, limit)
+            sessions, total = await self.repo.get_by_student_paginated(
+                student_id=student_id,
+                skip=skip,
+                limit=limit,
+                status=status_filter,
+                session_type=normalized_type,
+            )
+            
+            return [self._session_to_dict(s) for s in sessions], total
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=500,
@@ -310,17 +313,44 @@ class InterviewSessionService:
             Tuple of (list of sessions, total count)
         """
         try:
-            columns = SESSION_COLUMNS_WITH_DETAILS if with_student else SESSION_COLUMNS
-
-            def build_query():
-                base_query = self.supabase.table('sessions').select(columns, count='exact')
-                if student_id is not None:
-                    base_query = base_query.eq('student_id', student_id)
-                if status_filter:
-                    base_query = base_query.eq('status', status_filter)
-                return base_query.order('created_at', desc=True)
-
-            return await paginate_query(build_query, skip, limit)
+            # Build query
+            if with_student:
+                query = (
+                    select(Session)
+                    .options(
+                        joinedload(Session.student).options(
+                            joinedload(Student.user),
+                            joinedload(Student.school),
+                            joinedload(Student.major),
+                        )
+                    )
+                )
+            else:
+                query = select(Session)
+            
+            conditions = []
+            if student_id is not None:
+                conditions.append(Session.student_id == student_id)
+            if status_filter:
+                conditions.append(Session.status == status_filter)
+            
+            if conditions:
+                query = query.where(and_(*conditions))
+            
+            query = query.order_by(Session.created_at.desc())
+            
+            # Count
+            count_stmt = select(func.count()).select_from(query.subquery())
+            total = (await self.db.execute(count_stmt)).scalar() or 0
+            
+            # Paginate
+            paginated = query.offset(skip).limit(limit)
+            result = await self.db.execute(paginated)
+            sessions = result.unique().scalars().all()
+            
+            if with_student:
+                return [self._session_to_dict_with_details(s) for s in sessions], total
+            return [self._session_to_dict(s) for s in sessions], total
         except Exception as e:
             raise HTTPException(
                 status_code=500,
@@ -351,20 +381,44 @@ class InterviewSessionService:
         try:
             normalized_type = self._normalize_interview_type(interview_type)
 
-            def build_query():
-                base_query = self.supabase.table('sessions').select(
-                    SESSION_COLUMNS_WITH_STUDENT_INFO,
-                    count='exact'
+            query = (
+                select(Session)
+                .join(Student, Session.student_id == Student.id)
+                .options(
+                    joinedload(Session.student).options(
+                        joinedload(Student.user),
+                        joinedload(Student.school),
+                        joinedload(Student.major),
+                        joinedload(Student.current_class),
+                    )
                 )
-                if status_filter:
-                    base_query = base_query.eq('status', status_filter)
-                if school_id is not None:
-                    base_query = base_query.eq('students.school_id', school_id)
-                if normalized_type:
-                    base_query = base_query.eq('type', normalized_type)
-                return base_query.order('created_at', desc=True)
-
-            return await paginate_query(build_query, skip, limit)
+            )
+            
+            conditions = []
+            if status_filter:
+                conditions.append(Session.status == status_filter)
+            if school_id is not None:
+                conditions.append(Student.school_id == school_id)
+            if normalized_type:
+                conditions.append(Session.type == normalized_type)
+            
+            if conditions:
+                query = query.where(and_(*conditions))
+            
+            query = query.order_by(Session.created_at.desc())
+            
+            # Count
+            count_stmt = select(func.count()).select_from(query.subquery())
+            total = (await self.db.execute(count_stmt)).scalar() or 0
+            
+            # Paginate
+            paginated = query.offset(skip).limit(limit)
+            result = await self.db.execute(paginated)
+            sessions = result.unique().scalars().all()
+            
+            return [self._session_to_dict_with_student_info(s) for s in sessions], total
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=500,
@@ -393,60 +447,61 @@ class InterviewSessionService:
         try:
             normalized_type = self._normalize_interview_type(interview_type)
             
-            # Build base query
-            base_query = self.supabase.table('sessions').select(
-                SESSION_COLUMNS_WITH_STUDENT_INFO,
-                count='exact'
-            ).neq('status', 'failed').order('created_at', desc=True)
+            # Build query with joins
+            query = (
+                select(Session)
+                .join(Student, Session.student_id == Student.id)
+                .options(
+                    joinedload(Session.student).options(
+                        joinedload(Student.user),
+                        joinedload(Student.school),
+                        joinedload(Student.major),
+                        joinedload(Student.current_class),
+                    )
+                )
+                .where(Session.status != 'failed')
+            )
             
-            # Apply school filter if provided
             if school_id is not None:
-                base_query = base_query.eq('students.school_id', school_id)
-            
-            # Apply interview type filter if provided
+                query = query.where(Student.school_id == school_id)
             if normalized_type:
-                base_query = base_query.eq('type', normalized_type)
+                query = query.where(Session.type == normalized_type)
             
-            # Fetch all sessions (we'll filter to latest per student in Python)
-            response = await base_query.execute()
+            query = query.order_by(Session.created_at.desc())
             
-            if not response.data:
-                return [], 0
+            # Execute and get all matching sessions
+            result = await self.db.execute(query)
+            all_sessions = result.unique().scalars().all()
             
-            # Group by student_id and keep only the latest session for each
-            student_latest_sessions: Dict[int, dict] = {}
-            for session in response.data:
-                student_data = session.get('students')
-                if not student_data:
-                    continue
-                    
-                student_id = student_data.get('id')
-                if student_id is None:
-                    continue
-                
-                # Keep the first occurrence (already sorted by created_at desc)
-                if student_id not in student_latest_sessions:
-                    student_latest_sessions[student_id] = session
+            # Group by student_id and keep only the latest
+            student_latest_sessions: Dict[int, Session] = {}
+            for session in all_sessions:
+                if session.student_id not in student_latest_sessions:
+                    student_latest_sessions[session.student_id] = session
             
-            # Convert to list and sort by created_at descending
-            all_latest_sessions = sorted(
+            # Convert to list and sort
+            all_latest = sorted(
                 student_latest_sessions.values(),
-                key=lambda s: s.get('created_at', ''),
+                key=lambda s: s.created_at or datetime.min,
                 reverse=True
             )
             
-            total_count = len(all_latest_sessions)
+            total_count = len(all_latest)
+            paginated_sessions = all_latest[skip:skip + limit]
             
-            # Apply pagination
-            paginated_sessions = all_latest_sessions[skip:skip + limit]
+            return [self._session_to_dict_with_student_info(s) for s in paginated_sessions], total_count
             
-            return paginated_sessions, total_count
-            
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=500,
                 detail=f"Failed to fetch latest sessions per student: {str(e)}"
             )
+
+    # =========================================================================
+    # Static utility methods
+    # =========================================================================
 
     @staticmethod
     def build_history_payloads(sessions: List[dict]) -> List[dict]:
@@ -481,7 +536,12 @@ class InterviewSessionService:
 
     @staticmethod
     def shape_session_with_student_info(session: dict, include_school: bool = False) -> dict:
-        """Map raw session record to admin/teacher response shape."""
+        """
+        Map raw session record to admin/teacher response shape.
+        
+        Note: This method is kept for backward compatibility with dict-based data.
+        For SQLAlchemy models, use _session_to_dict_with_student_info instead.
+        """
         student = session.get("students") if isinstance(session, dict) else None
         if isinstance(student, list):
             student = student[0] if student else None
@@ -527,7 +587,6 @@ class InterviewSessionService:
             return 0.0
         return round(sum(scores) / num_total_graded_items, 1)
 
-
     @staticmethod
     def calculate_session_dimension_averages(feedbacks: List[Dict[str, Any]]) -> CalculatedAverages:
         """
@@ -536,12 +595,6 @@ class InterviewSessionService:
         CR/ST are averaged over ALL answered questions.
         FL/CP are averaged over ODD answered questions.
         A question is answered if 'answer_text' is not empty.
-        
-        Args:
-            feedbacks: List of detailed feedback dictionaries from the database.
-            
-        Returns:
-            CalculatedAverages: A named tuple containing the four averaged scores.
         """
         cr_scores: List[float] = []
         st_scores: List[float] = []
@@ -554,31 +607,124 @@ class InterviewSessionService:
             q_order = fb.get("question_order", 0)
             answer_text = fb.get("answer_text")
 
-            # Check if the question was answered (non-empty answer_text)
             is_answered = bool(answer_text and str(answer_text).strip())
 
             if is_answered:
                 answered_questions_count += 1
                 
-                # CR and ST metrics are included for all answered questions
-                # Defaulting to 0.0 if score is missing/None
                 cr_scores.append(fb.get("content_relevance_score") or 0.0)
                 st_scores.append(fb.get("structure_score") or 0.0)
                 
-                # Check for odd question for FL and CP
                 if q_order % 2 != 0:
                     answered_odd_questions_count += 1
                     fl_scores_odd.append(fb.get("fluency_score") or 0.0)
                     cp_scores_odd.append(fb.get("confidence_score") or 0.0)
 
-        # --- Calculate Averages ---
-        
-        # CR and ST Averages (Denominator: answered_questions_count)
         avg_cr = InterviewSessionService._safe_average(cr_scores, answered_questions_count)
         avg_st = InterviewSessionService._safe_average(st_scores, answered_questions_count)
-        
-        # FL and CP Averages (Denominator: answered_odd_questions_count)
         avg_fl = InterviewSessionService._safe_average(fl_scores_odd, answered_odd_questions_count)
         avg_cp = InterviewSessionService._safe_average(cp_scores_odd, answered_odd_questions_count)
 
         return CalculatedAverages(avg_cr, avg_st, avg_fl, avg_cp)
+
+    # =========================================================================
+    # Helper methods for model-to-dict conversion
+    # =========================================================================
+
+    def _session_to_dict(self, session: Session) -> dict:
+        """Convert Session model to basic dict."""
+        return {
+            "id": session.id,
+            "student_id": session.student_id,
+            "status": session.status,
+            "type": session.type,
+            "total_score": float(session.total_score) if session.total_score else None,
+            "completed_at": session.completed_at.isoformat() if session.completed_at else None,
+            "created_at": session.created_at.isoformat() if session.created_at else None,
+        }
+
+    def _session_to_dict_with_details(self, session: Session) -> dict:
+        """Convert Session model to dict with student details."""
+        result = self._session_to_dict(session)
+        
+        if session.student:
+            student = session.student
+            result["students"] = {
+                "id": student.id,
+                "user_id": str(student.user_id),
+                "school_id": student.school_id,
+                "major_id": student.major_id,
+                "user_profiles": {
+                    "id": str(student.user.id),
+                    "full_name": student.user.full_name,
+                    "email": student.user.email,
+                } if student.user else None,
+                "schools": {
+                    "id": student.school.id,
+                    "school_name": student.school.school_name,
+                } if student.school else None,
+                "majors": {
+                    "id": student.major.id,
+                    "major_name": student.major.major_name,
+                } if student.major else None,
+            }
+        
+        return result
+
+    def _session_to_dict_with_feedbacks(self, session: Session) -> dict:
+        """Convert Session model to dict with all feedback data."""
+        result = self._session_to_dict(session)
+        
+        result["detailed_feedbacks"] = [
+            {
+                "id": fb.id,
+                "question_order": fb.question_order,
+                "question_text": fb.question_text,
+                "answer_text": fb.answer_text,
+                "evaluation_text": fb.evaluation_text,
+                "is_correct": fb.is_correct,
+                "content_relevance_score": float(fb.content_relevance_score) if fb.content_relevance_score else None,
+                "structure_score": float(fb.structure_score) if fb.structure_score else None,
+                "fluency_score": float(fb.fluency_score) if fb.fluency_score else None,
+                "confidence_score": float(fb.confidence_score) if fb.confidence_score else None,
+                "overall_score": float(fb.overall_score) if fb.overall_score else None,
+            }
+            for fb in (session.feedbacks or [])
+        ]
+        
+        result["summaries"] = {
+            "id": session.summary.id,
+            "strength_text": session.summary.strength_text,
+            "areas_for_growth_text": session.summary.areas_for_growth_text,
+        } if session.summary else None
+        
+        result["next_steps"] = [
+            {
+                "id": ns.id,
+                "next_step_order": ns.next_step_order,
+                "title": ns.title,
+                "description_text": ns.description_text,
+            }
+            for ns in (session.next_steps or [])
+        ]
+        
+        return result
+
+    def _session_to_dict_with_student_info(self, session: Session) -> dict:
+        """Convert Session model to admin/teacher view dict."""
+        student = session.student
+        
+        return {
+            "session_id": session.id,
+            "interview_type": session.type,
+            "student_name": student.user.full_name if student and student.user else None,
+            "student_identifier": student.student_id if student else None,
+            "school_name": student.school.school_name if student and student.school else None,
+            "major_name": student.major.major_name if student and student.major else None,
+            "class_name": student.current_class.class_name if student and student.current_class else None,
+            "grade_level": student.current_class.grade_level if student and student.current_class else None,
+            "total_score": float(session.total_score) if session.total_score else None,
+            "status": session.status,
+            "completed_at": session.completed_at.isoformat() if session.completed_at else None,
+            "created_at": session.created_at.isoformat() if session.created_at else None,
+        }
