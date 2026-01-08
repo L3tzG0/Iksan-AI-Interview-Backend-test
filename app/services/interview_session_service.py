@@ -65,13 +65,13 @@ class InterviewSessionService:
             )
         return normalized
     
-    async def create_session(self, student_id: int, status_str: str = "in_progress", session_type: str = "job") -> dict:
+    async def create_session(self, student_id: int, status: str = "in_progress", session_type: str = "job") -> dict:
         """
         Create new interview session.
         
         Args:
             student_id: ID of the student
-            status_str: Initial status (default: "in_progress")
+            status: Initial status (default: "in_progress")
             session_type: Session type (job or university)
         
         Returns:
@@ -87,7 +87,7 @@ class InterviewSessionService:
 
             session = Session(
                 student_id=student_id,
-                status=status_str,
+                status=status,
                 type=session_type
             )
             
@@ -108,7 +108,7 @@ class InterviewSessionService:
     async def update_session_status(
         self, 
         session_id: int, 
-        status_str: str,
+        status: str,
         completed_at: Optional[datetime] = None,
         total_score: Optional[float] = None
     ) -> dict:
@@ -117,7 +117,7 @@ class InterviewSessionService:
         
         Args:
             session_id: Session ID
-            status_str: New status value
+            status: New status value
             completed_at: Completion timestamp (optional)
             total_score: Total score (optional)
         
@@ -133,7 +133,7 @@ class InterviewSessionService:
                     detail=f"Session with id {session_id} not found"
                 )
             
-            session.status = status_str
+            session.status = status
             
             if completed_at:
                 session.completed_at = completed_at

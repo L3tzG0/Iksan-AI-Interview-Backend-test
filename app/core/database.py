@@ -69,8 +69,24 @@ def get_engine() -> AsyncEngine:
             "Format: postgresql+asyncpg://user:password@host:port/database"
         )
     
+    # Ensure the URL uses the async driver (asyncpg)
+    database_url = settings.DATABASE_URL
+    if database_url.startswith("postgresql://"):
+        # Convert to async driver format
+        database_url = database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        import logging
+        logging.warning(
+            "DATABASE_URL was using 'postgresql://' instead of 'postgresql+asyncpg://'. "
+            "Auto-corrected to use async driver. Please update your .env file."
+        )
+    elif not database_url.startswith("postgresql+asyncpg://"):
+        raise ValueError(
+            f"DATABASE_URL must use postgresql+asyncpg:// for async operations. "
+            f"Got: {database_url[:30]}..."
+        )
+    
     _engine = create_async_engine(
-        settings.DATABASE_URL,
+        database_url,
         pool_size=settings.DATABASE_POOL_SIZE,
         max_overflow=settings.DATABASE_MAX_OVERFLOW,
         pool_timeout=settings.DATABASE_POOL_TIMEOUT,

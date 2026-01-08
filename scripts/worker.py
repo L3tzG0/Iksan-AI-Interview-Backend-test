@@ -25,6 +25,9 @@ from app.core.database import get_db_context
 # --- Initialization ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - WORKER - %(message)s')
 
+# Diagnostic: Log the DATABASE_URL to verify correct loading
+logging.info(f"DATABASE_URL loaded: {settings.DATABASE_URL[:50]}...")  # Show first 50 chars for security
+
 # Global variable to track the next moment a job is allowed to START processing.
 # This is the core of the rate limiting enforcement.
 next_allowed_start_time = time.time()
