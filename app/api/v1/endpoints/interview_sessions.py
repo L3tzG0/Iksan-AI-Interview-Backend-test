@@ -19,11 +19,15 @@ from app.core.security import get_current_user
 from app.core.rate_limit import limiter
 from app.api.dependencies import require_role, RoleContext
 from app.services.storage_service import StorageService
+from app.core.database import get_db_context, get_engine
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 # Redis import
 import redis 
 from app.core.redis_client import get_redis_connection
 from app.services.queue_service import QueueService 
+
+from app.services.queue_service_pg import QueueServicePG
 
 # New service imports (replacing LLMService)
 from app.services.question_generator import generate_interview_questions
@@ -191,7 +195,7 @@ async def get_sessions_with_students(
 @limiter.limit(settings.RATE_LIMIT_LLM)
 async def submit_session_answers(
     request: Request,
-    redis_conn: Annotated[redis.Redis, Depends(get_redis_connection)],
+    engine: Annotated[AsyncEngine, Depends(get_engine)],
     submit_request: SessionSubmitRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user = Depends(get_current_user)
@@ -205,7 +209,7 @@ async def submit_session_answers(
     """
     session_service = InterviewSessionService(db)
     user_service = UserProfileService(db)
-    queue_service = QueueService(redis_conn)
+    queue_service = QueueServicePG(engine)
     
     session_id = submit_request.session_id
     
@@ -262,13 +266,13 @@ async def submit_session_answers(
             "timestamp": datetime.now().isoformat()
         }
         
-        queue_length = queue_service.enqueue_job(job_payload)
+        await queue_service.enqueue_job(job_payload)
 
         # 4. Return 202 Accepted response
         response_payload = SessionQueueResponse(
             success=True,
             session_id=int(session_id), # Cast to int for the response model
-            message=f"Session evaluation job accepted and queued. There are {queue_length - 1} pending jobs ahead of yours. Check session status for completion."
+            message=f"Session evaluation job accepted and queued. Check session status for completion."
         )
         
         return JSONResponse(
@@ -554,7 +558,7 @@ async def get_session_detail(
 @limiter.limit(settings.RATE_LIMIT_LLM)
 async def initiate_interview_session(
     request: Request,
-    redis_conn: Annotated[redis.Redis, Depends(get_redis_connection)],
+    engine: Annotated[AsyncEngine, Depends(get_engine)],
     file: Optional[UploadFile] = File(None, description="Document file (PDF, DOCX, & TXT)"),
     raw_text: Optional[str] = Form(None, description="Raw text content"),
     field: str = Form(..., description="Target industry/field for the interview."),
@@ -574,7 +578,7 @@ async def initiate_interview_session(
     extraction_service = TextExtractionService()
     user_service = UserProfileService(db)
     student_service = StudentService(db)
-    queue_service = QueueService(redis_conn)
+    queue_service = QueueServicePG(engine)
     
     session_id: int | None = None
     current_quota: int | None = None
@@ -678,14 +682,14 @@ async def initiate_interview_session(
             "timestamp": datetime.now().isoformat()
         }
         
-        queue_length = queue_service.enqueue_job(job_payload)
+        await queue_service.enqueue_job(job_payload)
         
         # Step 6: Consume quota and build 202 response
         await student_service.consume_session_quota(student_id, current_quota)
 
         response = SessionInitiateResponse(
             success=True,
-            message=f"Request accepted and queued. Session ID: {session_id}. There are {queue_length - 1} pending jobs ahead of you.",
+            message=f"Request accepted and queued. Session ID: {session_id}.",
             session_id=session_id,
             questions=[] # Always empty in async mode
         )
@@ -712,7 +716,7 @@ async def initiate_interview_session(
 @limiter.limit(settings.RATE_LIMIT_LLM)
 async def initiate_university_prep_session(
     request: Request,
-    redis_conn: Annotated[redis.Redis, Depends(get_redis_connection)],
+    engine: Annotated[AsyncEngine, Depends(get_engine)],
     db: Annotated[AsyncSession, Depends(get_db)],
     file: Optional[UploadFile] = File(None, description="Student Record/Transcript file (PDF, DOCX, TXT, MD)"),
     raw_text: Optional[str] = Form(None, description="Raw student record text content"),
@@ -732,7 +736,7 @@ async def initiate_university_prep_session(
     extraction_service = TextExtractionService()
     user_service = UserProfileService(db)
     student_service = StudentService(db)
-    queue_service = QueueService(redis_conn)
+    queue_service = QueueServicePG(engine)
     
     session_id: int | None = None
     current_quota: int | None = None
@@ -847,7 +851,7 @@ async def initiate_university_prep_session(
             "timestamp": datetime.now().isoformat()
         }
         
-        queue_length = queue_service.enqueue_job(job_payload)
+        await queue_service.enqueue_job(job_payload)
         
         # Step 6: Consume quota and build 202 response
         await student_service.consume_session_quota(student_id, current_quota)
@@ -855,7 +859,7 @@ async def initiate_university_prep_session(
         response = SessionInitiateResponse(
             success=True,
             # Message confirms the request is queued and gives queue length
-            message=f"University Prep request accepted and queued. Session ID: {session_id}. There are {queue_length - 1} pending jobs ahead of you.",
+            message=f"University Prep request accepted and queued. Session ID: {session_id}.",
             session_id=session_id,
             questions=[] # Always empty in async mode
         )
