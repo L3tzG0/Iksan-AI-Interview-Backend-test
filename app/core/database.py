@@ -7,9 +7,6 @@ This module provides:
 - get_db() dependency for FastAPI injection
 - Base declarative class for ORM models
 
-The module supports both the new SQLAlchemy approach and maintains
-backward compatibility with the Supabase client during the migration phase.
-
 Usage:
     @router.get("/example")
     async def example_endpoint(
@@ -21,7 +18,6 @@ Usage:
 from typing import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from fastapi import Request
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     AsyncEngine,
@@ -190,25 +186,3 @@ async def close_db() -> None:
         await _engine.dispose()
         _engine = None
         _async_session_factory = None
-
-
-# =============================================================================
-# DEPRECATED: Supabase client support (removed after migration)
-# All database operations now use SQLAlchemy get_db() dependency
-# =============================================================================
-
-def get_supabase(request: Request):
-    """
-    DEPRECATED: Supabase client is no longer supported.
-    
-    This function is kept only to provide a clear error message if any
-    legacy code still tries to use it. All database operations should
-    use get_db() instead.
-    
-    Raises:
-        NotImplementedError: Always, as Supabase is no longer supported
-    """
-    raise NotImplementedError(
-        "Supabase client is no longer supported. "
-        "Use get_db() dependency with SQLAlchemy AsyncSession instead."
-    )

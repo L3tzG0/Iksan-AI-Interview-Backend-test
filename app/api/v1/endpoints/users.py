@@ -1,7 +1,7 @@
 """
 Users API endpoints.
 
-Updated to use SQLAlchemy AsyncSession instead of Supabase.
+Uses SQLAlchemy AsyncSession for database operations.
 """
 from typing import Annotated, Optional
 

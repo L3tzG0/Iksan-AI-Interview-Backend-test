@@ -4,9 +4,6 @@ FastAPI dependencies for the API using SQLAlchemy and custom auth.
 All dependency functions that interact with the database are async because
 SQLAlchemy async sessions use async database calls. This ensures proper
 connection handling under concurrent load.
-
-Migration Note: This module has been updated from Supabase AsyncClient
-to SQLAlchemy AsyncSession as part of the backend-agnostic refactor.
 """
 from dataclasses import dataclass
 from typing import Annotated, Union, List, Optional

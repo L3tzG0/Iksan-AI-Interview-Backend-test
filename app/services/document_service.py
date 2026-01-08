@@ -1,8 +1,8 @@
 """
 Document Service for document database operations.
 
-Refactored from Supabase AsyncClient to SQLAlchemy AsyncSession.
-Handles document records associated with interview sessions.
+Handles document records associated with interview sessions
+using SQLAlchemy AsyncSession.
 """
 from typing import Optional, Any
 

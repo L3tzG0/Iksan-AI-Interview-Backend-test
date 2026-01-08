@@ -1,8 +1,8 @@
 """
 Email Domain Management Service
 
-Handles CRUD operations for allowed email domains.
-Refactored from Supabase AsyncClient to SQLAlchemy AsyncSession.
+Handles CRUD operations for allowed email domains
+using SQLAlchemy AsyncSession.
 """
 
 import logging

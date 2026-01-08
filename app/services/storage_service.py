@@ -1,17 +1,15 @@
 import re
 from pathlib import Path
 from fastapi import HTTPException, UploadFile
-from supabase import AsyncClient
 from app.core.config import settings
 
 
 class StorageService:
     """
-    Service for handling Supabase storage operations
+    Service for handling file validation and storage operations.
     
-    DEPRECATED: Storage functionality is currently not in use.
-    This service is preserved for future implementation when file storage is needed.
-    Currently only used for file validation (validate_file method).
+    Currently only used for file validation (validate_file, verify_file_signature).
+    Storage functionality can be implemented when needed with any backend.
     """
     
     # File signatures (magic numbers) for allowed file types
@@ -21,8 +19,9 @@ class StorageService:
         'text/plain': [],  # Text files don't have specific signatures
     }
     
-    def __init__(self, supabase: AsyncClient):
-        self.supabase = supabase
+    def __init__(self, db=None):
+        """Initialize StorageService. The db parameter is kept for API compatibility but not used."""
+        pass
     
     @staticmethod
     def sanitize_filename(filename: str) -> str:

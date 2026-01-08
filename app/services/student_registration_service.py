@@ -1,13 +1,13 @@
 """
-Student Registration Service - SQLAlchemy Version
+Student Registration Service
 
 Handles student account creation with:
 - Auto-generated student IDs (school_number + major_number + student_number)
 - Secure password generation
-- Custom JWT-based authentication (no Supabase Auth dependency)
+- Custom JWT-based authentication
 - Class resolution/creation
 
-Updated to use SQLAlchemy AsyncSession instead of Supabase client.
+Uses SQLAlchemy AsyncSession for database operations.
 """
 
 import hashlib
@@ -328,8 +328,8 @@ class StudentRegistrationService:
         """
         Create a user profile for the student.
         
-        With custom auth, we directly create the user_profile record
-        with the hashed password. No Supabase Auth dependency.
+        Creates the user_profile record directly with the hashed password
+        using custom JWT-based authentication.
         
         Returns the user UUID.
         """
@@ -583,7 +583,7 @@ class StudentRegistrationService:
     ) -> Dict[str, Any]:
         """
         Authenticate a student using their student ID and password.
-        Uses custom JWT authentication instead of Supabase Auth.
+        Uses custom JWT authentication.
         
         Returns:
             Dict with user, session, access_token, refresh_token
@@ -690,7 +690,7 @@ class StudentRegistrationService:
                     detail=f"Student record not found for ID {student_id}."
                 )
             
-            # Format the response to match the old Supabase structure
+            # Format the response to match expected API structure
             result = {
                 "id": student_with_relations.id,
                 "user_id": str(student_with_relations.user_id),

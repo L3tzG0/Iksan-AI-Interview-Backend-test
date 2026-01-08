@@ -2,7 +2,7 @@
 Pagination utilities for SQLAlchemy queries.
 
 This module provides helper functions for implementing pagination
-in database queries. Updated from Supabase PostgREST to SQLAlchemy.
+in database queries.
 """
 from typing import Tuple, List, Any, Sequence, TypeVar
 
@@ -77,40 +77,3 @@ async def paginate_query_unique(
     items = result.unique().scalars().all()
     
     return items, total
-
-
-# =============================================================================
-# Legacy Supabase pagination helpers (deprecated - for backward compatibility)
-# =============================================================================
-
-# Type alias for legacy query factory pattern
-QueryFactory = Any
-
-
-async def paginate_supabase_query(
-    query_factory: QueryFactory,
-    skip: int,
-    limit: int,
-) -> Tuple[List[dict], int]:
-    """
-    [DEPRECATED] Execute a paginated Supabase query with consistent 416 handling.
-    
-    This function is maintained for backward compatibility during migration.
-    New code should use paginate_query() with SQLAlchemy sessions.
-    
-    `query_factory` must return a new query builder each time so we avoid
-    in-place mutation side effects from offset/limit calls.
-    """
-    from postgrest.exceptions import APIError
-    
-    paginated_query = query_factory().offset(skip).limit(limit)
-    try:
-        response = await paginated_query.execute()
-        total = response.count if response.count is not None else 0
-        return response.data or [], total
-    except APIError as exc:
-        if exc.code in ("416", 416):
-            count_response = await query_factory().limit(0).execute()
-            total = count_response.count if count_response.count is not None else 0
-            return [], total
-        raise

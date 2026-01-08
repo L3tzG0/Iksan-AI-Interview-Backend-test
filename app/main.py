@@ -1,9 +1,7 @@
 """
 FastAPI Application Main Entry Point.
 
-Refactored to use SQLAlchemy for database operations.
-Supabase client has been removed - all database operations
-now go through SQLAlchemy AsyncSession.
+Uses SQLAlchemy for all database operations.
 """
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
@@ -56,10 +54,6 @@ async def lifespan(app: FastAPI):
     # STT related shutdown
     await http_client.aclose()
     executor.shutdown(wait=True)
-
-    # Shutdown: Cleanup async Supabase client resources (legacy)
-    if app.state.supabase:
-        await app.state.supabase.postgrest.aclose()
 
 
 app = FastAPI(

@@ -2,7 +2,6 @@
 Password Hashing Utilities
 
 Provides secure password hashing and verification using bcrypt.
-This replaces Supabase Auth's password management with our own implementation.
 """
 
 import bcrypt

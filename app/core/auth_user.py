@@ -2,7 +2,6 @@
 Authenticated User Model
 
 Provides a normalized user model for authentication that is provider-agnostic.
-This replaces the Supabase User object with our own internal representation.
 """
 
 from dataclasses import dataclass, field

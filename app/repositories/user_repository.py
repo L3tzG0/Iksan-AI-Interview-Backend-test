@@ -64,8 +64,7 @@ class UserRepository(BaseRepository[UserProfile]):
         """
         Get user profile with all relationships eagerly loaded.
         
-        This replaces the USER_FULL_CONTEXT_QUERY from the Supabase
-        implementation, loading role, student (with school, major, class),
+        Loads role, student (with school, major, class),
         and teacher relationships.
         
         Args:

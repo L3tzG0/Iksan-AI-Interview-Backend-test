@@ -1,8 +1,7 @@
 """
 Interview Session Service for session lifecycle management.
 
-Refactored from Supabase AsyncClient to SQLAlchemy AsyncSession.
-Uses SessionRepository for database operations.
+Uses SessionRepository for database operations with SQLAlchemy AsyncSession.
 """
 from datetime import datetime
 from decimal import Decimal

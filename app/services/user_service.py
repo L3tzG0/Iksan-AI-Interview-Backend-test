@@ -1,8 +1,7 @@
 """
 User Profile Service for user management operations.
 
-Refactored from Supabase AsyncClient to SQLAlchemy AsyncSession.
-Uses UserRepository for database operations.
+Uses UserRepository for database operations with SQLAlchemy AsyncSession.
 """
 from typing import Optional, Tuple, List, Any
 from uuid import UUID
@@ -189,7 +188,7 @@ class UserProfileService:
                 except (ValueError, TypeError):
                     role_id = None
         
-        # Fallback to user_metadata (legacy Supabase user)
+        # Fallback to user_metadata (legacy token format)
         if role_id is None:
             meta_role_id = getattr(user, "user_metadata", {}).get("role_id") if hasattr(user, "user_metadata") else None
             if meta_role_id is not None:

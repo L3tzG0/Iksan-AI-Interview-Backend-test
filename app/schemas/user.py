@@ -13,8 +13,7 @@ class UserProfileBase(BaseModel):
 class UserProfileCreate(UserProfileBase):
     """
     Schema for creating user profile.
-    Note: Password is NOT included here as it's handled by Supabase Auth.
-    The profile is auto-created via database trigger.
+    Note: Password handling is done separately via the AuthService.
     """
     pass
 

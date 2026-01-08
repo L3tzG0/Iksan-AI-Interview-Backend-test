@@ -1,8 +1,7 @@
 """
 Class Service for class/grade management operations.
 
-Refactored from Supabase AsyncClient to SQLAlchemy AsyncSession.
-Uses ClassRepository for database operations.
+Uses ClassRepository for database operations with SQLAlchemy AsyncSession.
 """
 from typing import Optional, Tuple, List, Any
 

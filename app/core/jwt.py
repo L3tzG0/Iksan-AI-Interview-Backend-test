@@ -1,8 +1,8 @@
 """
 Custom JWT Token Management
 
-This module provides JWT signing and verification for our custom authentication
-system, replacing Supabase Auth tokens with self-managed JWTs.
+This module provides JWT signing and verification for the custom authentication
+system with self-managed JWTs.
 
 Features:
 - JWT creation with configurable expiry

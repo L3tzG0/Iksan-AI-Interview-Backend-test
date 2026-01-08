@@ -2,12 +2,11 @@
 UserProfile model for user identity and authentication.
 
 UserProfile stores user identity information and authentication credentials.
-After migration 011, this table is self-contained and no longer references
-Supabase's auth.users table.
+This table is self-contained and stores hashed passwords for custom JWT auth.
 
 Schema Reference:
 - migrations/001_initial_schema.sql lines 36-43
-- migrations/011_custom_auth_migration.sql (adds hashed_password, removes auth.users FK)
+- migrations/011_custom_auth_migration.sql (adds hashed_password)
 """
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional

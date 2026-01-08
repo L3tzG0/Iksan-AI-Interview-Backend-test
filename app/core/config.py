@@ -13,13 +13,6 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"  # development, staging, production
     DEBUG: bool = Field(default=False)
     
-    # Supabase (DEPRECATED - kept during migration phase)
-    # Will be removed once SQLAlchemy migration is complete
-    SUPABASE_URL: str = ""
-    SUPABASE_KEY: str = ""
-    # DEPRECATED: Storage bucket not currently in use - kept for future implementation
-    SUPABASE_STORAGE_BUCKET: str = ""
-    
     # PostgreSQL Direct Connection (SQLAlchemy)
     # Format: postgresql+asyncpg://user:password@host:port/database
     DATABASE_URL: str = Field(default="")

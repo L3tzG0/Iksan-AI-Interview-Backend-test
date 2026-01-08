@@ -1,7 +1,7 @@
 """
 API endpoints for managing allowed email domains.
 
-Updated to use SQLAlchemy AsyncSession instead of Supabase.
+Uses SQLAlchemy AsyncSession for database operations.
 """
 from typing import Annotated, List, Optional
 

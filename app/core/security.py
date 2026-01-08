@@ -4,8 +4,6 @@ Security utilities for custom JWT-based authentication.
 This module provides FastAPI integration helpers for our custom auth system
 that uses locally-managed JWTs and the user_profiles table for user data.
 
-Refactored from Supabase to SQLAlchemy for database operations.
-
 All functions are async to maintain consistency with the rest of the application
 and to support async database queries when enriching user data.
 """

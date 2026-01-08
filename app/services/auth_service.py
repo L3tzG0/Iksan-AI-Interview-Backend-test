@@ -1,10 +1,10 @@
 """
-Authentication Service - SQLAlchemy Version
+Authentication Service
 
 Handles user registration, login, and session management using custom JWT-based
 authentication with passwords stored in the user_profiles table.
 
-Updated to use SQLAlchemy AsyncSession instead of Supabase client.
+Uses SQLAlchemy AsyncSession for database operations.
 """
 import uuid
 from typing import Optional, Dict, Any

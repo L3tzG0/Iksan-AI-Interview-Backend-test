@@ -1,8 +1,7 @@
 """
 Feedback Service for feedback database operations.
 
-Refactored from Supabase AsyncClient to SQLAlchemy AsyncSession.
-Uses FeedbackRepository for database operations.
+Uses FeedbackRepository for database operations with SQLAlchemy AsyncSession.
 """
 from typing import List, Dict, Any, Optional
 from decimal import Decimal

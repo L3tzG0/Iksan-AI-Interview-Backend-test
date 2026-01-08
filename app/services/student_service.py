@@ -1,8 +1,7 @@
 """
 Student Service for student-related database operations.
 
-Refactored from Supabase AsyncClient to SQLAlchemy AsyncSession.
-Uses StudentRepository for database operations.
+Uses StudentRepository for database operations with SQLAlchemy AsyncSession.
 """
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status
