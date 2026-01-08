@@ -82,8 +82,9 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, currentPath, onNavigate
 
   const accountId =
     user.role === 'student' ? user.studentId || user.id : user.email || user.id;
-  const schoolLabel = user.schoolName || '학교 정보 없음';
-
+  const schoolLabel = user.role === 'student' ? user.schoolName || '학교 정보 없음' : '';
+  const gradeLevel = user.role === 'student' ? `${user.grade} 학년` || '학급 정보 없음' : '';
+  const majorName = user.role === 'student' ? user.major || '학급 정보 없음' : '';
   const isNavActive = (item: NavItem) => {
     if (item.matchCurrentPath) {
       return item.matchCurrentPath(currentPath);
@@ -212,6 +213,8 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout, currentPath, onNavigate
                   <div className="py-1 divide-y divide-slate-100">
                     <div className="bg-primary-lightest/60 px-5 py-4">
                       <p className="font-bold text-slate-900 text-sm">{user.name}</p>
+                      <p className="mt-0.5 text-slate-600 text-xs">{gradeLevel}</p>
+                      <p className="mt-0.5 text-slate-600 text-xs">{majorName}</p>
                       <p className="mt-0.5 text-slate-600 text-xs">{schoolLabel}</p>
                       {/* <p className="mt-1 text-slate-400 text-xs truncate">계정 ID: {accountId}</p> */}
                     </div>
