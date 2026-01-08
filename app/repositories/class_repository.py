@@ -68,17 +68,22 @@ class ClassRepository(BaseRepository[Class]):
             Tuple of (class_id, class_name, grade_level)
         """
         # Call the PostgreSQL function via raw SQL
+        # The function returns just the class_id as BIGINT
         result = await self.session.execute(
             text("""
-                SELECT * FROM public.resolve_or_create_class(
+                SELECT public.resolve_or_create_class(
                     :p_class_name, :p_grade_level
                 )
             """),
             {"p_class_name": class_name, "p_grade_level": grade_level}
         )
-        row = result.fetchone()
-        if row:
-            return row.class_id, row.class_name, row.grade_level
+        class_id = result.scalar_one_or_none()
+        
+        if class_id:
+            # Fetch the full class record to return all details
+            class_obj = await self.get_by_id(class_id)
+            if class_obj:
+                return class_obj.id, class_obj.class_name, class_obj.grade_level
         
         # Fallback: manual creation if function doesn't exist
         existing = await self.get_by_name_and_grade(class_name, grade_level)

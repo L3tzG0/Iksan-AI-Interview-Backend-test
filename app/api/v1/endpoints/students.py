@@ -19,6 +19,8 @@ from app.schemas.student import (
 from app.services.student_registration_service import StudentRegistrationService
 from app.repositories.teacher_repository import TeacherRepository
 
+import logging
+
 router = APIRouter()
 
 
@@ -91,6 +93,7 @@ async def create_student_account(
     except HTTPException:
         raise
     except Exception as e:
+        logging.error(f"Error creating student account: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create student account: {str(e)}"
