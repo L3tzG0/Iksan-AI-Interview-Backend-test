@@ -14,7 +14,6 @@ from app.core.config import settings
 from app.core.rate_limit import limiter, rate_limit_exceeded_handler
 from app.core.database import init_db, close_db
 from app.api.v1.router import api_router
-from app.core.redis_client import initialize_redis_client, close_redis_client 
 from app.api.v1.endpoints.stt import http_client, executor
 
 @asynccontextmanager
@@ -23,7 +22,7 @@ async def lifespan(app: FastAPI):
     Lifespan context manager for FastAPI application.
     
     Handles startup and shutdown events:
-    - Startup: Initialize SQLAlchemy engine, Redis
+    - Startup: Initialize SQLAlchemy engine
     - Shutdown: Cleanup all resources
     
     This pattern ensures:
@@ -39,17 +38,10 @@ async def lifespan(app: FastAPI):
     # Initialize rate limiter state
     app.state.limiter = limiter
     
-    # Initialize Redis client (Opens the connection)
-    redis_client = initialize_redis_client()
-    app.state.redis_client = redis_client
-
     yield
     
     # Shutdown: Close SQLAlchemy engine (new)
     await close_db()
-    
-    # Shutdown: Close Redis client
-    close_redis_client()
     
     # STT related shutdown
     await http_client.aclose()
