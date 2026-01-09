@@ -627,9 +627,9 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
           currentPath={location.pathname}
           onNavigate={(path) => navigate(path)}
         />
-        <main className="relative mx-auto w-full flex-grow flex flex-col">
-          <div className="flex-grow flex items-center justify-center">
-            <div className="w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+        <main className="relative flex flex-col flex-grow mx-auto w-full">
+          <div className="flex flex-grow justify-center items-center pb-8">
+            <div className="px-4 sm:px-6 lg:px-8 w-full max-w-7xl">
               {!isLoading && (
                 <Routes>
           <Route

@@ -72,12 +72,14 @@ const Landing: React.FC<LandingProps> = ({
 
     return (
         <div className="space-y-8 animate-fadeIn">
-            <div className="relative left-1/2 right-1/2 ml-[-50vw] mr-[-50vw] w-screen -mt-8 md:-mt-12 lg:-mt-16">
+            <div className="right-1/2 left-1/2 relative -mt-8 md:-mt-12 lg:-mt-16 mr-[-50vw] ml-[-50vw] w-screen">
                 <section className="relative bg-[#F2F0FF] py-8 md:py-16 pt-8 md:pt-16">
+                    {/* fixed, full-bleed background that reaches the top of the page */}
+                    <div className="top-0 -z-10 fixed inset-x-0 bg-[#F2F0FF] h-40 md:h-56 lg:h-72 pointer-events-none" />
                     {/* <div className="-top-10 -right-10 hero-blob hero-blob--primary"></div> */}
                     {/* <div className="bottom-0 -left-10 hero-blob hero-blob--secondary"></div> */}
-                    <div className="px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto">
-                        <div className="z-10 relative flex md:flex-row flex-col md:items-center justify-between gap-10 md:gap-16 lg:gap-24 w-full">
+                    <div className="mx-auto px-4 sm:px-6 lg:px-8 max-w-6xl">
+                        <div className="z-10 relative flex md:flex-row flex-col justify-between md:items-center gap-10 md:gap-16 lg:gap-24 w-full">
                     <div className="space-y-4 max-w-3xl">
                         {/* <p className="flex items-center gap-2 font-semibold text-primary-text text-sm uppercase tracking-[0.2em]">
                             환영합니다
@@ -111,19 +113,19 @@ const Landing: React.FC<LandingProps> = ({
                             <Button
                                 onClick={onGoTeacherTab1 || onGoDashboard}
                                 variant="secondary"
-                                className="w-full px-6 py-3"
+                                className="px-6 py-3 w-full"
                             >
                                 면접 결과표 확인하기​
                             </Button>
                         ) : (
-                            <div className="w-full text-center text-sm font-semibold text-slate-700 bg-white/90 px-6 py-2 rounded-lg border border-slate-200">
+                            <div className="bg-white/90 px-6 py-2 border border-slate-200 rounded-lg w-full font-semibold text-slate-700 text-sm text-center">
                                 면접 준비하기 <br />(남은 횟수: {typeof remainingAttempts === "number" ? remainingAttempts : "--"}회)
                             </div>
                         )}
                         {!isTeacher && (
                             <Button
                                 onClick={onViewHistory}
-                                className="w-full px-6 py-2"
+                                className="px-6 py-2 w-full"
                                 disabled={!hasResults}
                             >
                                 결과표 확인하기
@@ -135,7 +137,7 @@ const Landing: React.FC<LandingProps> = ({
                 </section>
             </div>
 
-            <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="mx-auto px-4 sm:px-6 lg:px-8 max-w-6xl">
                 <div className="space-y-3 mt-6">
                     {features.map((f) => (
                         <div key={f.text} className="flex items-start gap-3 text-slate-700 text-xl">
