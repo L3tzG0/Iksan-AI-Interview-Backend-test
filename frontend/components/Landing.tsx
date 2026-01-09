@@ -126,7 +126,6 @@ const Landing: React.FC<LandingProps> = ({
                             <Button
                                 onClick={onViewHistory}
                                 className="px-6 py-2 w-full"
-                                disabled={!hasResults}
                             >
                                 결과표 확인하기
                             </Button>
