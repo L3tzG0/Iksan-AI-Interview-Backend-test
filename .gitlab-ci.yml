@@ -1,0 +1,47 @@
+stages:
+  - build
+
+# Use Docker-in-Docker so we can run `docker build` + `docker push`
+image: docker:24.0.7
+
+services:
+  - name: docker:24.0.7-dind
+    command: ["--tls=false"]
+
+variables:
+  # dind without TLS (simpler + common in GitLab CI)
+  DOCKER_HOST: tcp://docker:2375
+  DOCKER_TLS_CERTDIR: ""
+  DOCKER_DRIVER: overlay2
+
+  # Image tags
+  BACKEND_IMAGE: "$CI_REGISTRY_IMAGE/backend"
+  FRONTEND_IMAGE: "$CI_REGISTRY_IMAGE/frontend"
+
+# Only build/push on main (adjust if you want tags, release branches, etc.)
+workflow:
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - when: never
+
+.before_docker_login:
+  before_script:
+    # GitLab predefined registry login variables:
+    # CI_REGISTRY, CI_REGISTRY_USER, CI_REGISTRY_PASSWORD
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USERNAME" --password-stdin "$CI_REGISTRY_HOSTNAME"
+
+build_backend_image:
+  stage: build
+  extends: .before_docker_login
+  script:
+    - docker build -f backend/Dockerfile -t "$BACKEND_IMAGE:$CI_COMMIT_SHA" -t "$BACKEND_IMAGE:latest" backend
+    - docker push "$BACKEND_IMAGE:$CI_COMMIT_SHA"
+    - docker push "$BACKEND_IMAGE:latest"
+
+build_frontend_image:
+  stage: build
+  extends: .before_docker_login
+  script:
+    - docker build -f frontend/Dockerfile -t "$FRONTEND_IMAGE:$CI_COMMIT_SHA" -t "$FRONTEND_IMAGE:latest" frontend
+    - docker push "$FRONTEND_IMAGE:$CI_COMMIT_SHA"
+    - docker push "$FRONTEND_IMAGE:latest"
