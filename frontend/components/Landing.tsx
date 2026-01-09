@@ -75,7 +75,7 @@ const Landing: React.FC<LandingProps> = ({
             <div className="right-1/2 left-1/2 relative -mt-8 md:-mt-12 lg:-mt-16 mr-[-50vw] ml-[-50vw] w-screen">
                 <section className="relative bg-[#F2F0FF] py-8 md:py-16 pt-8 md:pt-16">
                     {/* fixed, full-bleed background that reaches the top of the page */}
-                    <div className="top-0 -z-10 fixed inset-x-0 bg-[#F2F0FF] h-40 md:h-56 lg:h-72 pointer-events-none" />
+                    <div className="top-0 -z-10 fixed inset-x-0 bg-[#F2F0FF] h-[50%] pointer-events-none" />
                     {/* <div className="-top-10 -right-10 hero-blob hero-blob--primary"></div> */}
                     {/* <div className="bottom-0 -left-10 hero-blob hero-blob--secondary"></div> */}
                     <div className="mx-auto px-4 sm:px-6 lg:px-8 max-w-6xl">
