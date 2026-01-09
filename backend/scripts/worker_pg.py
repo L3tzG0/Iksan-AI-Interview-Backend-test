@@ -8,7 +8,6 @@ from typing import Dict, Any
 # Setup Path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from app.services.job_processor import (
-    process_interview_job, process_interview_uni, 
     process_evaluation_job, process_interview_job_gpt, 
     process_interview_uni_gpt
 )
@@ -39,12 +38,8 @@ async def wrapper_process_job(job_data: Dict[str, Any], queue_service: QueueServ
     async with get_db_context() as db:
         try:
             logger.info(f"Starting execution: Job {queue_id} (Session {session_id})")
-            
-            if job_type == "interview_generation":
-                await process_interview_job(job_data, db)
-            elif job_type == "university_generation":
-                await process_interview_uni(job_data, db)
-            elif job_type == "evaluation":
+
+            if job_type == "evaluation":
                 await process_evaluation_job(job_data, db)
             elif job_type == "interview_generation_gpt":
                 await process_interview_job_gpt(job_data, db)

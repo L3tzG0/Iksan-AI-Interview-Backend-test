@@ -22,19 +22,7 @@ from app.services.storage_service import StorageService
 from app.core.database import get_db_context, get_engine
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-# Redis import
-import redis 
-from app.core.redis_client import get_redis_connection
-from app.services.queue_service import QueueService 
-
 from app.services.queue_service_pg import QueueServicePG
-
-# New service imports (replacing LLMService)
-from app.services.question_generator import generate_interview_questions
-from app.services.evaluation_generator import generate_session_evaluation
-from app.services.university_question_generator import generate_university_prep_questions
-
-from app.services.rag_service import retrieve_questions_from_rag
 
 from app.schemas.interview_session import (
     InterviewSessionResponse, 
