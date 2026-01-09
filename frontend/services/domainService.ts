@@ -18,7 +18,7 @@ export const fetchDomains = async (search?: string): Promise<BackendDomain[]> =>
   return response.json();
 };
 
-export const createDomain = async (data: { domain: string; organization_name: string }): Promise<BackendDomain> => {
+export const createDomain = async (data: { domain: string; description: string }): Promise<BackendDomain> => {
   const response = await fetch(`${API_BASE}/api/v1/admin/domains`, {
     method: 'POST',
     headers: {
@@ -33,7 +33,7 @@ export const createDomain = async (data: { domain: string; organization_name: st
   return response.json();
 };
 
-export const updateDomain = async (id: number, data: Partial<{ domain: string; organization_name: string; is_active: boolean }>): Promise<BackendDomain> => {
+export const updateDomain = async (id: number, data: Partial<{ domain: string; description: string; is_active: boolean }>): Promise<BackendDomain> => {
   const response = await fetch(`${API_BASE}/api/v1/admin/domains/${id}`, {
     method: 'PATCH',
     headers: {
