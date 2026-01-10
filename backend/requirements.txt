@@ -28,5 +28,8 @@ langchain-openai==1.1.6
 PyJWT
 bcrypt
 
+# Error Monitoring
+sentry-sdk[fastapi]>=2.49.0
+
 # Load Testing
 locust>=2.20.0
