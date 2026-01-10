@@ -1,0 +1,65 @@
+# ===== Shared Base Stage =====
+FROM python:3.11-slim AS base
+
+# Set working directory
+WORKDIR /app
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements first for better caching
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY . .
+
+# Create non-root user for security
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+
+# ===== API Service =====
+FROM base AS api
+
+# Copy and set permissions for entrypoint script
+# Convert line endings from CRLF to LF and make executable
+COPY entrypoint.sh /entrypoint.sh
+RUN sed -i 's/\r$//' /entrypoint.sh && chmod +x /entrypoint.sh
+
+USER appuser
+
+# Expose port
+EXPOSE 8000
+
+# Health check - improved to not fail during startup
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Set entrypoint and default command
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["gunicorn", "app.main:app", "--workers", "4", "--worker-class", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000"]
+
+# ===== Worker Service =====
+FROM base AS worker
+
+# Copy and set permissions for entrypoint script
+# Convert line endings from CRLF to LF and make executable
+COPY entrypoint-worker.sh /entrypoint-worker.sh
+RUN sed -i 's/\r$//' /entrypoint-worker.sh && chmod +x /entrypoint-worker.sh
+
+USER appuser
+
+# Set entrypoint and default command
+ENTRYPOINT ["/entrypoint-worker.sh"]
+CMD ["python", "./scripts/worker_pg.py"]
