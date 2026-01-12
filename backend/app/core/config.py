@@ -27,12 +27,6 @@ class Settings(BaseSettings):
     JWT_ISSUER: str = "iksan-ai-interview"
     JWT_AUDIENCE: str = "iksan-ai-interview-api"
     
-    # LLM Configuration
-    # TODO: Set these values in .env when integrating with actual LLM provider
-    LLM_API_KEY: Optional[str] = None
-    LLM_MODEL: str = "gemini-2.5-flash"  # Default model, can be overridden
-    LLM_MAX_TOKENS: int = 2000
-    LLM_TEMPERATURE: float = 0.7
     
     # File Upload
     MAX_FILE_SIZE: int = 10485760  # 10MB default
@@ -55,12 +49,7 @@ class Settings(BaseSettings):
     RATE_LIMIT_LLM: str = "10/minute"  # Limit for LLM-heavy endpoints (initiate, submit)
     RATE_LIMIT_HEALTH: str = "120/minute"  # Relaxed limit for health checks
     
-
-    DEEPGRAM_API_KEY: str
-    GEMINI_API_KEY: str
     DB_PASSWORD: str
-    
-    REDIS_URL: str
 
     JOB_PROCESSING_INTERVAL_SECONDS: int = 7
 
@@ -76,34 +65,12 @@ class Settings(BaseSettings):
     # Student Registration
     STUDENT_PASSWORD_SALT: str = "iksan_student_pwd_"
     
+    # Sentry Configuration
+    SENTRY_DSN: Optional[str] = None
+    SENTRY_ENVIRONMENT: Optional[str] = None
+    SENTRY_TRACES_SAMPLE_RATE: float = 0.1  # 10% of transactions
+    SENTRY_PROFILES_SAMPLE_RATE: float = 0.1  # 10% of transactions
+    
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
 
-
-    # --- Computed Redis Properties (Parses REDIS_URL) ---
-    @property
-    def redis_host(self) -> str:
-        """Parses the host from REDIS_URL."""
-        try:
-            url = urlparse(self.REDIS_URL)
-            return url.hostname or "localhost"
-        except Exception:
-            return "localhost"
-
-    @property
-    def redis_port(self) -> int:
-        """Parses the port from REDIS_URL."""
-        try:
-            url = urlparse(self.REDIS_URL)
-            return url.port or 6379
-        except Exception:
-            return 6379
-
-    @property
-    def redis_password(self) -> Optional[str]:
-        """Parses the password from REDIS_URL."""
-        try:
-            url = urlparse(self.REDIS_URL)
-            return url.password
-        except Exception:
-            return None
 settings = Settings()

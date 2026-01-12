@@ -91,10 +91,7 @@ def get_engine() -> AsyncEngine:
         max_overflow=settings.DATABASE_MAX_OVERFLOW,
         pool_timeout=settings.DATABASE_POOL_TIMEOUT,
         echo=settings.DEBUG,  # Log SQL queries in debug mode
-        connect_args={
-            "prepared_statement_cache_size": 0,
-            "statement_cache_size": 0
-        }
+        pool_pre_ping=True,
     )
     
     return _engine

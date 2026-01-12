@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+.npm/
+
+# Build output (we build inside Docker)
+dist/
+build/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+README.md
+
+# Test files
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+test-*.csv
+
+# CI/CD
+.gitlab-ci.yml

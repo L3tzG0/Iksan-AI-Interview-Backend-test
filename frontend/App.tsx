@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom';
+import * as Sentry from '@sentry/react';
 import WelcomeScreen from './components/WelcomeScreen';
 import Landing from './components/Landing';
 import InterviewSession from './components/InterviewSession';
@@ -18,6 +19,9 @@ import { initiateSession, submitSessionAnswers, fetchSessionStatus, fetchSession
 // GraduationCapIcon removed (was only used by AdminHeader which is removed)
 import { clearStoredToken, fetchProfile, getStoredToken, getTokenExpiry, refreshAuthToken } from './services/authService';
 import Button from './components/ui/Button';
+
+// Wrap Routes with Sentry for error tracking
+const SentryRoutes = Sentry.withSentryRouting(Routes);
 
 // AdminHeader removed
 
@@ -138,6 +142,14 @@ const App: React.FC = () => {
           setCurrentUser(user);
           setIsAuthenticated(true);
           setLoginRedirectPath(getHomePathForRole(user.role));
+          
+          // Set Sentry user context
+          Sentry.setUser({
+            id: String(user.userId),
+            username: user.username,
+            email: user.email,
+            role: user.role,
+          });
         }
       } catch (err) {
         console.error('Failed to restore session', err);
@@ -157,6 +169,15 @@ const App: React.FC = () => {
   const handleAuthSuccess = (user: User) => {
     setCurrentUser(user);
     setIsAuthenticated(true);
+    
+    // Set Sentry user context
+    Sentry.setUser({
+      id: String(user.userId),
+      username: user.username,
+      email: user.email,
+      role: user.role,
+    });
+    
     const roleHome = getHomePathForRole(user.role);
     const hintedHome =
       loginRedirectPath && loginRedirectPath.startsWith('/teacher') && user.role !== 'student'
@@ -169,6 +190,9 @@ const App: React.FC = () => {
   };
 
   const handleLogout = () => {
+    // Clear Sentry user context
+    Sentry.setUser(null);
+    
     setIsAuthenticated(false);
     setCurrentUser(null);
     setQuestions([]);
@@ -567,7 +591,7 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
   if (!isAuthenticated) {
     const defaultSigninPath = location.pathname.startsWith('/teacher') ? '/signin/teacher' : '/signin/student';
     return (
-      <Routes>
+      <SentryRoutes>
         <Route path="/" element={<Navigate to={defaultSigninPath} replace />} />
         <Route
           path="/signin"
@@ -611,7 +635,7 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
           element={<SignUpScreen defaultRole="admin" onSwitchToSignIn={() => navigate('/signin/teacher')} />}
         />
         <Route path="*" element={<Navigate to={defaultSigninPath} replace />} />
-      </Routes>
+      </SentryRoutes>
     );
   }
 
@@ -631,7 +655,7 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
           <div className="flex flex-grow justify-center items-center pb-8">
             <div className="px-4 sm:px-6 lg:px-8 w-full max-w-7xl">
               {!isLoading && (
-                <Routes>
+                <SentryRoutes>
           <Route
             path="/"
             element={
@@ -787,7 +811,7 @@ const isStaff = currentUser?.role === 'teacher' || currentUser?.role === 'admin'
                   }
                 />
                 <Route path="*" element={<NotFound />} />
-              </Routes>
+              </SentryRoutes>
               )}
             </div>
           </div>
