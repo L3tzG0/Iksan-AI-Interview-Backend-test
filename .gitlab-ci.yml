@@ -5,12 +5,11 @@ image: docker:20.10
 services:
   - name: docker:20.10-dind
     alias: docker
+    command: ["--tls=false"]
 
 variables:
-  DOCKER_HOST: "tcp://docker:2376"
-  DOCKER_TLS_CERTDIR: "/certs"
-  DOCKER_TLS_VERIFY: "1"
-  DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
+  DOCKER_HOST: "tcp://docker:2375"
+  DOCKER_TLS_CERTDIR: ""
   DOCKER_DRIVER: overlay2
 
 workflow:
