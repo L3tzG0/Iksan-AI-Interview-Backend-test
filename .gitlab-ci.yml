@@ -33,9 +33,7 @@ build_backend_api:
   extends: .before_docker_login
   script:
     - cd backend
-    - docker build -f Dockerfile.multistage --target api \
-        -t "$CI_REGISTRY_IMAGE/backend-api:${SHA_TAG}" \
-        -t "$CI_REGISTRY_IMAGE/backend-api:${ENV_TAG}" .
+    - docker build -f Dockerfile.multistage --target api -t "$CI_REGISTRY_IMAGE/backend-api:${SHA_TAG}" -t "$CI_REGISTRY_IMAGE/backend-api:${ENV_TAG}" .
     - docker push "$CI_REGISTRY_IMAGE/backend-api:${SHA_TAG}"
     - docker push "$CI_REGISTRY_IMAGE/backend-api:${ENV_TAG}"
   rules:
@@ -46,9 +44,7 @@ build_backend_worker:
   extends: .before_docker_login
   script:
     - cd backend
-    - docker build -f Dockerfile.multistage --target worker \
-        -t "$CI_REGISTRY_IMAGE/backend-worker:${SHA_TAG}" \
-        -t "$CI_REGISTRY_IMAGE/backend-worker:${ENV_TAG}" .
+    - docker build -f Dockerfile.multistage --target api -t "$CI_REGISTRY_IMAGE/backend-api:${SHA_TAG}" -t "$CI_REGISTRY_IMAGE/backend-api:${ENV_TAG}" .
     - docker push "$CI_REGISTRY_IMAGE/backend-worker:${SHA_TAG}"
     - docker push "$CI_REGISTRY_IMAGE/backend-worker:${ENV_TAG}"
   rules:
@@ -59,10 +55,7 @@ build_frontend:
   extends: .before_docker_login
   script:
     - cd frontend
-    - docker build -f Dockerfile \
-        --build-arg VITE_API_BASE="${VITE_API_BASE}" \
-        -t "$CI_REGISTRY_IMAGE/frontend:${SHA_TAG}" \
-        -t "$CI_REGISTRY_IMAGE/frontend:${ENV_TAG}" .
+    - docker build -f Dockerfile.multistage --target api -t "$CI_REGISTRY_IMAGE/backend-api:${SHA_TAG}" -t "$CI_REGISTRY_IMAGE/backend-api:${ENV_TAG}" .
     - docker push "$CI_REGISTRY_IMAGE/frontend:${SHA_TAG}"
     - docker push "$CI_REGISTRY_IMAGE/frontend:${ENV_TAG}"
   rules:
