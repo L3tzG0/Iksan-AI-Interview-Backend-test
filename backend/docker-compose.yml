@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  # Background Worker
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.multistage
+      target: worker
+    container_name: iksan-worker
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - DEBUG=${DEBUG:-false}
+      - DATABASE_URL=${DATABASE_URL}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - ELICE_API_KEY=${ELICE_API_KEY}
+      - GPT_API_BASE_URL=${GPT_API_BASE_URL}
+      - GPT_EMBED_BASE_URL=${GPT_EMBED_BASE_URL}
+      - RAG_DB_CONN_STRING=${RAG_DB_CONN_STRING}
+      - WHISPER_BASE_URL=${WHISPER_BASE_URL}
+      - MOCK_GPT=${MOCK_GPT:-false}
+      - JOB_PROCESSING_INTERVAL_SECONDS=${JOB_PROCESSING_INTERVAL_SECONDS:-7}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - SENTRY_DSN=${SENTRY_DSN}
+    volumes:
+      - ./app:/app/app
+      - ./scripts:/app/scripts
+    restart: unless-stopped
+
+  # Backend API
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.multistage
+      target: api
+    container_name: iksan-api
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - DEBUG=${DEBUG:-false}
+      - DATABASE_URL=${DATABASE_URL}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - JWT_ACCESS_TOKEN_EXPIRE_MINUTES=${JWT_ACCESS_TOKEN_EXPIRE_MINUTES:-60}
+      - JWT_REFRESH_TOKEN_EXPIRE_DAYS=${JWT_REFRESH_TOKEN_EXPIRE_DAYS:-7}
+      - JWT_ISSUER=${JWT_ISSUER:-iksan-ai-interview}
+      - JWT_AUDIENCE=${JWT_AUDIENCE:-iksan-ai-interview-api}
+      - BACKEND_CORS_ORIGINS=${BACKEND_CORS_ORIGINS:-["*"]}
+      - MAX_FILE_SIZE=${MAX_FILE_SIZE:-10485760}
+      - STUDENT_PASSWORD_SALT=${STUDENT_PASSWORD_SALT:-iksan_student_pwd_}
+      - RATE_LIMIT_ENABLED=${RATE_LIMIT_ENABLED:-true}
+      - RATE_LIMIT_DEFAULT=${RATE_LIMIT_DEFAULT:-60/minute}
+      - RATE_LIMIT_AUTH=${RATE_LIMIT_AUTH:-5/minute}
+      - RATE_LIMIT_LLM=${RATE_LIMIT_LLM:-10/minute}
+      - RATE_LIMIT_HEALTH=${RATE_LIMIT_HEALTH:-120/minute}
+      - ELICE_API_KEY=${ELICE_API_KEY}
+      - GPT_API_BASE_URL=${GPT_API_BASE_URL}
+      - GPT_EMBED_BASE_URL=${GPT_EMBED_BASE_URL}
+      - RAG_DB_CONN_STRING=${RAG_DB_CONN_STRING}
+      - WHISPER_BASE_URL=${WHISPER_BASE_URL}
+      - MOCK_GPT=${MOCK_GPT:-false}
+      - JOB_PROCESSING_INTERVAL_SECONDS=${JOB_PROCESSING_INTERVAL_SECONDS:-7}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - SENTRY_DSN=${SENTRY_DSN}
+      - RUN_MIGRATIONS=true
+    volumes:
+      - ./app:/app/app
+      - ./alembic:/app/alembic
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  default:
+    name: iksan-network

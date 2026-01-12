@@ -14,14 +14,15 @@ variables:
   DOCKER_TLS_CERTDIR: ""
   DOCKER_DRIVER: overlay2
 
-  # Image tags
-  BACKEND_IMAGE: "$CI_REGISTRY_IMAGE/backend"
+  # Image tags - includes API, Worker, and Frontend
+  BACKEND_API_IMAGE: "$CI_REGISTRY_IMAGE/backend-api"
+  BACKEND_WORKER_IMAGE: "$CI_REGISTRY_IMAGE/backend-worker"
   FRONTEND_IMAGE: "$CI_REGISTRY_IMAGE/frontend"
 
 # Only build/push on main (adjust if you want tags, release branches, etc.)
 workflow:
   rules:
-    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "test/production"
     - when: never
 
 .before_docker_login:
@@ -30,18 +31,38 @@ workflow:
     # CI_REGISTRY, CI_REGISTRY_USER, CI_REGISTRY_PASSWORD
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USERNAME" --password-stdin "$CI_REGISTRY_HOSTNAME"
 
-build_backend_image:
+build_backend_images:
   stage: build
   extends: .before_docker_login
   script:
-    - docker build -f backend/Dockerfile -t "$BACKEND_IMAGE:$CI_COMMIT_SHA" -t "$BACKEND_IMAGE:latest" backend
-    - docker push "$BACKEND_IMAGE:$CI_COMMIT_SHA"
-    - docker push "$BACKEND_IMAGE:latest"
+    - cd backend
+    # Build API image from multistage Dockerfile
+    - docker build -f Dockerfile.multistage --target api -t "$BACKEND_API_IMAGE:$CI_COMMIT_SHA" -t "$BACKEND_API_IMAGE:latest" .
+    - docker push "$BACKEND_API_IMAGE:$CI_COMMIT_SHA"
+    - docker push "$BACKEND_API_IMAGE:latest"
+    # Build Worker image (reuses cached base layers from API build)
+    - docker build -f Dockerfile.multistage --target worker -t "$BACKEND_WORKER_IMAGE:$CI_COMMIT_SHA" -t "$BACKEND_WORKER_IMAGE:latest" .
+    - docker push "$BACKEND_WORKER_IMAGE:$CI_COMMIT_SHA"
+    - docker push "$BACKEND_WORKER_IMAGE:latest"
+  only:
+    changes:
+      - backend/**/*
 
 build_frontend_image:
   stage: build
   extends: .before_docker_login
   script:
-    - docker build -f frontend/Dockerfile -t "$FRONTEND_IMAGE:$CI_COMMIT_SHA" -t "$FRONTEND_IMAGE:latest" frontend
+    - cd frontend
+    - docker build \
+        -f Dockerfile \
+        --build-arg VITE_API_BASE="${VITE_API_BASE}" \
+        --build-arg VITE_SENTRY_DSN="${VITE_SENTRY_DSN}" \
+        --build-arg VITE_ENVIRONMENT="${VITE_ENVIRONMENT:-production}" \
+        -t "$FRONTEND_IMAGE:$CI_COMMIT_SHA" \
+        -t "$FRONTEND_IMAGE:latest" \
+        .
     - docker push "$FRONTEND_IMAGE:$CI_COMMIT_SHA"
     - docker push "$FRONTEND_IMAGE:latest"
+  only:
+    changes:
+      - frontend/**/*

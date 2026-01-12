@@ -1,0 +1,18 @@
+from fastapi import APIRouter
+from app.api.v1.endpoints import (
+    auth, users, students, classes, schools, majors, roles,
+    interview_sessions, stt, domains
+)
+
+api_router = APIRouter()
+
+api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
+api_router.include_router(users.router, prefix="/users", tags=["users"])
+api_router.include_router(students.router, prefix="/students", tags=["students"])
+api_router.include_router(classes.router, prefix="/classes", tags=["classes"])
+api_router.include_router(schools.router, prefix="/schools", tags=["schools"])
+api_router.include_router(majors.router, prefix="/majors", tags=["majors"])
+api_router.include_router(roles.router, prefix="/roles", tags=["roles"])
+api_router.include_router(interview_sessions.router, prefix="/sessions", tags=["sessions"])
+api_router.include_router(stt.router, prefix="/stt", tags=["Speech-to-Text"])
+api_router.include_router(domains.router, prefix="/admin/domains", tags=["Domain Management"])
