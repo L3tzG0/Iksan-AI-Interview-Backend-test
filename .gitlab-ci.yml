@@ -6,12 +6,12 @@ image: docker:24.0.7
 
 services:
   - name: docker:24.0.7-dind
-    command: ["--tls=false"]
+    alias: docker
 
 variables:
-  # dind without TLS (simpler + common in GitLab CI)
   DOCKER_HOST: tcp://docker:2375
   DOCKER_TLS_CERTDIR: ""
+
   DOCKER_DRIVER: overlay2
 
   # Image tags - includes API, Worker, and Frontend
@@ -36,6 +36,18 @@ build_backend_images:
   extends: .before_docker_login
   script:
     - cd backend
+    # --- DEBUG: registry connectivity ---
+    - echo "=== DNS check ==="
+    - getent hosts git.elicer.io || nslookup git.elicer.io || true
+
+    - echo "=== TCP reachability ==="
+    - nc -vz git.elicer.io 5050 || true
+    - timeout 5 bash -c '</dev/tcp/git.elicer.io/5050' && echo OK || echo FAIL
+
+    - echo "=== HTTPS /v2/ check ==="
+    - curl -vk --connect-timeout 5 https://git.elicer.io:5050/v2/ || true
+    # --- END DEBUG ---
+
     # Build API image from multistage Dockerfile
     - docker build -f Dockerfile.multistage --target api -t "$BACKEND_API_IMAGE:$CI_COMMIT_SHA" -t "$BACKEND_API_IMAGE:latest" .
     - docker push "$BACKEND_API_IMAGE:$CI_COMMIT_SHA"
@@ -53,14 +65,7 @@ build_frontend_image:
   extends: .before_docker_login
   script:
     - cd frontend
-    - docker build \
-        -f Dockerfile \
-        --build-arg VITE_API_BASE="${VITE_API_BASE}" \
-        --build-arg VITE_SENTRY_DSN="${VITE_SENTRY_DSN}" \
-        --build-arg VITE_ENVIRONMENT="${VITE_ENVIRONMENT:-production}" \
-        -t "$FRONTEND_IMAGE:$CI_COMMIT_SHA" \
-        -t "$FRONTEND_IMAGE:latest" \
-        .
+    - docker build -f Dockerfile --build-arg VITE_API_BASE="${VITE_API_BASE}" --build-arg VITE_SENTRY_DSN="${VITE_SENTRY_DSN}" --build-arg VITE_ENVIRONMENT="${VITE_ENVIRONMENT:-production}" -t "${FRONTEND_IMAGE}:${CI_COMMIT_SHA}" -t "${FRONTEND_IMAGE}:latest" .
     - docker push "$FRONTEND_IMAGE:$CI_COMMIT_SHA"
     - docker push "$FRONTEND_IMAGE:latest"
   only:
