@@ -33,9 +33,16 @@ build_backend_api:
   extends: .before_docker_login
   script:
     - cd backend
-    - docker build -f Dockerfile.multistage --target api -t "$CI_REGISTRY_IMAGE/backend-api:${SHA_TAG}" -t "$CI_REGISTRY_IMAGE/backend-api:${ENV_TAG}" .
-    - docker push "$CI_REGISTRY_IMAGE/backend-api:${SHA_TAG}"
-    - docker push "$CI_REGISTRY_IMAGE/backend-api:${ENV_TAG}"
+    - PROJECT_NAME=$(echo $CI_PROJECT_NAME | sed -e "s/-api//g")
+    - DOCKER_WORKER_IMAGE_NAME=$CI_REGISTRY_HOSTNAME/gitlab-ci-build/$PROJECT_NAME-worker:$CI_COMMIT_TAG
+    - echo $DOCKER_WORKER_IMAGE_NAME
+    - DOCKER_API_IMAGE_NAME=$CI_REGISTRY_HOSTNAME/gitlab-ci-build/$PROJECT_NAME-api:$CI_COMMIT_TAG
+    - echo $DOCKER_API_IMAGE_NAME
+    - echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY_HOSTNAME -u $CI_REGISTRY_USERNAME --password-stdin
+    - docker build -t $DOCKER_WORKER_IMAGE_NAME -f Dockerfile.multistage --target worker .
+    - docker push $DOCKER_WORKER_IMAGE_NAME
+    - docker build -t $DOCKER_API_IMAGE_NAME -f Dockerfile.multistage --target api .
+    - docker push $DOCKER_API_IMAGE_NAME    
   rules:
     - changes: [backend/**/*]
 
@@ -44,7 +51,7 @@ build_backend_worker:
   extends: .before_docker_login
   script:
     - cd backend
-    - docker build -f Dockerfile.multistage --target api -t "$CI_REGISTRY_IMAGE/backend-api:${SHA_TAG}" -t "$CI_REGISTRY_IMAGE/backend-api:${ENV_TAG}" .
+    - docker build -f Dockerfile.multistage --target worker -t "$CI_REGISTRY_IMAGE/backend-worker:${SHA_TAG}" -t "$CI_REGISTRY_IMAGE/backend-worker:${ENV_TAG}" .
     - docker push "$CI_REGISTRY_IMAGE/backend-worker:${SHA_TAG}"
     - docker push "$CI_REGISTRY_IMAGE/backend-worker:${ENV_TAG}"
   rules:
@@ -55,7 +62,7 @@ build_frontend:
   extends: .before_docker_login
   script:
     - cd frontend
-    - docker build -f Dockerfile.multistage --target api -t "$CI_REGISTRY_IMAGE/backend-api:${SHA_TAG}" -t "$CI_REGISTRY_IMAGE/backend-api:${ENV_TAG}" .
+    - docker build -f Dockerfile --build-arg VITE_API_BASE="${VITE_API_BASE}" -t "$CI_REGISTRY_IMAGE/frontend:${SHA_TAG}" -t "$CI_REGISTRY_IMAGE/frontend:${ENV_TAG}" .
     - docker push "$CI_REGISTRY_IMAGE/frontend:${SHA_TAG}"
     - docker push "$CI_REGISTRY_IMAGE/frontend:${ENV_TAG}"
   rules:
