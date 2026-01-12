@@ -15,12 +15,12 @@ RUN npm ci --legacy-peer-deps
 COPY . .
 
 # Build arguments for environment variables at build time
-ARG VITE_API_URL=
+ARG VITE_API_BASE=
 ARG VITE_SENTRY_DSN=
 ARG VITE_ENVIRONMENT=production
 
 # Set environment variables for build
-ENV VITE_API_URL=${VITE_API_URL}
+ENV VITE_API_BASE=${VITE_API_BASE}
 ENV VITE_SENTRY_DSN=${VITE_SENTRY_DSN}
 ENV VITE_ENVIRONMENT=${VITE_ENVIRONMENT}
 
