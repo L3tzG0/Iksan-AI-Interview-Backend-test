@@ -32,16 +32,35 @@ build_backend_api:
   stage: build
   extends: .before_docker_login
   script:
+    - set -euo pipefail
     - cd backend
-    - PROJECT_NAME=$(echo $CI_PROJECT_NAME | sed -e "s/-api//g")
-    - DOCKER_WORKER_IMAGE_NAME=$CI_REGISTRY_HOSTNAME/gitlab-ci-build/$PROJECT_NAME-worker:$CI_COMMIT_TAG
-    - echo $DOCKER_WORKER_IMAGE_NAME
-    - DOCKER_API_IMAGE_NAME=$CI_REGISTRY_HOSTNAME/gitlab-ci-build/$PROJECT_NAME-api:$CI_COMMIT_TAG
-    - echo $DOCKER_API_IMAGE_NAME
-    - docker build -f Dockerfile.multistage --target worker -t $DOCKER_WORKER_IMAGE_NAME  .
-    - docker push $DOCKER_WORKER_IMAGE_NAME
-    - docker build -f Dockerfile.multistage --target api -t $DOCKER_API_IMAGE_NAME  .
-    - docker push $DOCKER_API_IMAGE_NAME    
+    - PROJECT_NAME="$(echo "$CI_PROJECT_NAME" | sed -e 's/-api//g')"
+
+    - WORKER_IMAGE="$CI_REGISTRY_HOSTNAME/gitlab-ci-build/${PROJECT_NAME}-worker:${IMAGE_TAG}"
+    - API_IMAGE="$CI_REGISTRY_HOSTNAME/gitlab-ci-build/${PROJECT_NAME}-api:${IMAGE_TAG}"
+
+    - echo "WORKER_IMAGE=$WORKER_IMAGE"
+    - echo "API_IMAGE=$API_IMAGE"
+
+    - docker build -f Dockerfile.multistage --target worker -t "$WORKER_IMAGE" .
+    - docker push "$WORKER_IMAGE"
+
+    - docker build -f Dockerfile.multistage --target api -t "$API_IMAGE" .
+    - docker push "$API_IMAGE"
+
+    # Optional: also push :latest only for main / test/production
+    - |
+      if [ "$CI_COMMIT_BRANCH" = "main" ] || [ "$CI_COMMIT_BRANCH" = "test/production" ]; then
+        WORKER_LATEST="$CI_REGISTRY_HOSTNAME/gitlab-ci-build/${PROJECT_NAME}-worker:latest"
+        API_LATEST="$CI_REGISTRY_HOSTNAME/gitlab-ci-build/${PROJECT_NAME}-api:latest"
+
+        docker tag "$WORKER_IMAGE" "$WORKER_LATEST"
+        docker push "$WORKER_LATEST"
+
+        docker tag "$API_IMAGE" "$API_LATEST"
+        docker push "$API_LATEST"
+      fi
+      
   rules:
     - changes: [backend/**/*]
 
