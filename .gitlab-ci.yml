@@ -4,7 +4,7 @@ stages:
 image: docker:24.0.7
 
 services:
-  - name: docker:24.0.07-dind
+  - name: docker:24.0.7-dind
 
 variables:
   DOCKER_DRIVER: overlay2
