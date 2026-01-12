@@ -1,25 +1,20 @@
 stages:
   - build
 
-# Use Docker-in-Docker so we can run `docker build` + `docker push`
 image: docker:24.0.7
 
 services:
-  - name: docker:24.0.7-dind
-    alias: docker
+  - name: docker:24.0.07-dind
 
 variables:
-  DOCKER_HOST: tcp://docker:2375
-  DOCKER_TLS_CERTDIR: ""
-
   DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: /certs
 
-  # Image tags - includes API, Worker, and Frontend
+  # Image tags
   BACKEND_API_IMAGE: "$CI_REGISTRY_IMAGE/backend-api"
   BACKEND_WORKER_IMAGE: "$CI_REGISTRY_IMAGE/backend-worker"
   FRONTEND_IMAGE: "$CI_REGISTRY_IMAGE/frontend"
 
-# Only build/push on main (adjust if you want tags, release branches, etc.)
 workflow:
   rules:
     - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "test/production"
@@ -27,33 +22,44 @@ workflow:
 
 .before_docker_login:
   before_script:
-    # GitLab predefined registry login variables:
-    # CI_REGISTRY, CI_REGISTRY_USER, CI_REGISTRY_PASSWORD
-    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USERNAME" --password-stdin "$CI_REGISTRY_HOSTNAME"
+    # Install debug tools (docker image is alpine)
+    - apk add --no-cache curl bind-tools netcat-openbsd
+
+    # Sanity: show docker info
+    - docker info
+
+    # Login to GitLab Container Registry (default 443)
+    - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY_HOSTNAME" -u "$CI_REGISTRY_USERNAME" --password-stdin
+
+    # --- DEBUG: registry connectivity ---
+    - echo "=== DNS check ==="
+    - getent hosts "$CI_REGISTRY_HOSTNAME" || nslookup "$CI_REGISTRY_HOSTNAME" || true
+
+    - echo "=== TCP reachability (443) ==="
+    - nc -vz "$CI_REGISTRY_HOSTNAME" 443 || true
+
+    - echo "=== HTTPS /v2/ check ==="
+    # Expect 401 Unauthorized if reachable (that's GOOD for registry)
+    - curl -vk --connect-timeout 5 "https://$CI_REGISTRY_HOSTNAME/v2/" || true
+    # --- END DEBUG ---
 
 build_backend_images:
   stage: build
   extends: .before_docker_login
   script:
     - cd backend
-    # --- DEBUG: registry connectivity ---
-    - echo "=== DNS check ==="
-    - getent hosts git.elicer.io || nslookup git.elicer.io || true
 
-    - echo "=== TCP reachability ==="
-    - nc -vz git.elicer.io 5050 || true
-    - timeout 5 bash -c '</dev/tcp/git.elicer.io/5050' && echo OK || echo FAIL
+    - docker build -f Dockerfile.multistage --target api \
+        -t "$BACKEND_API_IMAGE:$CI_COMMIT_SHA" \
+        -t "$BACKEND_API_IMAGE:latest" .
 
-    - echo "=== HTTPS /v2/ check ==="
-    - curl -vk --connect-timeout 5 https://git.elicer.io:5050/v2/ || true
-    # --- END DEBUG ---
-
-    # Build API image from multistage Dockerfile
-    - docker build -f Dockerfile.multistage --target api -t "$BACKEND_API_IMAGE:$CI_COMMIT_SHA" -t "$BACKEND_API_IMAGE:latest" .
     - docker push "$BACKEND_API_IMAGE:$CI_COMMIT_SHA"
     - docker push "$BACKEND_API_IMAGE:latest"
-    # Build Worker image (reuses cached base layers from API build)
-    - docker build -f Dockerfile.multistage --target worker -t "$BACKEND_WORKER_IMAGE:$CI_COMMIT_SHA" -t "$BACKEND_WORKER_IMAGE:latest" .
+
+    - docker build -f Dockerfile.multistage --target worker \
+        -t "$BACKEND_WORKER_IMAGE:$CI_COMMIT_SHA" \
+        -t "$BACKEND_WORKER_IMAGE:latest" .
+
     - docker push "$BACKEND_WORKER_IMAGE:$CI_COMMIT_SHA"
     - docker push "$BACKEND_WORKER_IMAGE:latest"
   only:
@@ -65,7 +71,14 @@ build_frontend_image:
   extends: .before_docker_login
   script:
     - cd frontend
-    - docker build -f Dockerfile --build-arg VITE_API_BASE="${VITE_API_BASE}" --build-arg VITE_SENTRY_DSN="${VITE_SENTRY_DSN}" --build-arg VITE_ENVIRONMENT="${VITE_ENVIRONMENT:-production}" -t "${FRONTEND_IMAGE}:${CI_COMMIT_SHA}" -t "${FRONTEND_IMAGE}:latest" .
+
+    - docker build -f Dockerfile \
+        --build-arg VITE_API_BASE="${VITE_API_BASE}" \
+        --build-arg VITE_SENTRY_DSN="${VITE_SENTRY_DSN}" \
+        --build-arg VITE_ENVIRONMENT="${VITE_ENVIRONMENT:-production}" \
+        -t "$FRONTEND_IMAGE:$CI_COMMIT_SHA" \
+        -t "$FRONTEND_IMAGE:latest" .
+
     - docker push "$FRONTEND_IMAGE:$CI_COMMIT_SHA"
     - docker push "$FRONTEND_IMAGE:latest"
   only:
