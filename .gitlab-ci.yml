@@ -39,6 +39,16 @@ build_backend_api:
   extends: .kaniko_common
   script:
     - cd backend
+    - echo "CI_REGISTRY=$CI_REGISTRY"
+    - echo "CI_REGISTRY_IMAGE=$CI_REGISTRY_IMAGE"
+    - echo "Resolve:"
+    - nslookup git.elicer.io || true
+    - echo "TCP 5050:"
+    - busybox nc -vz -w 5 git.elicer.io 5050 && echo "OK" || echo "FAIL"
+
+    - echo "HTTPS /v2/:"
+    - wget -S -O- --timeout=5 https://git.elicer.io:5050/v2/ 2>&1 | head -n 40 || true
+
     - /kaniko/executor
       --context "${CI_PROJECT_DIR}/backend"
       --dockerfile "${CI_PROJECT_DIR}/backend/Dockerfile.multistage"
@@ -54,6 +64,16 @@ build_backend_worker:
   extends: .kaniko_common
   script:
     - cd backend
+    - echo "CI_REGISTRY=$CI_REGISTRY"
+    - echo "CI_REGISTRY_IMAGE=$CI_REGISTRY_IMAGE"
+    - echo "Resolve:"
+    - nslookup git.elicer.io || true
+    - echo "TCP 5050:"
+    - busybox nc -vz -w 5 git.elicer.io 5050 && echo "OK" || echo "FAIL"
+
+    - echo "HTTPS /v2/:"
+    - wget -S -O- --timeout=5 https://git.elicer.io:5050/v2/ 2>&1 | head -n 40 || true
+
     - /kaniko/executor
       --context "${CI_PROJECT_DIR}/backend"
       --dockerfile "${CI_PROJECT_DIR}/backend/Dockerfile.multistage"
@@ -69,6 +89,16 @@ build_frontend:
   extends: .kaniko_common
   script:
     - cd frontend
+    - echo "CI_REGISTRY=$CI_REGISTRY"
+    - echo "CI_REGISTRY_IMAGE=$CI_REGISTRY_IMAGE"
+    - echo "Resolve:"
+    - nslookup git.elicer.io || true
+    - echo "TCP 5050:"
+    - busybox nc -vz -w 5 git.elicer.io 5050 && echo "OK" || echo "FAIL"
+
+    - echo "HTTPS /v2/:"
+    - wget -S -O- --timeout=5 https://git.elicer.io:5050/v2/ 2>&1 | head -n 40 || true
+
     - /kaniko/executor
       --context "${CI_PROJECT_DIR}/frontend"
       --dockerfile "${CI_PROJECT_DIR}/frontend/Dockerfile"
