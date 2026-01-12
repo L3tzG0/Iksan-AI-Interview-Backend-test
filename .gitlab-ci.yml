@@ -1,10 +1,10 @@
 stages:
   - build
 
-image: docker:24.0.7
+image: docker:20.10
 
 services:
-  - name: docker:24.0.7-dind
+  - name: docker:20.10-dind
 
 variables:
   DOCKER_DRIVER: overlay2
