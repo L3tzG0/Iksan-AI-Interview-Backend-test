@@ -1,110 +1,62 @@
 stages: [build]
 
+image: docker:20.10
+
+services:
+  - name: docker:20.10-dind
+
+variables:
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: /certs
+
 workflow:
   rules:
-    - if: '$CI_COMMIT_BRANCH == "main"'
-    - if: '$CI_COMMIT_BRANCH == "test/production"'
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "test/production"
     - when: never
 
-# Shared: Kaniko auth + env tag
-.kaniko_common:
-  image:
-    name: gcr.io/kaniko-project/executor:debug
-    entrypoint: [""]
+.before_docker_login:
   before_script:
-    # Docker registry auth for Kaniko
-    - mkdir -p /kaniko/.docker
-    - |
-      cat > /kaniko/.docker/config.json <<EOF
-      {
-        "auths": {
-          "${CI_REGISTRY_HOSTNAME}": {
-            "username": "${CI_REGISTRY_USERNAME}",
-            "password": "${CI_REGISTRY_PASSWORD}"
-          }
-        }
-      }
-      EOF
-    # ArgoCD-friendly environment tag
-    - |
-      if [ "$CI_COMMIT_BRANCH" = "main" ]; then
-        export ENV_TAG="prod"
-      else
-        export ENV_TAG="test"
-      fi
+    - docker info
+    - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY_HOSTNAME" -u "$CI_REGISTRY_USERNAME" --password-stdin
     - export SHA_TAG="${CI_COMMIT_SHORT_SHA}"
+    - export ENV_TAG="latest"
 
 build_backend_api:
   stage: build
-  extends: .kaniko_common
+  extends: .before_docker_login
   script:
     - cd backend
-    - echo "CI_REGISTRY=$CI_REGISTRY"
-    - echo "CI_REGISTRY_IMAGE=$CI_REGISTRY_IMAGE"
-    - echo "Resolve:"
-    - nslookup git.elicer.io || true
-    - echo "TCP 5050:"
-    - busybox nc -vz -w 5 git.elicer.io 5050 && echo "OK" || echo "FAIL"
-
-    - echo "HTTPS /v2/:"
-    - wget -S -O- --timeout=5 https://git.elicer.io:5050/v2/ 2>&1 | head -n 40 || true
-
-    - /kaniko/executor
-      --context "${CI_PROJECT_DIR}/backend"
-      --dockerfile "${CI_PROJECT_DIR}/backend/Dockerfile.multistage"
-      --target api
-      --destination "${CI_REGISTRY_IMAGE}/backend-api:${SHA_TAG}"
-      --destination "${CI_REGISTRY_IMAGE}/backend-api:${ENV_TAG}"
+    - docker build -f Dockerfile.multistage --target api \
+        -t "$CI_REGISTRY_IMAGE/backend-api:${SHA_TAG}" \
+        -t "$CI_REGISTRY_IMAGE/backend-api:${ENV_TAG}" .
+    - docker push "$CI_REGISTRY_IMAGE/backend-api:${SHA_TAG}"
+    - docker push "$CI_REGISTRY_IMAGE/backend-api:${ENV_TAG}"
   rules:
-    - changes:
-        - backend/**/*
+    - changes: [backend/**/*]
 
 build_backend_worker:
   stage: build
-  extends: .kaniko_common
+  extends: .before_docker_login
   script:
     - cd backend
-    - echo "CI_REGISTRY=$CI_REGISTRY"
-    - echo "CI_REGISTRY_IMAGE=$CI_REGISTRY_IMAGE"
-    - echo "Resolve:"
-    - nslookup git.elicer.io || true
-    - echo "TCP 5050:"
-    - busybox nc -vz -w 5 git.elicer.io 5050 && echo "OK" || echo "FAIL"
-
-    - echo "HTTPS /v2/:"
-    - wget -S -O- --timeout=5 https://git.elicer.io:5050/v2/ 2>&1 | head -n 40 || true
-
-    - /kaniko/executor
-      --context "${CI_PROJECT_DIR}/backend"
-      --dockerfile "${CI_PROJECT_DIR}/backend/Dockerfile.multistage"
-      --target worker
-      --destination "${CI_REGISTRY_IMAGE}/backend-worker:${SHA_TAG}"
-      --destination "${CI_REGISTRY_IMAGE}/backend-worker:${ENV_TAG}"
+    - docker build -f Dockerfile.multistage --target worker \
+        -t "$CI_REGISTRY_IMAGE/backend-worker:${SHA_TAG}" \
+        -t "$CI_REGISTRY_IMAGE/backend-worker:${ENV_TAG}" .
+    - docker push "$CI_REGISTRY_IMAGE/backend-worker:${SHA_TAG}"
+    - docker push "$CI_REGISTRY_IMAGE/backend-worker:${ENV_TAG}"
   rules:
-    - changes:
-        - backend/**/*
+    - changes: [backend/**/*]
 
 build_frontend:
   stage: build
-  extends: .kaniko_common
+  extends: .before_docker_login
   script:
     - cd frontend
-    - echo "CI_REGISTRY=$CI_REGISTRY"
-    - echo "CI_REGISTRY_IMAGE=$CI_REGISTRY_IMAGE"
-    - echo "Resolve:"
-    - nslookup git.elicer.io || true
-    - echo "TCP 5050:"
-    - busybox nc -vz -w 5 git.elicer.io 5050 && echo "OK" || echo "FAIL"
-
-    - echo "HTTPS /v2/:"
-    - wget -S -O- --timeout=5 https://git.elicer.io:5050/v2/ 2>&1 | head -n 40 || true
-
-    - /kaniko/executor
-      --context "${CI_PROJECT_DIR}/frontend"
-      --dockerfile "${CI_PROJECT_DIR}/frontend/Dockerfile"
-      --build-arg "VITE_API_BASE=${VITE_API_BASE}"
-      --destination "${CI_REGISTRY_IMAGE}/frontend:${SHA_TAG}"
-      --destination "${CI_REGISTRY_IMAGE}/frontend:${ENV_TAG}"
+    - docker build -f Dockerfile \
+        --build-arg VITE_API_BASE="${VITE_API_BASE}" \
+        -t "$CI_REGISTRY_IMAGE/frontend:${SHA_TAG}" \
+        -t "$CI_REGISTRY_IMAGE/frontend:${ENV_TAG}" .
+    - docker push "$CI_REGISTRY_IMAGE/frontend:${SHA_TAG}"
+    - docker push "$CI_REGISTRY_IMAGE/frontend:${ENV_TAG}"
   rules:
-    - changes:
-        - frontend/**/*
+    - changes: [frontend/**/*]
