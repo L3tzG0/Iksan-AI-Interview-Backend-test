@@ -1,5 +1,4 @@
-stages:
-  - build
+stages: [build]
 
 image: docker:20.10
 
@@ -8,12 +7,10 @@ services:
 
 variables:
   DOCKER_DRIVER: overlay2
-  DOCKER_TLS_CERTDIR: /certs
-
-  # Image tags
-  BACKEND_API_IMAGE: "$CI_REGISTRY_IMAGE/backend-api"
-  BACKEND_WORKER_IMAGE: "$CI_REGISTRY_IMAGE/backend-worker"
-  FRONTEND_IMAGE: "$CI_REGISTRY_IMAGE/frontend"
+  DOCKER_TLS_CERTDIR: "/certs"
+  DOCKER_HOST: "tcp://docker:2376"
+  DOCKER_TLS_VERIFY: "1"
+  DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
 
 workflow:
   rules:
@@ -22,46 +19,24 @@ workflow:
 
 .before_docker_login:
   before_script:
-    # Install debug tools (docker image is alpine)
     - apk add --no-cache curl bind-tools netcat-openbsd
-
-    # Sanity: show docker info
+    - echo "DOCKER_HOST=$DOCKER_HOST"
+    - nc -vz docker 2376 || true
+    - i=0; until docker info >/dev/null 2>&1; do i=$((i+1)); [ $i -gt 30 ] && echo "Docker daemon not ready" && exit 1; sleep 1; done
     - docker info
-
-    # Login to GitLab Container Registry (default 443)
     - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY_HOSTNAME" -u "$CI_REGISTRY_USERNAME" --password-stdin
-
-    # --- DEBUG: registry connectivity ---
-    - echo "=== DNS check ==="
-    - getent hosts "$CI_REGISTRY_HOSTNAME" || nslookup "$CI_REGISTRY_HOSTNAME" || true
-
-    - echo "=== TCP reachability (443) ==="
-    - nc -vz "$CI_REGISTRY_HOSTNAME" 443 || true
-
-    - echo "=== HTTPS /v2/ check ==="
-    # Expect 401 Unauthorized if reachable (that's GOOD for registry)
-    - curl -vk --connect-timeout 5 "https://$CI_REGISTRY_HOSTNAME/v2/" || true
-    # --- END DEBUG ---
 
 build_backend_images:
   stage: build
   extends: .before_docker_login
   script:
     - cd backend
-
-    - docker build -f Dockerfile.multistage --target api \
-        -t "$BACKEND_API_IMAGE:$CI_COMMIT_SHA" \
-        -t "$BACKEND_API_IMAGE:latest" .
-
-    - docker push "$BACKEND_API_IMAGE:$CI_COMMIT_SHA"
-    - docker push "$BACKEND_API_IMAGE:latest"
-
-    - docker build -f Dockerfile.multistage --target worker \
-        -t "$BACKEND_WORKER_IMAGE:$CI_COMMIT_SHA" \
-        -t "$BACKEND_WORKER_IMAGE:latest" .
-
-    - docker push "$BACKEND_WORKER_IMAGE:$CI_COMMIT_SHA"
-    - docker push "$BACKEND_WORKER_IMAGE:latest"
+    - docker build -f Dockerfile.multistage --target api -t "$CI_REGISTRY_IMAGE/backend-api:$CI_COMMIT_SHA" -t "$CI_REGISTRY_IMAGE/backend-api:latest" .
+    - docker push "$CI_REGISTRY_IMAGE/backend-api:$CI_COMMIT_SHA"
+    - docker push "$CI_REGISTRY_IMAGE/backend-api:latest"
+    - docker build -f Dockerfile.multistage --target worker -t "$CI_REGISTRY_IMAGE/backend-worker:$CI_COMMIT_SHA" -t "$CI_REGISTRY_IMAGE/backend-worker:latest" .
+    - docker push "$CI_REGISTRY_IMAGE/backend-worker:$CI_COMMIT_SHA"
+    - docker push "$CI_REGISTRY_IMAGE/backend-worker:latest"
   only:
     changes:
       - backend/**/*
@@ -71,16 +46,9 @@ build_frontend_image:
   extends: .before_docker_login
   script:
     - cd frontend
-
-    - docker build -f Dockerfile \
-        --build-arg VITE_API_BASE="${VITE_API_BASE}" \
-        --build-arg VITE_SENTRY_DSN="${VITE_SENTRY_DSN}" \
-        --build-arg VITE_ENVIRONMENT="${VITE_ENVIRONMENT:-production}" \
-        -t "$FRONTEND_IMAGE:$CI_COMMIT_SHA" \
-        -t "$FRONTEND_IMAGE:latest" .
-
-    - docker push "$FRONTEND_IMAGE:$CI_COMMIT_SHA"
-    - docker push "$FRONTEND_IMAGE:latest"
+    - docker build -f Dockerfile --build-arg VITE_API_BASE="${VITE_API_BASE}" -t "$CI_REGISTRY_IMAGE/frontend:$CI_COMMIT_SHA" -t "$CI_REGISTRY_IMAGE/frontend:latest" .
+    - docker push "$CI_REGISTRY_IMAGE/frontend:$CI_COMMIT_SHA"
+    - docker push "$CI_REGISTRY_IMAGE/frontend:latest"
   only:
     changes:
       - frontend/**/*
