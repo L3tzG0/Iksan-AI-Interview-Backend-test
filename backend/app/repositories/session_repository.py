@@ -48,8 +48,12 @@ class SessionRepository(BaseRepository[Session]):
         stmt = (
             select(Session)
             .options(
-                joinedload(Session.student),
-                selectinload(Session.document),
+                joinedload(Session.student).options(
+                    joinedload(Student.user),
+                    joinedload(Student.school),
+                    joinedload(Student.major),
+                    joinedload(Student.current_class),
+                ),
                 selectinload(Session.summary),
                 selectinload(Session.feedbacks),
                 selectinload(Session.next_steps),
@@ -58,6 +62,19 @@ class SessionRepository(BaseRepository[Session]):
         )
         result = await self.session.execute(stmt)
         return result.unique().scalar_one_or_none()
+        # stmt = (
+        #     select(Session)
+        #     .options(
+        #         joinedload(Session.student),
+        #         selectinload(Session.document),
+        #         selectinload(Session.summary),
+        #         selectinload(Session.feedbacks),
+        #         selectinload(Session.next_steps),
+        #     )
+        #     .where(Session.id == session_id)
+        # )
+        # result = await self.session.execute(stmt)
+        # return result.unique().scalar_one_or_none()
     
     async def get_by_student_paginated(
         self,

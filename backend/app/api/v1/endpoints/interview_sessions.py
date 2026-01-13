@@ -429,20 +429,29 @@ async def get_session_detail(
     student_id_int = session.get("student_id")
     if student_id_int:
         try:
-            student_repo = StudentRepository(db)
-            student = await student_repo.get_by_id(student_id_int)
-            student_user_id = student.user_id if student else None
+            student = session.student
+            if student:
+                student_meta["student_name"] = student.user.full_name if student.user else None
+                student_meta["school_name"] = student.school.school_name if student.school else None
+                student_meta["major_name"] = student.major.major_name if student.major else None
+                student_meta["grade_level"] = (
+                    student.current_class.grade_level if student.current_class else None
+                )
 
-            if student_user_id:
-                ctx = await user_service.get_full_user_context(student_user_id)
-                profile = ctx.get("profile", {})
-                details = ctx.get("student_details", {})
+            # student_repo = StudentRepository(db)
+            # student = await student_repo.get_by_id(student_id_int)
+            # student_user_id = student.user_id if student else None
+
+            # if student_user_id:
+            #     ctx = await user_service.get_full_user_context(student_user_id)
+            #     profile = ctx.get("profile", {})
+            #     details = ctx.get("student_details", {})
                 
-                student_meta["student_name"] = profile.get("full_name")
-                if details:
-                    student_meta["grade_level"] = details.get("classes", {}).get("grade_level")
-                    student_meta["major_name"] = details.get("majors", {}).get("major_name")
-                    student_meta["school_name"] = details.get("schools", {}).get("school_name")
+            #     student_meta["student_name"] = profile.get("full_name")
+            #     if details:
+            #         student_meta["grade_level"] = details.get("classes", {}).get("grade_level")
+            #         student_meta["major_name"] = details.get("majors", {}).get("major_name")
+            #         student_meta["school_name"] = details.get("schools", {}).get("school_name")
         except Exception as e:
             print(f"Metadata fetch failed: {e}")
             pass

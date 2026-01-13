@@ -340,49 +340,126 @@ class UserProfileService:
 
                 role_filter_id = RoleType.STUDENT.value
 
-            # Build query with eager loading
-            query = (
-                select(UserProfile)
-                .options(
-                    joinedload(UserProfile.role),
-                    selectinload(UserProfile.student).options(
-                        joinedload(Student.school),
-                        joinedload(Student.major),
-                    ),
+            stmt = (
+                select(
+                    UserProfile.id,
+                    UserProfile.email,
+                    UserProfile.full_name,
+                    UserProfile.created_at,
+                    UserProfile.updated_at,
+                    Role.role_name.label("role"),
+                    Student.student_id,
+                    Student.stored_password,
+                    School.school_name,
+                    Major.major_name,
                 )
+                .join(Role, Role.id == UserProfile.role_id)
+                .outerjoin(Student, Student.user_id == UserProfile.id)
+                .outerjoin(School, School.id == Student.school_id)
+                .outerjoin(Major, Major.id == Student.major_id)
             )
-            
-            # Apply filters
+
             if role_filter_id is not None:
-                query = query.where(UserProfile.role_id == role_filter_id)
-            
+                stmt = stmt.where(UserProfile.role_id == role_filter_id)
+
             if search:
                 search_pattern = f"%{search}%"
-                query = query.where(
+                stmt = stmt.where(
                     or_(
                         UserProfile.full_name.ilike(search_pattern),
-                        UserProfile.email.ilike(search_pattern)
+                        UserProfile.email.ilike(search_pattern),
                     )
                 )
-            
-            # Teacher-specific school filter (inner join on students)
-            if viewer_role_normalized == RoleName.TEACHER.value and viewer_school_id is not None:
-                query = query.join(Student, UserProfile.id == Student.user_id)
-                query = query.where(Student.school_id == viewer_school_id)
-            
-            query = query.order_by(UserProfile.created_at.desc())
-            
-            # Execute with pagination
-            # Note: Using unique() because of joined relationships
-            count_stmt = select(func.count()).select_from(query.subquery())
+
+            if viewer_role_normalized == RoleName.TEACHER.value:
+                stmt = stmt.where(Student.school_id == viewer_school_id)
+
+            stmt = stmt.order_by(UserProfile.created_at.desc())
+
+            count_stmt = select(func.count()).select_from(UserProfile)
+
+            if role_filter_id is not None:
+                count_stmt = count_stmt.where(UserProfile.role_id == role_filter_id)
+
+            if search:
+                count_stmt = count_stmt.where(
+                    or_(
+                        UserProfile.full_name.ilike(search_pattern),
+                        UserProfile.email.ilike(search_pattern),
+                    )
+                )
+
+            if viewer_role_normalized == RoleName.TEACHER.value:
+                count_stmt = (
+                    count_stmt
+                    .join(Student, Student.user_id == UserProfile.id)
+                    .where(Student.school_id == viewer_school_id)
+                )
+
             total = (await self.db.execute(count_stmt)).scalar() or 0
-            
-            paginated_query = query.offset(skip).limit(limit)
-            result = await self.db.execute(paginated_query)
-            users = result.unique().scalars().all()
-            
-            shaped_items = [self._shape_user_list_item(user) for user in users]
+
+            stmt = stmt.offset(skip).limit(limit)
+            rows = (await self.db.execute(stmt)).all()
+
+            shaped_items: List[dict] = []
+            for r in rows:
+                shaped_items.append({
+                    "id": str(r.id),
+                    "email": r.email,
+                    "full_name": r.full_name,
+                    "role": r.role,
+                    "created_at": r.created_at.isoformat() if r.created_at else None,
+                    "updated_at": r.updated_at.isoformat() if r.updated_at else None,
+                    "student_id": r.student_id if r.role == RoleName.STUDENT.value else None,
+                    "password": r.stored_password if r.role == RoleName.STUDENT.value else None,
+                    "school_name": r.school_name if r.role == RoleName.STUDENT.value else None,
+                    "major_name": r.major_name if r.role == RoleName.STUDENT.value else None,
+                })
+
             return shaped_items, total
+            # Build query with eager loading
+            # query = (
+            #     select(UserProfile)
+            #     .options(
+            #         joinedload(UserProfile.role),
+            #         selectinload(UserProfile.student).options(
+            #             joinedload(Student.school),
+            #             joinedload(Student.major),
+            #         ),
+            #     )
+            # )
+            
+            # # Apply filters
+            # if role_filter_id is not None:
+            #     query = query.where(UserProfile.role_id == role_filter_id)
+            
+            # if search:
+            #     search_pattern = f"%{search}%"
+            #     query = query.where(
+            #         or_(
+            #             UserProfile.full_name.ilike(search_pattern),
+            #             UserProfile.email.ilike(search_pattern)
+            #         )
+            #     )
+            
+            # # Teacher-specific school filter (inner join on students)
+            # if viewer_role_normalized == RoleName.TEACHER.value and viewer_school_id is not None:
+            #     query = query.join(Student, UserProfile.id == Student.user_id)
+            #     query = query.where(Student.school_id == viewer_school_id)
+            
+            # query = query.order_by(UserProfile.created_at.desc())
+            
+            # # Execute with pagination
+            # # Note: Using unique() because of joined relationships
+            # count_stmt = select(func.count()).select_from(query.subquery())
+            # total = (await self.db.execute(count_stmt)).scalar() or 0
+            
+            # paginated_query = query.offset(skip).limit(limit)
+            # result = await self.db.execute(paginated_query)
+            # users = result.unique().scalars().all()
+            
+            # shaped_items = [self._shape_user_list_item(user) for user in users]
+            # return shaped_items, total
             
         except HTTPException:
             raise

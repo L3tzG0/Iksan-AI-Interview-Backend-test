@@ -11,7 +11,7 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.security import get_current_user
+from app.core.security import get_current_user, get_current_user_from_token_only
 from app.core.auth_user import AuthenticatedUser
 from app.core.config import settings
 from app.core.rate_limit import limiter, get_ip_address
@@ -157,7 +157,7 @@ async def logout(
 @limiter.limit(settings.RATE_LIMIT_DEFAULT)
 async def read_users_me(
     request: Request,
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(get_current_user_from_token_only),
     db: AsyncSession = Depends(get_db)
 ):
     """
