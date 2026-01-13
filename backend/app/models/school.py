@@ -46,12 +46,12 @@ class School(Base):
     teachers: Mapped[List["Teacher"]] = relationship(
         "Teacher",
         back_populates="school",
-        lazy="selectin",
+        lazy="noload", # No direct usage of School.teachers anywhere.
     )
     students: Mapped[List["Student"]] = relationship(
         "Student",
         back_populates="school",
-        lazy="selectin",
+        lazy="noload", # No direct usage of School.students anywhere.
     )
     
     def __repr__(self) -> str:

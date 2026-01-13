@@ -37,7 +37,7 @@ class Role(Base):
     users: Mapped[List["UserProfile"]] = relationship(
         "UserProfile",
         back_populates="role",
-        lazy="selectin",
+        lazy="noload", # No direct usage of Role.users anywhere.
     )
     
     def __repr__(self) -> str:

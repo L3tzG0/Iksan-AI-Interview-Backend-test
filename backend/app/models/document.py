@@ -49,7 +49,7 @@ class Document(Base):
     session: Mapped["Session"] = relationship(
         "Session",
         back_populates="document",
-        lazy="joined",
+        lazy="noload",  # No direct usage of Document.session anywhere.
     )
     
     # Indexes

@@ -59,13 +59,13 @@ class Teacher(Base, TimestampMixin):
     user: Mapped["UserProfile"] = relationship(
         "UserProfile",
         back_populates="teacher",
-        lazy="joined",
+        lazy="select",  # Load on access with separate query
     )
     
     school: Mapped[Optional["School"]] = relationship(
         "School",
         back_populates="teachers",
-        lazy="joined",
+        lazy="select",  # Load on access with separate query
     )
     
     # Indexes defined in migration

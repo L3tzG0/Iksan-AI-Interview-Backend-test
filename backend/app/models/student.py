@@ -111,34 +111,35 @@ class Student(Base, TimestampMixin):
     )
     
     # Relationships
+    # Default to `noload` to avoid accidental, implicit DB loads on attribute access.
     user: Mapped["UserProfile"] = relationship(
         "UserProfile",
         back_populates="student",
-        lazy="joined",
+        lazy="noload",
     )
     
     school: Mapped["School"] = relationship(
         "School",
         back_populates="students",
-        lazy="joined",
+        lazy="noload",
     )
     
     major: Mapped["Major"] = relationship(
         "Major",
         back_populates="students",
-        lazy="joined",
+        lazy="noload",
     )
     
     current_class: Mapped["Class"] = relationship(
         "Class",
         back_populates="students",
-        lazy="joined",
+        lazy="noload",
     )
     
     sessions: Mapped[List["Session"]] = relationship(
         "Session",
         back_populates="student",
-        lazy="selectin",
+        lazy="noload",  # No direct usage of Student.sessions anywhere.
         cascade="all, delete-orphan",
     )
     

@@ -47,7 +47,7 @@ class Major(Base):
     students: Mapped[List["Student"]] = relationship(
         "Student",
         back_populates="major",
-        lazy="selectin",
+        lazy="noload", # No direct usage of Major.students anywhere.
     )
     
     def __repr__(self) -> str:

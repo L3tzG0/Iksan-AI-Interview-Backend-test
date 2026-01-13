@@ -39,7 +39,7 @@ class Class(Base):
     students: Mapped[List["Student"]] = relationship(
         "Student",
         back_populates="current_class",
-        lazy="selectin",
+        lazy="noload",  # No direct usage of Class.students anywhere.
     )
     
     # Check constraint for grade_level

@@ -79,7 +79,7 @@ class UserProfile(Base, TimestampMixin):
     role: Mapped[Optional["Role"]] = relationship(
         "Role",
         back_populates="users",
-        lazy="joined",  # Eager load role for auth checks
+        lazy="selectin",  # Load related Role on access with separate query
     )
     
     student: Mapped[Optional["Student"]] = relationship(

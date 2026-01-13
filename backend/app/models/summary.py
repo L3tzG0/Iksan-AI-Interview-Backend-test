@@ -57,7 +57,7 @@ class Summary(Base):
     session: Mapped["Session"] = relationship(
         "Session",
         back_populates="summary",
-        lazy="joined",
+        lazy="noload",  # No direct usage of Summary.session anywhere.
     )
     
     def __repr__(self) -> str:

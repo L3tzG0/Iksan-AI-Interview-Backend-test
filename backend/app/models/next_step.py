@@ -63,7 +63,7 @@ class NextStep(Base):
     session: Mapped["Session"] = relationship(
         "Session",
         back_populates="next_steps",
-        lazy="joined",
+        lazy="noload",  # No direct usage of NextStep.session anywhere.
     )
     
     # Indexes

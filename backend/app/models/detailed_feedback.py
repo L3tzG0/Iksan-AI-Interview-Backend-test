@@ -115,7 +115,7 @@ class DetailedFeedback(Base):
     session: Mapped["Session"] = relationship(
         "Session",
         back_populates="feedbacks",
-        lazy="joined",
+        lazy="noload",  # No direct usage of DetailedFeedback.session anywhere.
     )
     
     # Constraints and indexes
