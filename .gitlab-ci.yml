@@ -27,21 +27,37 @@ workflow:
     - docker version
     - docker info
     - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY_HOSTNAME" -u "$CI_REGISTRY_USERNAME" --password-stdin
-    # tag fallback: tag pipeline => CI_COMMIT_TAG, branch pipeline => short SHA
+
+    # Immutable tag for every pipeline (tag name if exists, otherwise short SHA)
     - export IMAGE_TAG="${CI_COMMIT_TAG:-$CI_COMMIT_SHORT_SHA}"
     - echo "IMAGE_TAG=$IMAGE_TAG"
-    - export ENV_TAG="latest"
 
-build_backend_api:
+    # Only push :latest on main / test/production
+    - export PUSH_LATEST="false"
+    - |
+      if [ "${CI_COMMIT_BRANCH:-}" = "main" ] || [ "${CI_COMMIT_BRANCH:-}" = "test/production" ]; then
+        PUSH_LATEST="true"
+      fi
+    - echo "PUSH_LATEST=$PUSH_LATEST"
+
+    # Your image namespace (keep consistent across all 3 images)
+    - export PROJECT_NAME="$(echo "$CI_PROJECT_NAME" | sed -e 's/-api//g')"
+    - export REGISTRY_PATH="$CI_REGISTRY_HOSTNAME/gitlab-ci-build"
+    - echo "PROJECT_NAME=$PROJECT_NAME"
+    - echo "REGISTRY_PATH=$REGISTRY_PATH"
+
+build_backend:
   stage: build
   extends: .before_docker_login
+  rules:
+    - changes:
+        - backend/**/*
   script:
     - set -euo pipefail
     - cd backend
-    - PROJECT_NAME="$(echo "$CI_PROJECT_NAME" | sed -e 's/-api//g')"
 
-    - WORKER_IMAGE="$CI_REGISTRY_HOSTNAME/gitlab-ci-build/${PROJECT_NAME}-worker:${IMAGE_TAG}"
-    - API_IMAGE="$CI_REGISTRY_HOSTNAME/gitlab-ci-build/${PROJECT_NAME}-api:${IMAGE_TAG}"
+    - WORKER_IMAGE="$REGISTRY_PATH/${PROJECT_NAME}-worker:${IMAGE_TAG}"
+    - API_IMAGE="$REGISTRY_PATH/${PROJECT_NAME}-api:${IMAGE_TAG}"
 
     - echo "WORKER_IMAGE=$WORKER_IMAGE"
     - echo "API_IMAGE=$API_IMAGE"
@@ -53,9 +69,9 @@ build_backend_api:
     - docker push "$API_IMAGE"
 
     - |
-      if [ "$CI_COMMIT_BRANCH" = "main" ] || [ "$CI_COMMIT_BRANCH" = "test/production" ]; then
-        WORKER_LATEST="$CI_REGISTRY_HOSTNAME/gitlab-ci-build/${PROJECT_NAME}-worker:latest"
-        API_LATEST="$CI_REGISTRY_HOSTNAME/gitlab-ci-build/${PROJECT_NAME}-api:latest"
+      if [ "$PUSH_LATEST" = "true" ]; then
+        WORKER_LATEST="$REGISTRY_PATH/${PROJECT_NAME}-worker:latest"
+        API_LATEST="$REGISTRY_PATH/${PROJECT_NAME}-api:latest"
 
         docker tag "$WORKER_IMAGE" "$WORKER_LATEST"
         docker push "$WORKER_LATEST"
@@ -64,28 +80,25 @@ build_backend_api:
         docker push "$API_LATEST"
       fi
 
-  rules:
-    - changes: [backend/**/*]
-
-
-build_backend_worker:
-  stage: build
-  extends: .before_docker_login
-  script:
-    - cd backend
-    - docker build -f Dockerfile.multistage --target worker -t "$CI_REGISTRY_IMAGE/backend-worker:${SHA_TAG}" -t "$CI_REGISTRY_IMAGE/backend-worker:${ENV_TAG}" .
-    - docker push "$CI_REGISTRY_IMAGE/backend-worker:${SHA_TAG}"
-    - docker push "$CI_REGISTRY_IMAGE/backend-worker:${ENV_TAG}"
-  rules:
-    - changes: [backend/**/*]
-
 build_frontend:
   stage: build
   extends: .before_docker_login
-  script:
-    - cd frontend
-    - docker build -f Dockerfile --build-arg VITE_API_BASE="${VITE_API_BASE}" -t "$CI_REGISTRY_IMAGE/frontend:${SHA_TAG}" -t "$CI_REGISTRY_IMAGE/frontend:${ENV_TAG}" .
-    - docker push "$CI_REGISTRY_IMAGE/frontend:${SHA_TAG}"
-    - docker push "$CI_REGISTRY_IMAGE/frontend:${ENV_TAG}"
   rules:
-    - changes: [frontend/**/*]
+    - changes:
+        - frontend/**/*
+  script:
+    - set -euo pipefail
+    - cd frontend
+
+    - FRONTEND_IMAGE="$REGISTRY_PATH/${PROJECT_NAME}-frontend:${IMAGE_TAG}"
+    - echo "FRONTEND_IMAGE=$FRONTEND_IMAGE"
+
+    - docker build -f Dockerfile --build-arg VITE_API_BASE="${VITE_API_BASE:-}" -t "$FRONTEND_IMAGE" .
+    - docker push "$FRONTEND_IMAGE"
+
+    - |
+      if [ "$PUSH_LATEST" = "true" ]; then
+        FRONTEND_LATEST="$REGISTRY_PATH/${PROJECT_NAME}-frontend:latest"
+        docker tag "$FRONTEND_IMAGE" "$FRONTEND_LATEST"
+        docker push "$FRONTEND_LATEST"
+      fi
